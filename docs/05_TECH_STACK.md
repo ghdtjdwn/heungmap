@@ -13,7 +13,7 @@
 | 프론트엔드 | **Next.js(React)** *또는* **Streamlit** | Next.js=포폴 가치↑(권장) / Streamlit=초고속 MVP·전부 파이썬(시간 급하면) |
 | 지도 | **Kakao Map JS SDK** | 국내 주차/장소 표시에 적합(한국어) |
 | LLM(Tier2 리포트) | **Claude API** (`claude-sonnet` 등) | 보완 피드백 생성 |
-| 협업 | GitHub (아직 push 전) | 브랜치 나눠 페어작업 |
+| 협업 | GitHub | 공개 저장소에서 branch와 pull request로 검토 |
 
 ### 프론트 선택 가이드
 - **포폴 임팩트 우선** → Next.js + FastAPI (분리형). 심사 완성도·확장성에도 유리.
