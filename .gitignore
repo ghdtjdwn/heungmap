@@ -50,8 +50,3 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-
-# Local assistant context
-CLAUDE.md
-AGENTS.md
-**/AGENTS.md
