@@ -10,20 +10,20 @@
 | 예측 모델(Tier1) | **LightGBM**(or XGBoost), scikit-learn | 표 데이터에 강함·튜토리얼 풍부 |
 | 설명가능성(Tier2) | **SHAP** | 예측 근거 시각화 |
 | 백엔드 API | **FastAPI** | 파이썬이라 러닝커브 최소 |
-| 프론트엔드 | **Next.js(React)** *또는* **Streamlit** | Next.js=포폴 가치↑(권장) / Streamlit=초고속 MVP·전부 파이썬(시간 급하면) |
+| 프론트엔드 | **Next.js(React)** *또는* **Streamlit** | Next.js=제품 UI·확장성 / Streamlit=빠른 MVP·단일 Python 스택 |
 | 지도 | **Kakao Map JS SDK** | 국내 주차/장소 표시에 적합(한국어) |
 | LLM(Tier2 리포트) | **Claude API** (`claude-sonnet` 등) | 보완 피드백 생성 |
 | 협업 | GitHub | 공개 저장소에서 branch와 pull request로 검토 |
 
 ### 프론트 선택 가이드
-- **포폴 임팩트 우선** → Next.js + FastAPI (분리형). 심사 완성도·확장성에도 유리.
-- **완성 확실성/시간 우선** → 우선 Streamlit로 Tier0 MVP 뽑고, 여유 되면 Next.js로 이관.
-- 초심자 2인·8주라면 **"Tier0는 Streamlit로 빠르게 → 되면 Next.js"** 도 현실적 타협안.
+- **제품 UI와 확장성 우선** → Next.js + FastAPI 분리형. 빠른 검증이 더 중요하면 Streamlit 단일 앱으로 시작한다.
+- **검증 속도 우선** → Streamlit로 Tier 0를 검증하고, 제품 UI 요구가 확정된 뒤 Next.js로 이관.
+- 2인·8주 일정에서는 데이터 파이프라인과 예측 정확도를 먼저 검증한다.
 
 ## 제안 폴더 구조 (모노레포)
 ```
 heungmap/
-├─ README.md, CLAUDE.md, .gitignore, .env.example
+├─ README.md, .gitignore, .env.example
 ├─ docs/                # 기획·규정·로드맵 (현재 폴더)
 ├─ data/
 │  ├─ raw/              # API 원본 (gitignore)
@@ -33,7 +33,7 @@ heungmap/
 ├─ backend/             # FastAPI (예측 API 서빙)
 └─ frontend/            # Next.js 또는 streamlit_app/
 ```
-> 위 code 디렉터리는 **바이브코딩 시 생성**. 지금은 docs/data만 존재.
+> 위 코드 디렉터리는 구현 단계에서 생성한다. 현재는 docs/data만 존재한다.
 
 ## 환경 셋업 메모 (첫 세션에서)
 - Python 3.11+ 설치 확인 → `python -m venv .venv` → 활성화 → `pip install pandas requests lightgbm scikit-learn shap fastapi uvicorn python-dotenv`
