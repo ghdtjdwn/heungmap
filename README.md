@@ -68,6 +68,14 @@ flowchart LR
 기반 흐름을 완성하기 전에는 후속 단계를 시작하지 않습니다. 범위를 줄일 때도 TourAPI를 사용하는
 실행 가능한 제품 흐름과 검증 가능한 예측 근거는 유지합니다.
 
+## 2인 역할 분담
+
+두 팀원은 frontend와 backend 같은 기술 계층이 아니라 기획자 기능과 사용자 기능으로 나눠 각 흐름을
+end-to-end로 책임집니다. 사용자 기능은 역할 확정 후 EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해
+정보구조와 상호작용 기준으로 삼습니다. 현재는 사용자 요청에 따라 외부 화면 조사를 시작하지 않았습니다.
+
+담당자별 첫 작업, 공유 데이터 계약과 완료 조건은 [2인 역할 분담 문서](docs/TEAM_WORKFLOW.md)에 있습니다.
+
 ## 데이터와 기술 후보
 
 | 영역 | 현재 후보 | 확정 조건 |
@@ -98,6 +106,7 @@ cp .env.example .env
 ## 문서 지도
 
 - [서비스 범위](docs/SERVICE_SPEC.md)
+- [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
 - [1차·최종 심사기준과 자체 점검표](docs/EVALUATION_CRITERIA.md)
