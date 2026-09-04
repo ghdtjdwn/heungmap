@@ -82,6 +82,14 @@
 - model이나 LLM이 실패해도 입력 초안, 규칙 baseline과 검증된 근거는 유지합니다.
 - 전체 입력·출력 후보와 기획자 담당 범위는 `PLANNER_WORKFLOW.md`에서 관리합니다.
 
+## D13. 역할별 end-to-end 소유권과 shared-first 시작 순서
+
+- 역할을 정한 뒤 기획자와 사용자 담당은 각 사용자 흐름의 화면, 연동, 오류, 테스트와 문서를 끝까지 책임집니다.
+- 기능 구현 전에 두 명이 TourAPI·지역 방문자 데이터 게이트와 공통 `Event`·`Prediction`·오류 계약을 함께 확정합니다.
+- 기획자 담당의 첫 결과는 LLM이 없는 mock 기반 입력→진단 흐름이고, 사용자 담당의 첫 결과는 공개 EVENT-US 조사와 mock 기반 캘린더→지도→상세 흐름입니다.
+- 두 기능 PR은 공통 contract v1 이후 병렬로 진행하며, 계약 변경은 별도 shared PR과 상대 담당자 검토를 거칩니다.
+- 역할 직후의 작업 순서와 파일 소유권은 `00_START_HERE.md`, 사용자 담당의 상세 범위는 `VISITOR_WORKFLOW.md`에서 관리합니다.
+
 ## 미결 사항
 
 - Next.js와 Streamlit 중 frontend 선택
