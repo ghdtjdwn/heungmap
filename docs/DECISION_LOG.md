@@ -90,7 +90,14 @@
 - 두 기능 PR은 공통 contract v0.1 확인 이후 병렬로 진행하며, 계약 변경은 별도 shared PR과 상대 담당자 검토를 거칩니다.
 - 역할 직후의 작업 순서와 파일 소유권은 `00_START_HERE.md`, 사용자 담당의 상세 범위는 `VISITOR_WORKFLOW.md`에서 관리합니다.
 
-## D14. OpenAPI 3.1 기반 단일 공통 계약
+## D14. 역할 담당자 확정
+
+- 홍성주는 기획자 기능을 맡아 기획 조건 입력부터 수요 결과·근거·보완점까지 end-to-end로 책임집니다.
+- 박지성은 사용자 기능을 맡아 행사 탐색부터 캘린더·지도·상세·주변 정보까지 end-to-end로 책임집니다.
+- 공유 데이터·예측 계약 관리자와 통합 검토자는 후속 합의로 정합니다.
+- 역할이 확정됐으므로 박지성은 `VISITOR_WORKFLOW.md`에 따라 EVENT-US 공개 화면 조사를 시작할 수 있습니다.
+
+## D15. OpenAPI 3.1 기반 단일 공통 계약
 
 - 기획자와 사용자 서비스의 공통 HTTP·JSON 계약은 `contracts/openapi.yaml` 한 곳에서 version `0.1.0`으로 관리합니다.
 - OpenAPI 3.1.0과 JSON Schema 2020-12 호환 schema를 사용해 FastAPI·Pydantic과 이후 TypeScript client 생성을 연결합니다.
@@ -99,7 +106,7 @@
 - 예측할 수 없음은 정상적인 `unavailable` 상태로 반환해 행사 탐색을 유지하고, HTTP 오류는 RFC 9457 `application/problem+json` 형식을 사용합니다.
 - 최신 OpenAPI 3.2보다 현재 FastAPI와 client tooling이 직접 지원하는 3.1.0의 호환성과 팀 유지보수성을 우선했습니다.
 
-## D15. Next.js·FastAPI와 개인 Ubuntu 서버 단일 배포
+## D16. Next.js·FastAPI와 개인 Ubuntu 서버 단일 배포
 
 - frontend는 Next.js App Router·TypeScript, backend는 FastAPI·Pydantic으로 확정합니다.
 - Streamlit은 data spike에는 빠르지만 목표 캘린더·지도·반응형 UI와 URL 상태 구현에 제약이 있어 제품 frontend에서 제외합니다.
