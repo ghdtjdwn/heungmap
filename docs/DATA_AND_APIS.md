@@ -23,6 +23,7 @@
 API key는 `.env`에 저장하고 원본 응답은 ignored `data/raw/` 경로에서 관리합니다. TourAPI 안내는
 <https://api.visitkorea.or.kr>, 관광 데이터랩 안내는 <https://datalab.visitkorea.or.kr>에서 확인합니다.
 전체 후보와 흥할지도 활용 판단은 [OpenAPI 카탈로그](OPENAPI_CATALOG.md)에 정리합니다.
+모델의 전체 입력·출력 후보와 누수 방지 기준은 [AI 모델 계획](MODEL_PLAN.md)에 정리합니다.
 
 ## 조립 과정
 
