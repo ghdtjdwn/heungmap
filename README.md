@@ -107,6 +107,7 @@ cp .env.example .env
 
 - [서비스 범위](docs/SERVICE_SPEC.md)
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
+- [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
 - [AI 모델 목표·입출력 후보·학습 및 검증 계획](docs/MODEL_PLAN.md)
