@@ -109,6 +109,7 @@ cp .env.example .env
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
+- [AI 모델 목표·입출력 후보·학습 및 검증 계획](docs/MODEL_PLAN.md)
 - [1차·최종 심사기준과 자체 점검표](docs/EVALUATION_CRITERIA.md)
 - [한국관광공사 OpenAPI와 외부 참고 API 카탈로그](docs/OPENAPI_CATALOG.md)
 - [기술 스택 후보](docs/TECH_STACK.md)
