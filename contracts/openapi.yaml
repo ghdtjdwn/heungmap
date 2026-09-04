@@ -1,0 +1,1435 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: HeungMap Shared API
+  version: 0.1.0
+  summary: 기획자·사용자 서비스가 공유하는 행사, 주변 장소와 수요 분석 계약
+  description: |
+    이 문서는 구현 시작용 v0.1 기준선이다. 모든 예시는 가상 데이터다.
+    지역 방문수요를 특정 축제 관람객 수로 표현하지 않는다.
+servers:
+  - url: /api/v1
+    description: 현재 host 기준 API v1
+tags:
+  - name: system
+  - name: events
+  - name: planner
+paths:
+  /health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: process 상태 확인
+      responses:
+        "200":
+          description: process가 요청을 받을 수 있음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /events:
+    get:
+      tags: [events]
+      operationId: listEvents
+      summary: 목록·캘린더·지도 공통 행사 검색
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: area_code
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 20
+        - name: sigungu_code
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 20
+        - name: event_types
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            items:
+              $ref: "#/components/schemas/EventType"
+        - name: sort
+          in: query
+          schema:
+            $ref: "#/components/schemas/EventSort"
+        - name: latitude
+          in: query
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: longitude
+          in: query
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+        - name: south
+          in: query
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: west
+          in: query
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+        - name: north
+          in: query
+          schema:
+            type: number
+            minimum: -90
+            maximum: 90
+        - name: east
+          in: query
+          schema:
+            type: number
+            minimum: -180
+            maximum: 180
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: 같은 filter를 사용하는 행사 page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /events/{event_id}:
+    get:
+      tags: [events]
+      operationId: getEvent
+      summary: 행사 상세 조회
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: 행사 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDetail"
+        "404":
+          $ref: "#/components/responses/EventNotFound"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /events/{event_id}/nearby:
+    get:
+      tags: [events]
+      operationId: listNearbyPlaces
+      summary: 행사 주변 장소 조회
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+        - name: place_types
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            items:
+              $ref: "#/components/schemas/NearbyPlaceType"
+        - name: radius_m
+          in: query
+          schema:
+            type: integer
+            minimum: 100
+            maximum: 20000
+            default: 3000
+      responses:
+        "200":
+          description: 주변 장소 목록. 일부 source 실패는 warning으로 표시
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NearbyPlaceListResponse"
+        "404":
+          $ref: "#/components/responses/EventNotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /events/{event_id}/prediction:
+    get:
+      tags: [events]
+      operationId: getEventPrediction
+      summary: 행사에 연결된 공통 예측 조회
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: 예측 가능 또는 정상적인 예측 불가 상태
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PredictionResult"
+        "404":
+          $ref: "#/components/responses/EventNotFound"
+  /planner/analyses:
+    post:
+      tags: [planner]
+      operationId: createPlannerAnalysis
+      summary: 기획자 입력 snapshot의 규칙·수요 분석
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannerAnalysisRequest"
+      responses:
+        "200":
+          description: 정규화한 입력, 예측 상태, 근거와 규칙 추천
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerAnalysisResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+components:
+  parameters:
+    EventId:
+      name: event_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^evt_[a-z0-9_\\-]+$"
+        minLength: 5
+        maxLength: 128
+  responses:
+    BadRequest:
+      description: query 조합 오류
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ValidationError:
+      description: field validation 오류
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    EventNotFound:
+      description: 행사 ID를 찾을 수 없음
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UpstreamUnavailable:
+      description: 필요한 외부 API가 일시적으로 불가하고 안전한 fallback도 없음
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service, contract_version, checked_at]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          const: heungmap-api
+        contract_version:
+          type: string
+          const: 0.1.0
+        checked_at:
+          type: string
+          format: date-time
+    ResponseMeta:
+      type: object
+      required: [contract_version, generated_at, request_id]
+      properties:
+        contract_version:
+          type: string
+          const: 0.1.0
+        generated_at:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        warnings:
+          type: array
+          items:
+            type: string
+    EventType:
+      type: string
+      enum:
+        - festival
+        - local_event
+        - concert
+        - club_performance
+        - exhibition
+        - conference
+        - experience
+        - market
+        - other
+    EventSort:
+      type: string
+      enum: [relevance, start_date, distance, demand]
+      default: start_date
+    SourceRef:
+      type: object
+      required:
+        - source_id
+        - source_type
+        - provider_name
+        - dataset_name
+        - retrieved_at
+      properties:
+        source_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        source_type:
+          type: string
+          enum:
+            - tourapi
+            - kto_datalab
+            - planner_input
+            - heungmap_derived
+            - heungmap_model
+            - weather
+            - other_public
+        provider_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        dataset_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        source_record_id:
+          type: string
+          maxLength: 200
+        source_url:
+          type: string
+          format: uri
+        retrieved_at:
+          type: string
+          format: date-time
+        data_as_of:
+          type: string
+          format: date-time
+        limitation:
+          type: string
+          maxLength: 1000
+    Coordinates:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+    RegionRef:
+      type: object
+      required: [area_code, display_name]
+      properties:
+        area_code:
+          type: string
+          minLength: 1
+          maxLength: 20
+        sigungu_code:
+          type: string
+          minLength: 1
+          maxLength: 20
+        legal_dong_code:
+          type: string
+          minLength: 1
+          maxLength: 20
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+    Venue:
+      type: object
+      required: [name]
+      properties:
+        venue_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        address:
+          type: string
+          maxLength: 300
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+        capacity:
+          type: integer
+          minimum: 1
+        indoor_outdoor:
+          type: string
+          enum: [indoor, outdoor, mixed, unknown]
+        accessibility_summary:
+          type: string
+          maxLength: 500
+    ImageRef:
+      type: object
+      required: [url, alt]
+      properties:
+        url:
+          type: string
+          format: uri
+        alt:
+          type: string
+          minLength: 1
+          maxLength: 300
+        source_id:
+          type: string
+          maxLength: 128
+    DataQuality:
+      type: object
+      required: [completeness, warnings, is_mock]
+      properties:
+        completeness:
+          type: string
+          enum: [low, medium, high]
+        warnings:
+          type: array
+          items:
+            type: string
+        is_mock:
+          type: boolean
+    AvailablePredictionSummary:
+      type: object
+      required: [status, prediction_id, prediction_type, as_of, confidence, is_mock]
+      properties:
+        status:
+          type: string
+          const: available
+        prediction_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        prediction_type:
+          $ref: "#/components/schemas/PredictionType"
+        as_of:
+          type: string
+          format: date-time
+        demand_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        congestion_level:
+          $ref: "#/components/schemas/DemandLevel"
+        ticket_demand_level:
+          $ref: "#/components/schemas/DemandLevel"
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+        is_mock:
+          type: boolean
+    UnavailablePredictionSummary:
+      type: object
+      required: [status, reason_code, message, as_of, retryable, is_mock]
+      properties:
+        status:
+          type: string
+          const: unavailable
+        reason_code:
+          $ref: "#/components/schemas/PredictionUnavailableReason"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+        as_of:
+          type: string
+          format: date-time
+        retryable:
+          type: boolean
+        is_mock:
+          type: boolean
+    PredictionSummary:
+      oneOf:
+        - $ref: "#/components/schemas/AvailablePredictionSummary"
+        - $ref: "#/components/schemas/UnavailablePredictionSummary"
+      discriminator:
+        propertyName: status
+    EventSummary:
+      type: object
+      required:
+        - event_id
+        - origin
+        - visibility
+        - title
+        - event_type
+        - event_status
+        - start_date
+        - end_date
+        - region
+        - sources
+        - data_quality
+        - updated_at
+      properties:
+        event_id:
+          type: string
+          pattern: "^evt_[a-z0-9_\\-]+$"
+        origin:
+          type: string
+          enum: [tourapi, planner]
+        visibility:
+          type: string
+          enum: [public, draft]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        event_type:
+          $ref: "#/components/schemas/EventType"
+        event_status:
+          type: string
+          enum: [scheduled, ongoing, ended, cancelled, unknown]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        region:
+          $ref: "#/components/schemas/RegionRef"
+        venue:
+          $ref: "#/components/schemas/Venue"
+        thumbnail:
+          $ref: "#/components/schemas/ImageRef"
+        price_summary:
+          type: string
+          maxLength: 200
+        prediction_summary:
+          $ref: "#/components/schemas/PredictionSummary"
+        sources:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SourceRef"
+        data_quality:
+          $ref: "#/components/schemas/DataQuality"
+        updated_at:
+          type: string
+          format: date-time
+    EventDetail:
+      allOf:
+        - $ref: "#/components/schemas/EventSummary"
+        - type: object
+          properties:
+            description:
+              type: string
+              maxLength: 10000
+            homepage_url:
+              type: string
+              format: uri
+            images:
+              type: array
+              items:
+                $ref: "#/components/schemas/ImageRef"
+            program_summary:
+              type: string
+              maxLength: 3000
+    SearchFilter:
+      type: object
+      required: [sort, page, page_size]
+      dependentRequired:
+        start_date: [end_date]
+        end_date: [start_date]
+        latitude: [longitude]
+        longitude: [latitude]
+        south: [west, north, east]
+        west: [south, north, east]
+        north: [south, west, east]
+        east: [south, west, north]
+      allOf:
+        - if:
+            properties:
+              sort:
+                const: distance
+            required: [sort]
+          then:
+            required: [latitude, longitude]
+      properties:
+        query:
+          type: string
+          maxLength: 100
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        area_code:
+          type: string
+        sigungu_code:
+          type: string
+        event_types:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EventType"
+        sort:
+          $ref: "#/components/schemas/EventSort"
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+        south:
+          type: number
+          minimum: -90
+          maximum: 90
+        west:
+          type: number
+          minimum: -180
+          maximum: 180
+        north:
+          type: number
+          minimum: -90
+          maximum: 90
+        east:
+          type: number
+          minimum: -180
+          maximum: 180
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+    EventListResponse:
+      type: object
+      required: [items, page, page_size, applied_filters, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventSummary"
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total_count:
+          type: integer
+          minimum: 0
+        applied_filters:
+          $ref: "#/components/schemas/SearchFilter"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    NearbyPlaceType:
+      type: string
+      enum:
+        - parking
+        - lodging
+        - restaurant
+        - cafe
+        - tourist_attraction
+        - cultural_facility
+        - shopping
+        - restroom
+        - transit
+        - other
+    NearbyPlace:
+      type: object
+      required: [place_id, place_type, name, sources]
+      properties:
+        place_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        place_type:
+          $ref: "#/components/schemas/NearbyPlaceType"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        address:
+          type: string
+          maxLength: 300
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+        distance_m:
+          type: integer
+          minimum: 0
+        accessibility_summary:
+          type: string
+          maxLength: 500
+        sources:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SourceRef"
+    NearbyPlaceListResponse:
+      type: object
+      required: [event_id, items, radius_m, meta]
+      properties:
+        event_id:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NearbyPlace"
+        radius_m:
+          type: integer
+          minimum: 100
+          maximum: 20000
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    NearbyAnalysisUnavailableReason:
+      type: string
+      enum: [not_requested, missing_coordinates, unsupported_scope, upstream_unavailable]
+    NearbyAnalysisAvailable:
+      type: object
+      required: [status, items, radius_m, is_mock]
+      properties:
+        status:
+          type: string
+          const: available
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NearbyPlace"
+        radius_m:
+          type: integer
+          minimum: 100
+          maximum: 20000
+        is_mock:
+          type: boolean
+    NearbyAnalysisUnavailable:
+      type: object
+      required: [status, reason_code, message, retryable, is_mock]
+      properties:
+        status:
+          type: string
+          const: unavailable
+        reason_code:
+          $ref: "#/components/schemas/NearbyAnalysisUnavailableReason"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+        retryable:
+          type: boolean
+        is_mock:
+          type: boolean
+    NearbyAnalysisResult:
+      oneOf:
+        - $ref: "#/components/schemas/NearbyAnalysisAvailable"
+        - $ref: "#/components/schemas/NearbyAnalysisUnavailable"
+      discriminator:
+        propertyName: status
+    PredictionType:
+      type: string
+      enum:
+        - official_attendance
+        - ticket_demand
+        - regional_visit_demand
+        - relative_demand_score
+    ConfidenceLevel:
+      type: string
+      enum: [low, medium, high]
+    DemandLevel:
+      type: string
+      enum: [low, medium, high, very_high, unknown]
+    PredictionUnavailableReason:
+      type: string
+      enum:
+        - insufficient_data
+        - unsupported_event_type
+        - missing_required_input
+        - model_unavailable
+        - upstream_unavailable
+    PredictionRangeMetric:
+      type: object
+      required: [metric_name, unit, p10, p50, p90]
+      properties:
+        metric_name:
+          type: string
+          enum: [official_attendance, ticket_demand, regional_visit_demand]
+        unit:
+          type: string
+          enum: [people, percentage, percent_change]
+        p10:
+          type: number
+          minimum: 0
+        p50:
+          type: number
+          minimum: 0
+        p90:
+          type: number
+          minimum: 0
+    PredictionScoreMetric:
+      type: object
+      required: [metric_name, unit, value]
+      properties:
+        metric_name:
+          type: string
+          const: relative_demand_score
+        unit:
+          type: string
+          const: index_0_100
+        value:
+          type: number
+          minimum: 0
+          maximum: 100
+    PredictionMetric:
+      oneOf:
+        - $ref: "#/components/schemas/PredictionRangeMetric"
+        - $ref: "#/components/schemas/PredictionScoreMetric"
+      discriminator:
+        propertyName: metric_name
+        mapping:
+          official_attendance: "#/components/schemas/PredictionRangeMetric"
+          ticket_demand: "#/components/schemas/PredictionRangeMetric"
+          regional_visit_demand: "#/components/schemas/PredictionRangeMetric"
+          relative_demand_score: "#/components/schemas/PredictionScoreMetric"
+    PredictionFactor:
+      type: object
+      required: [factor_id, label, direction, explanation, evidence_refs]
+      properties:
+        factor_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        direction:
+          type: string
+          enum: [up, down, neutral, unknown]
+        importance:
+          type: number
+          minimum: 0
+        explanation:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        evidence_refs:
+          type: array
+          items:
+            type: string
+    PredictionIndicators:
+      type: object
+      properties:
+        demand_score:
+          type: number
+          minimum: 0
+          maximum: 100
+        congestion_level:
+          $ref: "#/components/schemas/DemandLevel"
+        ticket_demand_level:
+          $ref: "#/components/schemas/DemandLevel"
+    PredictionComponent:
+      type: object
+      required: [component_type, value, unit, scope_description, evidence_refs]
+      properties:
+        component_type:
+          type: string
+          enum: [regional_baseline, event_uplift]
+        value:
+          type: number
+        unit:
+          type: string
+          enum: [people, percentage, percent_change, index_points]
+        scope_description:
+          type: string
+          minLength: 1
+          maxLength: 500
+        evidence_refs:
+          type: array
+          items:
+            type: string
+    AvailablePrediction:
+      type: object
+      required:
+        - status
+        - prediction_id
+        - event_id
+        - prediction_type
+        - as_of
+        - target_start_date
+        - target_end_date
+        - primary_metric
+        - confidence
+        - data_sufficiency
+        - method
+        - model_version
+        - factors
+        - evidence
+        - sources
+        - limitations
+        - out_of_distribution
+        - fallback_used
+        - created_at
+        - is_mock
+      properties:
+        status:
+          type: string
+          const: available
+        prediction_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        event_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        prediction_type:
+          $ref: "#/components/schemas/PredictionType"
+        as_of:
+          type: string
+          format: date-time
+        target_start_date:
+          type: string
+          format: date
+        target_end_date:
+          type: string
+          format: date
+        target_region:
+          $ref: "#/components/schemas/RegionRef"
+        primary_metric:
+          $ref: "#/components/schemas/PredictionMetric"
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/PredictionComponent"
+        indicators:
+          $ref: "#/components/schemas/PredictionIndicators"
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+        data_sufficiency:
+          type: string
+          enum: [limited, sufficient]
+        method:
+          type: string
+          enum: [rules, machine_learning, external_benchmark]
+        model_version:
+          type: string
+          minLength: 1
+          maxLength: 100
+        factors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PredictionFactor"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        sources:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SourceRef"
+        limitations:
+          type: array
+          items:
+            type: string
+        out_of_distribution:
+          type: boolean
+        fallback_used:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        is_mock:
+          type: boolean
+    UnavailablePrediction:
+      type: object
+      required:
+        - status
+        - event_id
+        - reason_code
+        - message
+        - as_of
+        - sources
+        - limitations
+        - retryable
+        - is_mock
+      properties:
+        status:
+          type: string
+          const: unavailable
+        event_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        reason_code:
+          $ref: "#/components/schemas/PredictionUnavailableReason"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+        as_of:
+          type: string
+          format: date-time
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceRef"
+        limitations:
+          type: array
+          items:
+            type: string
+        retryable:
+          type: boolean
+        is_mock:
+          type: boolean
+    PredictionResult:
+      oneOf:
+        - $ref: "#/components/schemas/AvailablePrediction"
+        - $ref: "#/components/schemas/UnavailablePrediction"
+      discriminator:
+        propertyName: status
+    PlannerType:
+      type: string
+      enum:
+        - local_government
+        - public_agency
+        - company
+        - event_agency
+        - performance_agency
+        - venue_operator
+        - club_or_group
+        - independent_planner
+        - artist
+        - other
+    PlanningStage:
+      type: string
+      enum:
+        - idea
+        - research
+        - budget_application
+        - venue_search
+        - booking
+        - marketing_preparation
+        - ticket_sales
+        - final_preparation
+    DateRange:
+      type: object
+      required: [start_date, end_date]
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+    EventDraft:
+      type: object
+      required:
+        - event_id
+        - planner_type
+        - planning_stage
+        - event_type
+        - purpose
+        - theme_keywords
+        - schedule_selection_mode
+        - region_selection_mode
+        - indoor_outdoor
+        - target_audience
+        - ticket_type
+        - fixed_constraints
+      allOf:
+        - if:
+            properties:
+              schedule_selection_mode:
+                const: fixed
+            required: [schedule_selection_mode]
+          then:
+            required: [start_date, end_date]
+        - if:
+            properties:
+              schedule_selection_mode:
+                const: candidates
+            required: [schedule_selection_mode]
+          then:
+            required: [date_candidates]
+        - if:
+            properties:
+              region_selection_mode:
+                const: fixed
+            required: [region_selection_mode]
+          then:
+            required: [region]
+        - if:
+            properties:
+              region_selection_mode:
+                const: candidates
+            required: [region_selection_mode]
+          then:
+            required: [region_candidates]
+        - if:
+            properties:
+              event_type:
+                const: other
+            required: [event_type]
+          then:
+            required: [event_type_other]
+        - if:
+            properties:
+              purpose:
+                const: other
+            required: [purpose]
+          then:
+            required: [purpose_other]
+        - if:
+            properties:
+              target_audience:
+                contains:
+                  const: other
+            required: [target_audience]
+          then:
+            required: [target_audience_other]
+      properties:
+        event_id:
+          type: string
+          pattern: "^evt_planner_[a-z0-9_\\-]+$"
+        working_title:
+          type: string
+          maxLength: 200
+        planner_type:
+          $ref: "#/components/schemas/PlannerType"
+        planning_stage:
+          $ref: "#/components/schemas/PlanningStage"
+        event_type:
+          $ref: "#/components/schemas/EventType"
+        event_type_other:
+          type: string
+          maxLength: 100
+        purpose:
+          type: string
+          enum:
+            - profit
+            - regional_revitalization
+            - tourism
+            - brand
+            - fandom
+            - community
+            - culture
+            - education
+            - social_contribution
+            - other
+        purpose_other:
+          type: string
+          maxLength: 200
+        theme_keywords:
+          type: array
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        schedule_selection_mode:
+          type: string
+          enum: [fixed, candidates, recommend, unknown]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        date_candidates:
+          type: array
+          minItems: 2
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/DateRange"
+        region_selection_mode:
+          type: string
+          enum: [fixed, candidates, recommend, unknown]
+        region:
+          $ref: "#/components/schemas/RegionRef"
+        region_candidates:
+          type: array
+          minItems: 2
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/RegionRef"
+        venue:
+          $ref: "#/components/schemas/Venue"
+        indoor_outdoor:
+          type: string
+          enum: [indoor, outdoor, mixed, undecided]
+        target_audience:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - child
+              - teen
+              - young_adult
+              - middle_aged
+              - senior
+              - family
+              - local_resident
+              - domestic_tourist
+              - foreign_tourist
+              - fandom
+              - other
+        target_audience_other:
+          type: string
+          maxLength: 300
+        target_attendance:
+          type: integer
+          minimum: 1
+        ticket_type:
+          type: string
+          enum: [free, paid, mixed, undecided]
+        budget_min_krw:
+          type: integer
+          minimum: 0
+        budget_max_krw:
+          type: integer
+          minimum: 0
+        fixed_constraints:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            maxLength: 500
+        other_notes:
+          type: string
+          maxLength: 3000
+    PlannerAnalysisRequest:
+      type: object
+      required: [contract_version, client_request_id, event_draft, requested_outputs]
+      properties:
+        contract_version:
+          type: string
+          const: 0.1.0
+        client_request_id:
+          type: string
+          format: uuid
+        event_draft:
+          $ref: "#/components/schemas/EventDraft"
+        requested_outputs:
+          type: array
+          uniqueItems: true
+          minItems: 1
+          items:
+            type: string
+            enum: [prediction, nearby_places, rule_recommendations]
+    Evidence:
+      type: object
+      required: [evidence_id, value_type, label, display_value, source_refs]
+      properties:
+        evidence_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        value_type:
+          type: string
+          enum: [user_input, verified_fact, derived_value, model_prediction, assumption]
+        label:
+          type: string
+          minLength: 1
+          maxLength: 200
+        display_value:
+          type: string
+          minLength: 1
+          maxLength: 500
+        numeric_value:
+          type: number
+        unit:
+          type: string
+          maxLength: 50
+        as_of:
+          type: string
+          format: date-time
+        confidence:
+          $ref: "#/components/schemas/ConfidenceLevel"
+        source_refs:
+          type: array
+          items:
+            type: string
+        limitation:
+          type: string
+          maxLength: 1000
+    Recommendation:
+      type: object
+      required:
+        - recommendation_id
+        - category
+        - priority
+        - title
+        - action
+        - reason
+        - evidence_refs
+        - requires_human_review
+      properties:
+        recommendation_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        category:
+          type: string
+          enum: [demand, venue, budget, marketing, operation, risk, accessibility, tourism]
+        priority:
+          type: string
+          enum: [low, medium, high]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        action:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        requires_human_review:
+          type: boolean
+    PlannerAnalysisResponse:
+      type: object
+      required:
+        - analysis_id
+        - contract_version
+        - request_snapshot
+        - prediction
+        - nearby_places
+        - evidence
+        - rule_recommendations
+        - meta
+      properties:
+        analysis_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        contract_version:
+          type: string
+          const: 0.1.0
+        request_snapshot:
+          $ref: "#/components/schemas/EventDraft"
+        prediction:
+          $ref: "#/components/schemas/PredictionResult"
+        nearby_places:
+          $ref: "#/components/schemas/NearbyAnalysisResult"
+        evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evidence"
+        rule_recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          minLength: 1
+          maxLength: 200
+        message:
+          type: string
+          minLength: 1
+          maxLength: 500
+    Problem:
+      type: object
+      required: [type, title, status, detail, instance, code, retryable, trace_id]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          pattern: "^[A-Z][A-Z0-9_]+$"
+        retryable:
+          type: boolean
+        trace_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        field_errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldError"

@@ -3,9 +3,9 @@
 한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
 
-현재 저장소에는 제품·데이터·기술 명세와 환경 변수 예시가 있습니다. 구현된 애플리케이션이나
-학습된 모델은 아직 제공하지 않으며, 모델링에 앞서 축제와 방문자 데이터를 방어 가능한 방식으로
-결합할 수 있는지 검증하는 단계입니다.
+현재 저장소에는 제품·데이터·기술 명세, 기계 판독 가능한 공통 API 계약과 환경 변수 예시가 있습니다.
+구현된 애플리케이션이나 학습된 모델은 아직 제공하지 않으며, 모델링에 앞서 축제와 방문자 데이터를
+방어 가능한 방식으로 결합할 수 있는지 검증하는 단계입니다.
 
 ## 해결하려는 문제
 
@@ -75,27 +75,28 @@ end-to-end로 책임집니다. 홍성주는 기획자 기능을, 박지성은 �
 EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해 정보구조와 상호작용 기준으로 삼습니다. 역할은
 확정됐지만 조사 결과를 기록하기 전까지 실제 화면을 확인했다고 주장하지 않습니다.
 
-역할을 정한 직후의 공동 작업, 첫 PR 순서와 파일 소유권은
+역할 확정 후의 공동 작업, 첫 PR 순서와 파일 소유권은
 [작업 시작 안내](docs/00_START_HERE.md)에 있습니다. 담당자별 책임과 협업 규칙은
 [2인 역할 분담 문서](docs/TEAM_WORKFLOW.md)를 따릅니다.
 
-## 데이터와 기술 후보
+## 데이터와 기술 기준
 
-| 영역 | 현재 후보 | 확정 조건 |
+| 영역 | 현재 기준 | 확인·적용 조건 |
 | --- | --- | --- |
 | 관광 데이터 | TourAPI `searchFestival2`, 위치 기반 관광 정보 | API 응답과 이용 조건 확인 |
 | 예측 label | 지역·기간별 방문자 수 또는 평상시 대비 증가분 | 축제 단위 결합 가능성과 왜곡 검토 |
 | 데이터·모델 | Python, pandas, LightGBM, SHAP | baseline보다 의미 있는 검증 결과 |
-| API | FastAPI | model serving이 필요할 때 채택 |
-| Web | Next.js 또는 Streamlit | 사용자 흐름, 유지보수 비용과 개발 속도로 결정 |
+| API | FastAPI·Pydantic | Python data·model과 OpenAPI 계약 연결 |
+| Web | Next.js App Router·TypeScript | 캘린더·지도·단계형 form과 URL 상태 구현 |
 | Map | Kakao Map JavaScript SDK | 위치·주차·숙박 표현 검증 |
+| 배포 | 개인 Ubuntu 서버·Nginx·systemd | server 사전점검을 통과한 뒤 단일 instance 배포 |
 
 API key, 원본·가공 dataset, 학습 artifact와 개인 설정은 Git에 포함하지 않습니다. 재현 절차와 schema만
 문서화하고 실제 데이터는 ignored `data/` 경로에서 다룹니다.
 
 ## 저장소 사용법
 
-현재는 문서와 환경 변수 예시만 있으며 실행할 application command는 없습니다.
+현재는 문서, 공통 API 계약과 환경 변수 예시만 있으며 실행할 application command는 없습니다.
 
 ```bash
 git clone https://github.com/ghdtjdwn/heungmap.git
@@ -111,6 +112,7 @@ cp .env.example .env
 - [역할 결정 후 바로 시작하는 안내](docs/00_START_HERE.md)
 - [서비스 범위](docs/SERVICE_SPEC.md)
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
+- [기획자·사용자 공통 데이터와 API 스펙](docs/SHARED_SPEC.md)
 - [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
 - [사용자 캘린더·지도·상세 흐름과 담당 범위](docs/VISITOR_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
@@ -118,7 +120,8 @@ cp .env.example .env
 - [AI 모델 목표·입출력 후보·학습 및 검증 계획](docs/MODEL_PLAN.md)
 - [1차·최종 심사기준과 자체 점검표](docs/EVALUATION_CRITERIA.md)
 - [한국관광공사 OpenAPI와 외부 참고 API 카탈로그](docs/OPENAPI_CATALOG.md)
-- [기술 스택 후보](docs/TECH_STACK.md)
+- [확정 기술 스택과 폴더 구조](docs/TECH_STACK.md)
+- [개인 서버 배포 조건과 구조](docs/DEPLOYMENT.md)
 - [결정 로그](docs/DECISION_LOG.md)
 
 ## 현재 제약

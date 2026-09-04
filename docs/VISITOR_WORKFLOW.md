@@ -161,7 +161,7 @@ fallback_used
 ```
 
 필드 이름과 의미는 [`MODEL_PLAN.md`](MODEL_PLAN.md)의 공통 prediction 계약을 따르며, 값이 없는 경우를
-정상 상태로 지원한다.
+정상 상태로 지원한다. 실제 HTTP field와 query는 [`SHARED_SPEC.md`](SHARED_SPEC.md)를 따른다.
 
 ## 필수 UI 상태
 
@@ -235,7 +235,6 @@ fallback_used
 
 ## 미결 사항
 
-- frontend를 Next.js와 Streamlit 중 무엇으로 구현할지
 - 캘린더·지도 layout과 interaction의 실제 벤치마킹 결과
 - MVP filter와 정렬 범위
 - 현재 위치·거리순 기능 포함 여부

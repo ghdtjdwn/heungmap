@@ -2,7 +2,7 @@
 
 ## Read first
 
-Read `docs/00_START_HERE.md`, then `README.md`, `docs/SERVICE_SPEC.md`, `docs/TEAM_WORKFLOW.md`, the applicable `docs/PLANNER_WORKFLOW.md` or `docs/VISITOR_WORKFLOW.md`, `docs/DELIVERY_MILESTONES.md`, `docs/DATA_AND_APIS.md`, `docs/MODEL_PLAN.md`, `docs/EVALUATION_CRITERIA.md`, `docs/DECISION_LOG.md`, `docs/OPENAPI_CATALOG.md`, and `docs/TECH_STACK.md`. Treat these repository documents as the persistent source of truth.
+Read `docs/00_START_HERE.md`, then `README.md`, `docs/SERVICE_SPEC.md`, `docs/TEAM_WORKFLOW.md`, `docs/SHARED_SPEC.md`, the applicable `docs/PLANNER_WORKFLOW.md` or `docs/VISITOR_WORKFLOW.md`, `docs/DELIVERY_MILESTONES.md`, `docs/DATA_AND_APIS.md`, `docs/MODEL_PLAN.md`, `docs/EVALUATION_CRITERIA.md`, `docs/DECISION_LOG.md`, `docs/OPENAPI_CATALOG.md`, `docs/TECH_STACK.md`, and `docs/DEPLOYMENT.md`. Treat these repository documents as the persistent source of truth.
 
 ## Product and delivery invariants
 
@@ -16,6 +16,8 @@ Read `docs/00_START_HERE.md`, then `README.md`, `docs/SERVICE_SPEC.md`, `docs/TE
 - Treat `docs/MODEL_PLAN.md` as a candidate registry: validate availability, leakage, quality, and value before adding a feature to training.
 - Treat `docs/PLANNER_WORKFLOW.md` as a candidate registry: keep the planner MVP small while preserving the model-before-LLM evidence flow.
 - Treat `docs/VISITOR_WORKFLOW.md` as the visitor-owner handoff: investigate the public EVENT-US flow only after role assignment and separate observed behavior from implementation inference.
+- Treat `contracts/openapi.yaml` as the approved shared HTTP contract. Do not introduce planner- or visitor-specific duplicates of common event, prediction, provenance, filter, or error types.
+- Use the selected Next.js·FastAPI split unless a new recorded decision replaces it; keep external API keys and model execution behind the backend boundary.
 - Record material product, data, and architecture decisions in `docs/DECISION_LOG.md`.
 - Split the two-person team by planner and visitor user journeys as defined in `docs/TEAM_WORKFLOW.md`; keep shared data and prediction contracts jointly reviewed.
 - Prefer small, tutorial-sized changes that can be run and verified by both team members on macOS and Windows.

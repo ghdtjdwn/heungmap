@@ -1,19 +1,20 @@
 # 흥할지도 작업 시작 안내
 
-이 문서는 역할을 정한 두 팀원이 가장 먼저 보는 실행 안내다. 현재 저장소에는 기획·데이터·모델 명세만
-있고 실행 가능한 애플리케이션은 아직 없다. 역할을 정한 뒤에도 바로 화면부터 만들지 않고, 두 흐름이
-공유할 데이터의 의미를 먼저 검증한다.
+이 문서는 역할을 정한 두 팀원이 가장 먼저 보는 실행 안내다. 현재 저장소에는 기획·데이터·모델 명세와
+공통 API 계약이 있고 실행 가능한 애플리케이션은 아직 없다. 역할을 정한 뒤에도 바로 화면부터 만들지
+않고, 두 흐름이 공유할 데이터의 의미를 먼저 검증한다.
 
-## 1. 역할을 정한 직후 채울 것
+## 1. 확정된 역할과 남은 교차 책임
 
-[`TEAM_WORKFLOW.md`](TEAM_WORKFLOW.md)의 역할 배정표에서 다음 네 칸을 채운다.
+기획자·사용자 담당은 확정됐다. [`TEAM_WORKFLOW.md`](TEAM_WORKFLOW.md)의 역할 배정표에서 남은 두 교차
+책임을 정한다.
 
-| 결정 | 선택 방법 |
+| 결정 | 담당·선택 방법 |
 | --- | --- |
-| 기획자 서비스 담당 | 복잡한 입력 form, 예측 결과, LLM 기획안 흐름을 맡을 사람 |
-| 사용자 서비스 담당 | 행사 탐색, 캘린더, 지도, 반응형 UI를 맡을 사람 |
-| 공유 데이터·예측 계약 관리자 | Python 데이터 작업과 공통 schema 변경을 주도할 사람 |
-| 통합 검토자 | 계약 관리자가 아닌 팀원. 상대 PR과 전체 demo를 검토 |
+| 기획자 서비스 담당 | 홍성주 |
+| 사용자 서비스 담당 | 박지성 |
+| 공유 데이터·예측 계약 관리자 | TBD — Python 데이터 작업과 공통 schema 변경을 주도할 사람 |
+| 통합 검토자 | TBD — 계약 관리자가 아닌 팀원. 상대 PR과 전체 demo를 검토 |
 
 두 역할의 작업량은 완전히 같지 않다. 기획자 담당은 form·예측·LLM 연결이 크고, 사용자 담당은
 캘린더·지도·상태 동기화와 반응형 UI가 크다. 데이터·모델 작업은 별도 세 번째 역할이 아니라 두 사람의
@@ -33,10 +34,11 @@
 지역·기간별 관광 혼잡 또는 방문수요 상대지수로 전환한다. 자세한 절차는
 [`DATA_AND_APIS.md`](DATA_AND_APIS.md)를 따른다.
 
-## 3. 데이터 게이트와 동시에 준비할 공통 계약 v1
+## 3. 데이터 게이트와 동시에 검증할 공통 계약 v0.1
 
-실제 API가 준비되는 동안 두 화면은 같은 mock contract를 사용한다. 계약 관리자가 초안을 만들고 통합
-검토자가 확인한다.
+실제 API가 준비되는 동안 두 화면은 구현 시작용 v0.1 기준선인 [`SHARED_SPEC.md`](SHARED_SPEC.md)와
+[`../contracts/openapi.yaml`](../contracts/openapi.yaml)의 같은 mock contract를 사용한다. 계약 관리자가
+실제 TourAPI mapping에서 차이가 발견되면 변경안을 만들고 통합 검토자가 확인한다.
 
 | 계약 | 반드시 포함할 내용 |
 | --- | --- |
@@ -46,8 +48,9 @@
 | `SearchFilter` | 검색어, 날짜 범위, 지역, 행사 유형, 정렬 |
 | `ApiError` | 안정적인 오류 코드, 사용자 메시지, 재시도 가능 여부, fallback |
 
-계약이 확정되기 전에는 양쪽 담당자가 서로 다른 필드명이나 수요 표현을 화면에 굳히지 않는다. 지역
-방문수요, 특정 행사 관람객, 혼잡 등급과 티켓 수요 등급은 같은 뜻이 아니므로 별도 필드와 문구로 다룬다.
+실제 데이터 mapping을 검증하는 동안 양쪽 담당자는 기준선과 다른 필드명이나 수요 표현을 화면에 굳히지
+않는다. 지역 방문수요, 특정 행사 관람객, 혼잡 등급과 티켓 수요 등급은 같은 뜻이 아니므로 별도 필드와
+문구로 다룬다.
 
 ## 4. 역할별 첫 번째 작업 묶음
 
@@ -82,17 +85,16 @@
 
 | 순서 | branch 예시 | 담당 | 결과 |
 | ---: | --- | --- | --- |
-| 1 | `chore/shared-data-gate` | 계약 관리자 작성, 상대 검토 | API 응답 확인, label go/no-go, 공통 contract v1 |
+| 1 | `chore/shared-data-gate` | 계약 관리자 작성, 상대 검토 | API 응답·label go/no-go, contract v0.1 mapping 확인 |
 | 2 | `docs/planner-mvp-flow` | 기획자 담당 | 대표 scenario, MVP 입력과 입력→결과 wireflow |
 | 2 | `docs/visitor-mvp-flow` | 사용자 담당 | 벤치마킹, page inventory와 캘린더→지도→상세 wireflow |
-| 3 | `chore/shared-scaffold` | 두 명 공동 | frontend 선택 기록, application 골격, mock contract와 검증 명령 |
+| 3 | `chore/shared-scaffold` | 두 명 공동 | Next.js·FastAPI 골격, mock contract와 검증 명령 |
 | 4 | `feat/planner-mvp-flow` | 기획자 담당 | mock 기반 입력→규칙 진단 흐름 |
 | 4 | `feat/visitor-mvp-flow` | 사용자 담당 | mock 기반 목록→캘린더·지도→상세 흐름 |
 | 5 | `chore/shared-tourapi` | 계약 관리자 작성, 상대 검토 | 실제 TourAPI adapter와 공통 오류·출처 처리 |
 
-같은 순서 번호의 두 PR은 병렬로 진행할 수 있다. application scaffolding 전에 Next.js와 Streamlit 중
-하나를 함께 선택하고 근거와 제외한 대안을 `DECISION_LOG.md`에 기록한다. 공통 파일을 동시에 바꾸지 말고
-계약 변경이 필요하면 먼저 작은 shared PR로 분리한다.
+같은 순서 번호의 두 PR은 공통 contract 확인 후 병렬로 진행할 수 있다. application은 기록된 결정대로 Next.js·FastAPI로
+scaffolding한다. 공통 파일을 동시에 바꾸지 말고 계약 변경이 필요하면 먼저 작은 shared PR로 분리한다.
 
 ## 6. 파일 소유권 원칙
 
@@ -135,9 +137,10 @@
 
 1. [`SERVICE_SPEC.md`](SERVICE_SPEC.md): 누구의 어떤 문제를 푸는지
 2. [`TEAM_WORKFLOW.md`](TEAM_WORKFLOW.md): 역할별 책임과 협업 규칙
-3. 담당별 [`PLANNER_WORKFLOW.md`](PLANNER_WORKFLOW.md) 또는 [`VISITOR_WORKFLOW.md`](VISITOR_WORKFLOW.md)
-4. [`DATA_AND_APIS.md`](DATA_AND_APIS.md): 첫 데이터 게이트
-5. [`MODEL_PLAN.md`](MODEL_PLAN.md): 공통 예측 입력·출력과 검증
-6. [`DELIVERY_MILESTONES.md`](DELIVERY_MILESTONES.md): 단계별 구현 경계
-7. [`EVALUATION_CRITERIA.md`](EVALUATION_CRITERIA.md): 심사기준 점검
-8. [`DECISION_LOG.md`](DECISION_LOG.md): 확정 사항과 미결 사항
+3. [`SHARED_SPEC.md`](SHARED_SPEC.md): 함께 쓰는 field·API·오류 계약
+4. 담당별 [`PLANNER_WORKFLOW.md`](PLANNER_WORKFLOW.md) 또는 [`VISITOR_WORKFLOW.md`](VISITOR_WORKFLOW.md)
+5. [`DATA_AND_APIS.md`](DATA_AND_APIS.md): 첫 데이터 게이트
+6. [`MODEL_PLAN.md`](MODEL_PLAN.md): 공통 예측 입력·출력과 검증
+7. [`DELIVERY_MILESTONES.md`](DELIVERY_MILESTONES.md): 단계별 구현 경계
+8. [`EVALUATION_CRITERIA.md`](EVALUATION_CRITERIA.md): 심사기준 점검
+9. [`DECISION_LOG.md`](DECISION_LOG.md): 확정 사항과 미결 사항

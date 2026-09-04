@@ -85,9 +85,9 @@
 ## D13. 역할별 end-to-end 소유권과 shared-first 시작 순서
 
 - 역할을 정한 뒤 기획자와 사용자 담당은 각 사용자 흐름의 화면, 연동, 오류, 테스트와 문서를 끝까지 책임집니다.
-- 기능 구현 전에 두 명이 TourAPI·지역 방문자 데이터 게이트와 공통 `Event`·`Prediction`·오류 계약을 함께 확정합니다.
+- 기능 구현 전에 두 명이 TourAPI·지역 방문자 데이터 게이트와 공통 `Event`·`Prediction`·오류 계약 v0.1을 함께 검증합니다.
 - 기획자 담당의 첫 결과는 LLM이 없는 mock 기반 입력→진단 흐름이고, 사용자 담당의 첫 결과는 공개 EVENT-US 조사와 mock 기반 캘린더→지도→상세 흐름입니다.
-- 두 기능 PR은 공통 contract v1 이후 병렬로 진행하며, 계약 변경은 별도 shared PR과 상대 담당자 검토를 거칩니다.
+- 두 기능 PR은 공통 contract v0.1 확인 이후 병렬로 진행하며, 계약 변경은 별도 shared PR과 상대 담당자 검토를 거칩니다.
 - 역할 직후의 작업 순서와 파일 소유권은 `00_START_HERE.md`, 사용자 담당의 상세 범위는 `VISITOR_WORKFLOW.md`에서 관리합니다.
 
 ## D14. 역할 담당자 확정
@@ -97,8 +97,25 @@
 - 공유 데이터·예측 계약 관리자와 통합 검토자는 후속 합의로 정합니다.
 - 역할이 확정됐으므로 박지성은 `VISITOR_WORKFLOW.md`에 따라 EVENT-US 공개 화면 조사를 시작할 수 있습니다.
 
+## D15. OpenAPI 3.1 기반 단일 공통 계약
+
+- 기획자와 사용자 서비스의 공통 HTTP·JSON 계약은 `contracts/openapi.yaml` 한 곳에서 version `0.1.0`으로 관리합니다.
+- OpenAPI 3.1.0과 JSON Schema 2020-12 호환 schema를 사용해 FastAPI·Pydantic과 이후 TypeScript client 생성을 연결합니다.
+- 행사, 장소, 주변 장소, 검색 filter, 예측, 근거와 오류 field를 공통화하고 role별 중복 type을 만들지 않습니다.
+- 예측은 `official_attendance`, `ticket_demand`, `regional_visit_demand`, `relative_demand_score`를 구분하며 데이터 게이트 전에는 공식 관람객 예측을 반환하지 않습니다.
+- 예측할 수 없음은 정상적인 `unavailable` 상태로 반환해 행사 탐색을 유지하고, HTTP 오류는 RFC 9457 `application/problem+json` 형식을 사용합니다.
+- 최신 OpenAPI 3.2보다 현재 FastAPI와 client tooling이 직접 지원하는 3.1.0의 호환성과 팀 유지보수성을 우선했습니다.
+
+## D16. Next.js·FastAPI와 개인 Ubuntu 서버 단일 배포
+
+- frontend는 Next.js App Router·TypeScript, backend는 FastAPI·Pydantic으로 확정합니다.
+- Streamlit은 data spike에는 빠르지만 목표 캘린더·지도·반응형 UI와 URL 상태 구현에 제약이 있어 제품 frontend에서 제외합니다.
+- 개인 Ubuntu 서버는 Nginx 뒤에 Next.js와 FastAPI를 같은 origin으로 제공하는 단일-instance 배포 후보로 사용합니다.
+- 비공개 기록에는 접속 정보가 있으나 CPU·RAM·저장공간과 설치 service는 확인되지 않아 server 사전점검 통과를 배포 go 조건으로 둡니다.
+- 첫 배포는 systemd를 사용하고 Docker·Redis·PostgreSQL은 실제 운영 필요가 확인되기 전에는 추가하지 않습니다. 저장이 필요하면 SQLite부터 검토합니다.
+- 세부 구조와 보안·운영 점검은 `DEPLOYMENT.md`에서 관리합니다.
+
 ## 미결 사항
 
-- Next.js와 Streamlit 중 frontend 선택
 - 절대 방문자 수와 평상시 대비 증가분 중 최종 label 정의
 - 데이터 게이트 통과 기준과 모델 평가 지표의 수치 기준

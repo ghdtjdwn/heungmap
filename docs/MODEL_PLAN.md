@@ -274,6 +274,9 @@ TourAPI 행사 정보 ─┐
 
 ### 공통 예측 계약
 
+실제 직렬화 field와 available·unavailable 응답은 [`SHARED_SPEC.md`](SHARED_SPEC.md)와
+[`../contracts/openapi.yaml`](../contracts/openapi.yaml)을 기준으로 구현한다.
+
 - `prediction_id`, `event_id`, 예측 기준시각과 대상 기간
 - 예측 종류: 공식 관람객, 입장·판매 수요, 지역 방문수요, 상대 score
 - 중앙 예측값 `p50`
