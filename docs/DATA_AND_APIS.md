@@ -45,6 +45,33 @@ merged = merged.merge(weather, on=["area_code", "yyyymm"], how="left")
 
 본격적인 모델링 전에 축제에 방문자 label을 설명 가능한 방식으로 연결할 수 있는지 확인합니다.
 
+### 1단계 — TourAPI 축제 표본
+
+Python 3.11 이상에서 별도 package 설치 없이 실행합니다. `.env.example`을 `.env`로 복사하고
+`TOURAPI_SERVICE_KEY`에 공공데이터포털의 일반 인증키(Decoding)를 저장한 뒤 조회 기간을 지정합니다.
+
+```bash
+cp .env.example .env
+python3 scripts/fetch_tourapi_festivals.py \
+  --start-date 20250101 \
+  --end-date 20251231 \
+  --rows 100
+```
+
+스크립트는 `searchFestival2` JSON 원본을 `data/raw/tourapi/`에 저장하고, 표본 수·중복 ID·필수 필드
+누락 수를 `data/processed/data_gate/`에 요약합니다. 두 경로는 Git에서 제외됩니다. API key는 요청에만
+사용하며 console, 원본 파일과 요약 파일에 기록하지 않습니다. 같은 경로를 명시해 다시 실행할 때는 기본적으로
+기존 파일을 덮어쓰지 않습니다.
+
+결과의 `gate_status`가 `tourapi_sample_ready`여도 TourAPI 표본 단계만 통과한 것입니다. 지역별 방문자
+데이터를 같은 지역·기간 단위로 수집하고 결합하기 전에는 축제별 label이나 관람객 수를 확정하지 않습니다.
+
+수집 코드의 네트워크 없는 검증은 다음과 같이 실행합니다.
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
 - [ ] `TOURAPI_SERVICE_KEY`, `VISITOR_API_SERVICE_KEY` 발급
 - [ ] `searchFestival2`에서 과거 축제명, 지역과 기간 수집
 - [ ] 같은 지역·기간의 방문자 값 수집
