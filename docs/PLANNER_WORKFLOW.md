@@ -51,7 +51,8 @@ LLM을 form 입력 중 매번 호출하지 않는다. 초안 저장과 계산은
 - 범위를 모를 때는 최솟값·최댓값 또는 규모 구간을 선택할 수 있게 한다.
 - 선택한 답변에 필요한 후속 질문만 표시한다.
 - 이전 단계로 이동해도 답변을 유지한다.
-- 자동 저장, 임시 저장, 복사본 만들기와 마지막 저장 시각을 제공한다.
+- 단계 이동 중 입력은 유지한다. 자동 저장, 영구 임시 저장과 복사본 만들기는 계정·저장 정책을 정한 뒤
+  후속 단계에서 제공한다.
 - 필수 항목, 선택 항목과 추천 정확도를 높이는 항목을 구분한다.
 - 민감하거나 정확한 금액을 넣기 어렵다면 금액 구간으로 입력할 수 있게 한다.
 - 제출 전에 전체 입력 요약과 수정 화면을 제공한다.
@@ -350,6 +351,90 @@ upload 기능을 만들 경우 개인·계약·재무·연락처 정보의 저�
 - 기획자의 가정과 아직 확인하지 못한 정보
 - 최종적으로 결정해야 하는 질문
 
+## Tier 0 MVP 확정 범위
+
+이 범위는 데이터 게이트와 공통 계약 v0.1을 바꾸지 않고 기획자 입력부터 규칙 추천까지 한 번 연결하기
+위한 기준선이다. 아래 두 시나리오는 UI와 오류 상태를 검증하는 가상 사례이며 실제 행사, 수요나 사용자
+조사 결과가 아니다.
+
+### 대표 시나리오
+
+| 구분 | 대형 지역축제 기획자 | 소규모 독립 기획자 |
+| --- | --- | --- |
+| 상황 | 지자체 담당자가 지역 활성화 목적의 3일 야외 축제를 예산 신청 전에 검토 | 독립 기획자가 청년 음악 중심의 하루 야외 행사를 아이디어 단계에서 검토 |
+| 현재 입력 | 지역 고정, 날짜 후보 2개, 목표 20,000명, 무료, 최대예산 3억원 | 날짜·지역 고정, 목표 500명, 무료, 최대예산 1천만원 |
+| 고정 제약 | 개최 지역과 최대예산은 변경 불가 | 개최일은 변경 불가 |
+| 가장 큰 위험 | 대규모 혼잡, 교통·주차, 우천 대응 | 우천 대체 공간 미정, 적은 예산과 인력 |
+| Tier 0 결과 | 입력 요약, 예측 available·unavailable 상태, 대규모 운영 확인 항목과 근거 | 입력 요약, 예측 unavailable fallback, 우천 대체안 규칙 추천과 근거 |
+| fixture | `planner-analysis-request-large-festival.json`, `planner-analysis-response-large-festival.json` | `planner-analysis-request.json`, `planner-analysis-response.json` |
+
+대형 시나리오의 날짜 후보는 비교 예측이 구현됐다는 뜻이 아니다. 데이터가 부족하면 prediction을
+`unavailable`로 유지하고, 두 날짜를 비교하려면 무엇을 확인해야 하는지 규칙 추천만 제공한다. 두 시나리오
+모두 지역 방문자 값을 행사 관람객 수로 표현하지 않는다.
+
+### 입력 분류
+
+MVP 질문은 `EventDraft` 계약에 맞춘다. `event_id`, `contract_version`, `client_request_id`와
+`requested_outputs`는 client가 생성하므로 사용자에게 묻지 않는다.
+
+| 분류 | 입력 | 처리 원칙 |
+| --- | --- | --- |
+| MVP 필수 | `planner_type`, `planning_stage`, `event_type`, `purpose`, `theme_keywords`, `schedule_selection_mode`, `region_selection_mode`, `indoor_outdoor`, `target_audience`, `ticket_type`, `fixed_constraints` | 공통 request에 항상 포함. 고정 제약이 없으면 빈 배열 사용 |
+| 조건부 필수 | `start_date`·`end_date`, `date_candidates`, `region`, `region_candidates`, 각 `other` 대응 text | 선택 mode나 `other` 값에 따라 노출하고 제출 전에 검증 |
+| MVP 선택 | `working_title`, `venue`, `target_attendance`, `budget_min_krw`, `budget_max_krw`, `other_notes` | 모르면 생략 가능. `0`이나 임의 기본값으로 채우지 않음 |
+| 후속 입력 | 세부 KPI, 일별 시간, 장소 시설, 프로그램·출연진, 티켓 가격·판매, 예산 내역, 홍보, 인력·운영, 교통·숙박, 안전·법규, 접근성, 지속가능성, 과거 행사 | 기반 흐름과 근거 데이터가 검증된 뒤 필요한 section만 추가 |
+| Tier 0 제외 | 로그인, 서버 draft 영구 저장·공유, 파일 upload, LLM 기획안, what-if 재예측, PDF 내보내기, 실제 견적·허가 판정, 예매·결제 | 인증·개인정보·비용·외부 의존성을 첫 흐름에 추가하지 않음 |
+| 제품 제외 | 리셀 가격 예측, 개인정보 추론, 근거 없는 장소·비용·법규·성과 생성 | 이후 단계에서도 제공하지 않음 |
+
+`target_attendance`와 예산은 추천 정확도를 높이는 선택 입력이다. 값을 모르면 분석을 막지 않고 누락을
+결과에 표시한다. 날짜나 지역을 `recommend` 또는 `unknown`으로 선택한 경우에도 초안은 제출할 수 있지만,
+필요한 입력이 없는 prediction은 `unavailable`이어야 한다.
+
+### 4단계 form wireflow
+
+```mermaid
+flowchart TD
+    A[1. 기획자·현재 단계<br/>planner type, planning stage, working title] --> B[2. 행사 목표·이용객<br/>event type, purpose, theme, audience, ticket]
+    B --> C[3. 일정·지역·규모<br/>selection mode, 조건부 날짜·지역, 공간, 목표 인원]
+    C --> D[4. 제약·검토<br/>예산, fixed constraints, notes, 입력 요약]
+    D --> E{client validation}
+    E -->|오류| F[해당 단계로 이동<br/>입력 유지·field 오류 표시]
+    F --> D
+    E -->|통과| G[POST /api/v1/planner/analyses]
+    G --> H[요청 snapshot과 evidence]
+    H --> I{prediction·nearby 상태}
+    I -->|available| J[값·단위·기준시각·출처·한계]
+    I -->|unavailable| K[이유·재시도 여부·추가 입력]
+    J --> L[규칙 추천과 사람 확인 항목]
+    K --> L
+```
+
+각 단계는 다음 원칙을 지킨다.
+
+1. 이전·다음 이동 중 입력을 client memory에 유지한다. Tier 0에서는 서버 저장이나 계정 복원을 약속하지
+   않고 페이지를 닫으면 입력이 사라질 수 있음을 분석 전에 알린다.
+2. `fixed`와 `candidates`를 선택한 경우에만 대응 날짜·지역 field를 요구한다. 후보는 2~5개로 제한한다.
+3. 제출 화면에서 사용자 입력, 생략한 선택 항목과 고정 제약을 다시 확인한다.
+4. 분석 버튼을 누를 때마다 UUID `client_request_id`를 만들고, 같은 버튼의 중복 전송에는 같은 ID를 사용한다.
+5. HTTP 422이면 입력을 유지하고 첫 field 오류로 이동한다. 외부 API나 model만 실패하면 전체 결과를
+   오류 화면으로 바꾸지 않고 prediction 또는 nearby 상태를 `unavailable`로 표시한다.
+6. 결과는 request snapshot, prediction, nearby places, evidence와 `rule_recommendations` 순서로 보여준다.
+   데이터 게이트 전에는 공식 관람객 수를 표시하지 않는다.
+
+### mock과 상태 검증
+
+| 확인 상태 | 입력·fixture | 기대 결과 |
+| --- | --- | --- |
+| 정상 고정 입력 | `planner-analysis-request.json` | snapshot 유지, prediction·nearby unavailable 이유와 우천 규칙 추천 표시 |
+| 날짜 후보 입력 | `planner-analysis-request-large-festival.json` | 후보 2개 유지, 수치 대신 데이터 부족과 대형 운영 확인 항목 표시 |
+| 날짜·지역 모름 | mode를 `unknown`으로 변경 | 제출 허용, prediction `missing_required_input`, 추가 질문 표시 |
+| 조건 오류 | 종료일이 시작일보다 빠르거나 후보가 1개 | HTTP 422, 해당 field 오류, 나머지 입력 유지 |
+| 중복 제출 | 같은 `client_request_id`와 같은 body | 같은 분석 요청으로 처리하고 중복 실행 방지 |
+| 외부 의존성 실패 | TourAPI 또는 model 일시 불가 | 입력 요약과 규칙 추천 유지, 관련 결과만 `unavailable` |
+
+fixture의 정확한 field와 enum은 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)을 단일 원본으로
+사용한다. planner 전용 duplicate type을 만들지 않으며 공통 계약 변경이 필요하면 별도 shared PR로 분리한다.
+
 ## 조건부 질문
 
 | 조건 | 추가로 표시할 질문 |
@@ -602,11 +687,11 @@ LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 �
 ## 첫 작업 체크리스트
 
 - [x] 기획자 기능 담당자 이름 확정 — 홍성주
-- [ ] 대형 행사 기획자와 소규모 독립 기획자·가수 대표 scenario 각각 1개 작성
-- [ ] 후보 입력을 MVP 필수·선택·추후·제외로 분류
-- [ ] 단계형 form wireflow 작성
-- [ ] 입력 schema와 mock request 작성
-- [ ] prediction mock response 연결
+- [x] 대형 행사 기획자와 소규모 독립 기획자·가수 대표 scenario 각각 1개 작성
+- [x] 후보 입력을 MVP 필수·선택·추후·제외로 분류
+- [x] 단계형 form wireflow 작성
+- [x] 입력 schema와 mock request 작성
+- [x] prediction mock response 연결
 - [ ] Planning Context와 추천 결과 schema v1 작성
 - [ ] LLM 없이 동작하는 규칙 진단·template 결과 구현
 - [ ] 실제 prediction API 연결
@@ -627,10 +712,9 @@ LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 �
 
 ## 미결 사항
 
-- 최종 MVP 입력 항목과 form 단계 수
-- 로그인·draft 영구 저장·공유 기능 포함 여부
 - LLM 제공자와 model, 비용·timeout·rate limit
 - 장소·비용·법규 근거 데이터 확보 범위
-- upload 문서 저장·삭제·개인정보 정책
+- Tier 1 이후 로그인·draft 영구 저장·공유 기능의 필요성과 인증 방식
+- Tier 1 이후 upload 문서 저장·삭제·개인정보 정책
 - what-if에서 다시 실행할 예측과 LLM 범위
 - 기획안 내보내기 형식과 제출 화면 범위

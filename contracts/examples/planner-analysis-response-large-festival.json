@@ -1,0 +1,131 @@
+{
+  "analysis_id": "ana_large_festival_demo001",
+  "contract_version": "0.1.0",
+  "request_snapshot": {
+    "event_id": "evt_planner_large_festival_demo001",
+    "working_title": "가상 바다문화축제",
+    "planner_type": "local_government",
+    "planning_stage": "budget_application",
+    "event_type": "festival",
+    "purpose": "regional_revitalization",
+    "theme_keywords": [
+      "지역문화",
+      "바다",
+      "가족"
+    ],
+    "schedule_selection_mode": "candidates",
+    "date_candidates": [
+      {
+        "start_date": "2026-10-09",
+        "end_date": "2026-10-11"
+      },
+      {
+        "start_date": "2026-10-16",
+        "end_date": "2026-10-18"
+      }
+    ],
+    "region_selection_mode": "fixed",
+    "region": {
+      "area_code": "99",
+      "sigungu_code": "999",
+      "display_name": "가상도 가상시"
+    },
+    "indoor_outdoor": "outdoor",
+    "target_audience": [
+      "family",
+      "local_resident",
+      "domestic_tourist"
+    ],
+    "target_attendance": 20000,
+    "ticket_type": "free",
+    "budget_min_krw": 200000000,
+    "budget_max_krw": 300000000,
+    "fixed_constraints": [
+      "개최 지역은 변경할 수 없음",
+      "총예산은 3억원을 넘을 수 없음"
+    ],
+    "other_notes": "대규모 혼잡과 우천 시 운영 대안을 먼저 확인하고 싶습니다."
+  },
+  "prediction": {
+    "status": "unavailable",
+    "event_id": "evt_planner_large_festival_demo001",
+    "reason_code": "insufficient_data",
+    "message": "날짜 후보별 수요를 비교할 데이터가 아직 충분하지 않습니다.",
+    "as_of": "2026-09-04T20:00:00+09:00",
+    "sources": [],
+    "limitations": [
+      "데이터 게이트 통과 전에는 예상 관람객 수를 제공하지 않습니다.",
+      "입력한 목표 인원은 예측값이 아니라 기획 목표입니다."
+    ],
+    "retryable": false,
+    "is_mock": true
+  },
+  "nearby_places": {
+    "status": "unavailable",
+    "reason_code": "missing_coordinates",
+    "message": "정확한 개최 장소 좌표가 없어 주변 장소를 계산하지 않았습니다.",
+    "retryable": false,
+    "is_mock": true
+  },
+  "evidence": [
+    {
+      "evidence_id": "ev_large_target_attendance",
+      "value_type": "user_input",
+      "label": "목표 관객 수",
+      "display_value": "20,000명",
+      "numeric_value": 20000,
+      "unit": "people",
+      "source_refs": [],
+      "limitation": "기획자가 입력한 목표이며 예측 관람객 수가 아닙니다."
+    },
+    {
+      "evidence_id": "ev_large_date_candidates",
+      "value_type": "user_input",
+      "label": "날짜 후보",
+      "display_value": "2026-10-09~11 또는 2026-10-16~18",
+      "source_refs": []
+    },
+    {
+      "evidence_id": "ev_large_outdoor",
+      "value_type": "user_input",
+      "label": "행사 공간 유형",
+      "display_value": "실외",
+      "source_refs": []
+    }
+  ],
+  "rule_recommendations": [
+    {
+      "recommendation_id": "rec_large_crowd_plan",
+      "category": "risk",
+      "priority": "high",
+      "title": "목표 인원에 맞는 안전·교통 계획을 확인하세요",
+      "action": "장소 수용인원, 출입구, 대피 동선, 대중교통과 임시 주차 계획을 담당 기관과 검토하세요.",
+      "reason": "입력한 목표 관객 수가 20,000명인 대형 야외 행사입니다.",
+      "evidence_refs": [
+        "ev_large_target_attendance",
+        "ev_large_outdoor"
+      ],
+      "requires_human_review": true
+    },
+    {
+      "recommendation_id": "rec_large_compare_dates",
+      "category": "demand",
+      "priority": "medium",
+      "title": "날짜 후보별 근거를 수집하세요",
+      "action": "각 후보 기간의 지역 방문수요, 경쟁 행사와 날씨 조건을 같은 단위로 확인하세요.",
+      "reason": "두 날짜 후보의 수요를 비교할 검증 데이터가 아직 없습니다.",
+      "evidence_refs": [
+        "ev_large_date_candidates"
+      ],
+      "requires_human_review": true
+    }
+  ],
+  "meta": {
+    "contract_version": "0.1.0",
+    "generated_at": "2026-09-04T20:00:00+09:00",
+    "request_id": "req_large_festival_demo001",
+    "warnings": [
+      "모든 값은 가상 fixture이며 실제 행사나 예측 결과가 아닙니다."
+    ]
+  }
+}

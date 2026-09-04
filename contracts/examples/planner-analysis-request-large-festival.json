@@ -1,0 +1,54 @@
+{
+  "contract_version": "0.1.0",
+  "client_request_id": "49778df4-e8c6-4256-ac86-206482e4874e",
+  "event_draft": {
+    "event_id": "evt_planner_large_festival_demo001",
+    "working_title": "가상 바다문화축제",
+    "planner_type": "local_government",
+    "planning_stage": "budget_application",
+    "event_type": "festival",
+    "purpose": "regional_revitalization",
+    "theme_keywords": [
+      "지역문화",
+      "바다",
+      "가족"
+    ],
+    "schedule_selection_mode": "candidates",
+    "date_candidates": [
+      {
+        "start_date": "2026-10-09",
+        "end_date": "2026-10-11"
+      },
+      {
+        "start_date": "2026-10-16",
+        "end_date": "2026-10-18"
+      }
+    ],
+    "region_selection_mode": "fixed",
+    "region": {
+      "area_code": "99",
+      "sigungu_code": "999",
+      "display_name": "가상도 가상시"
+    },
+    "indoor_outdoor": "outdoor",
+    "target_audience": [
+      "family",
+      "local_resident",
+      "domestic_tourist"
+    ],
+    "target_attendance": 20000,
+    "ticket_type": "free",
+    "budget_min_krw": 200000000,
+    "budget_max_krw": 300000000,
+    "fixed_constraints": [
+      "개최 지역은 변경할 수 없음",
+      "총예산은 3억원을 넘을 수 없음"
+    ],
+    "other_notes": "대규모 혼잡과 우천 시 운영 대안을 먼저 확인하고 싶습니다."
+  },
+  "requested_outputs": [
+    "prediction",
+    "nearby_places",
+    "rule_recommendations"
+  ]
+}

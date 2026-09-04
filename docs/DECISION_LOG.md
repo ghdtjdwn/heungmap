@@ -115,6 +115,15 @@
 - 첫 배포는 systemd를 사용하고 Docker·Redis·PostgreSQL은 실제 운영 필요가 확인되기 전에는 추가하지 않습니다. 저장이 필요하면 SQLite부터 검토합니다.
 - 세부 구조와 보안·운영 점검은 `DEPLOYMENT.md`에서 관리합니다.
 
+## D17. 기획자 Tier 0을 4단계 입력과 규칙 결과로 제한
+
+- 기획자 MVP form은 기획 상태, 행사 목표·이용객, 일정·지역·규모, 제약·검토의 4단계로 구성합니다.
+- 입력은 공통 `EventDraft`의 필수·조건부 field를 사용하고 제목, 목표 인원, 장소와 예산은 모르면 생략할 수 있습니다.
+- 대형 지역축제와 소규모 독립 기획자의 가상 scenario로 fixed·candidates, prediction·nearby unavailable과 규칙 추천을 확인합니다.
+- Tier 0에서는 로그인, 서버 draft 저장·공유, upload, LLM, what-if와 내보내기를 제외합니다. 단계 이동 중 입력만 client에서 유지합니다.
+- 18개 후보 영역 전체를 처음부터 받는 방식은 입력 부담과 검증 범위가 너무 크고, LLM부터 연결하는 방식은 model-before-LLM 원칙과 실패 fallback을 해치므로 선택하지 않았습니다.
+- label, model 채택과 공통 prediction 계약은 기획자 담당자가 단독으로 바꾸지 않고 데이터 게이트와 상대 담당자 검토를 거칩니다.
+
 ## 미결 사항
 
 - 절대 방문자 수와 평상시 대비 증가분 중 최종 label 정의

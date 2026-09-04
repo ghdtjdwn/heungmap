@@ -9,6 +9,8 @@
 - `examples/event-list.json`: 목록·캘린더·지도 공통 응답
 - `examples/planner-analysis-request.json`: 기획자 분석 요청
 - `examples/planner-analysis-response.json`: 규칙 기반 분석 응답
+- `examples/planner-analysis-request-large-festival.json`: 대형 지역축제 날짜 후보 요청
+- `examples/planner-analysis-response-large-festival.json`: 대형 지역축제 데이터 부족 응답
 - `examples/prediction-available.json`: 가상 규칙 score 예측 응답
 - `examples/problem.json`: 공통 오류 응답
 
