@@ -74,7 +74,9 @@ flowchart LR
 end-to-end로 책임집니다. 사용자 기능은 역할 확정 후 EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해
 정보구조와 상호작용 기준으로 삼습니다. 현재는 사용자 요청에 따라 외부 화면 조사를 시작하지 않았습니다.
 
-담당자별 첫 작업, 공유 데이터 계약과 완료 조건은 [2인 역할 분담 문서](docs/TEAM_WORKFLOW.md)에 있습니다.
+역할을 정한 직후의 공동 작업, 첫 PR 순서와 파일 소유권은
+[작업 시작 안내](docs/00_START_HERE.md)에 있습니다. 담당자별 책임과 협업 규칙은
+[2인 역할 분담 문서](docs/TEAM_WORKFLOW.md)를 따릅니다.
 
 ## 데이터와 기술 후보
 
@@ -105,9 +107,11 @@ cp .env.example .env
 
 ## 문서 지도
 
+- [역할 결정 후 바로 시작하는 안내](docs/00_START_HERE.md)
 - [서비스 범위](docs/SERVICE_SPEC.md)
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
 - [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
+- [사용자 캘린더·지도·상세 흐름과 담당 범위](docs/VISITOR_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
 - [AI 모델 목표·입출력 후보·학습 및 검증 계획](docs/MODEL_PLAN.md)
