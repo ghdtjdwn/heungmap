@@ -55,6 +55,9 @@
 2. 기획자와 방문객을 하나의 예측 결과로 연결해 입력과 탐색 흐름을 분리하지 않습니다.
 3. 예측값, 계산 근거와 생성 문장을 구분해 사용자가 정보의 출처를 확인할 수 있게 합니다.
 
+두 화면이 공유하는 행사·장소·prediction·출처·filter와 오류의 정확한 field는
+[`SHARED_SPEC.md`](SHARED_SPEC.md)와 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)을 따릅니다.
+
 ## 기대 효과
 
 - 대형 기획자: 흥행 실패와 예산 낭비 위험을 사전에 확인하고 개최지와 편의 구성을 보완

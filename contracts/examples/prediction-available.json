@@ -1,0 +1,70 @@
+{
+  "status": "available",
+  "prediction_id": "pred_demo_rules001",
+  "event_id": "evt_tourapi_demo001",
+  "prediction_type": "relative_demand_score",
+  "as_of": "2026-09-04T15:00:00+09:00",
+  "target_start_date": "2026-10-09",
+  "target_end_date": "2026-10-11",
+  "primary_metric": {
+    "metric_name": "relative_demand_score",
+    "unit": "index_0_100",
+    "value": 64
+  },
+  "indicators": {
+    "demand_score": 64,
+    "congestion_level": "medium",
+    "ticket_demand_level": "unknown"
+  },
+  "confidence": "low",
+  "data_sufficiency": "limited",
+  "method": "rules",
+  "model_version": "rules-demo-0.1.0",
+  "factors": [
+    {
+      "factor_id": "factor_weekend",
+      "label": "주말 포함",
+      "direction": "up",
+      "explanation": "행사 기간에 주말이 포함되어 규칙 score가 상승했습니다.",
+      "evidence_refs": [
+        "ev_event_dates"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "ev_event_dates",
+      "value_type": "verified_fact",
+      "label": "행사 기간",
+      "display_value": "2026-10-09~2026-10-11",
+      "source_refs": [
+        "src_tourapi_demo001"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "source_id": "src_tourapi_demo001",
+      "source_type": "tourapi",
+      "provider_name": "한국관광공사",
+      "dataset_name": "국문 관광정보 서비스",
+      "source_record_id": "demo001",
+      "retrieved_at": "2026-09-04T15:00:00+09:00"
+    },
+    {
+      "source_id": "src_rules_demo001",
+      "source_type": "heungmap_model",
+      "provider_name": "흥할지도",
+      "dataset_name": "가상 규칙 baseline",
+      "retrieved_at": "2026-09-04T15:00:00+09:00"
+    }
+  ],
+  "limitations": [
+    "가상 fixture이며 실제 수요나 성능을 의미하지 않습니다.",
+    "지역 방문자 데이터와 학습 model을 사용하지 않은 규칙 score입니다."
+  ],
+  "out_of_distribution": false,
+  "fallback_used": true,
+  "created_at": "2026-09-04T15:00:00+09:00",
+  "is_mock": true
+}

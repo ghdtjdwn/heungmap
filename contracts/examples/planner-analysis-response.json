@@ -1,0 +1,102 @@
+{
+  "analysis_id": "ana_demo001",
+  "contract_version": "0.1.0",
+  "request_snapshot": {
+    "event_id": "evt_planner_123e4567-e89b-12d3-a456-426614174000",
+    "working_title": "가상 청년 음악축제",
+    "planner_type": "independent_planner",
+    "planning_stage": "idea",
+    "event_type": "festival",
+    "purpose": "community",
+    "theme_keywords": [
+      "청년",
+      "인디음악"
+    ],
+    "schedule_selection_mode": "fixed",
+    "start_date": "2026-10-10",
+    "end_date": "2026-10-10",
+    "region_selection_mode": "fixed",
+    "region": {
+      "area_code": "99",
+      "sigungu_code": "999",
+      "display_name": "가상도 가상시"
+    },
+    "indoor_outdoor": "outdoor",
+    "target_audience": [
+      "young_adult",
+      "local_resident"
+    ],
+    "target_attendance": 500,
+    "ticket_type": "free",
+    "budget_max_krw": 10000000,
+    "fixed_constraints": [
+      "행사 날짜는 변경할 수 없음"
+    ],
+    "other_notes": "우천 대체 공간을 아직 정하지 못했습니다."
+  },
+  "prediction": {
+    "status": "unavailable",
+    "event_id": "evt_planner_123e4567-e89b-12d3-a456-426614174000",
+    "reason_code": "insufficient_data",
+    "message": "축제 단위 수요를 계산할 데이터가 아직 충분하지 않습니다.",
+    "as_of": "2026-09-04T15:00:00+09:00",
+    "sources": [],
+    "limitations": [
+      "데이터 게이트 통과 전에는 예상 관람객 수를 제공하지 않습니다."
+    ],
+    "retryable": false,
+    "is_mock": true
+  },
+  "nearby_places": {
+    "status": "unavailable",
+    "reason_code": "missing_coordinates",
+    "message": "정확한 개최 장소 좌표가 없어 주변 장소를 계산하지 않았습니다.",
+    "retryable": false,
+    "is_mock": true
+  },
+  "evidence": [
+    {
+      "evidence_id": "ev_user_target_attendance",
+      "value_type": "user_input",
+      "label": "목표 관객 수",
+      "display_value": "500명",
+      "numeric_value": 500,
+      "unit": "people",
+      "source_refs": []
+    },
+    {
+      "evidence_id": "ev_indoor_outdoor",
+      "value_type": "user_input",
+      "label": "행사 공간 유형",
+      "display_value": "실외",
+      "source_refs": []
+    },
+    {
+      "evidence_id": "ev_rain_backup",
+      "value_type": "user_input",
+      "label": "우천 대체 공간",
+      "display_value": "아직 정하지 못함",
+      "source_refs": []
+    }
+  ],
+  "rule_recommendations": [
+    {
+      "recommendation_id": "rec_demo001",
+      "category": "risk",
+      "priority": "high",
+      "title": "우천 대체안을 먼저 확정하세요",
+      "action": "대체 실내 공간과 연기 기준을 확인하세요.",
+      "reason": "실외 행사이지만 우천 대체 공간이 정해지지 않았습니다.",
+      "evidence_refs": [
+        "ev_indoor_outdoor",
+        "ev_rain_backup"
+      ],
+      "requires_human_review": true
+    }
+  ],
+  "meta": {
+    "contract_version": "0.1.0",
+    "generated_at": "2026-09-04T15:00:00+09:00",
+    "request_id": "req_demo_analysis"
+  }
+}

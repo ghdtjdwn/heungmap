@@ -1,0 +1,16 @@
+{
+  "type": "/problems/validation-error",
+  "title": "입력값을 확인해 주세요.",
+  "status": 422,
+  "detail": "요청한 날짜 범위를 처리할 수 없습니다.",
+  "instance": "/api/v1/events",
+  "code": "VALIDATION_ERROR",
+  "retryable": false,
+  "trace_id": "trace_demo001",
+  "field_errors": [
+    {
+      "field": "end_date",
+      "message": "start_date 이후여야 합니다."
+    }
+  ]
+}

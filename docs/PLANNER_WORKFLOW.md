@@ -405,6 +405,7 @@ requested_decisions
 
 각 값에는 가능하면 `source`, `as_of`, `unit`, `value_type`, `confidence`와 `limitation`을 붙인다.
 `value_type`은 `user_input`, `verified_fact`, `derived_value`, `model_prediction`, `assumption`으로 구분한다.
+공통 행사·예측·evidence field와 분석 endpoint는 [`SHARED_SPEC.md`](SHARED_SPEC.md)를 따른다.
 
 ## LLM 역할
 

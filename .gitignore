@@ -44,6 +44,11 @@ pnpm-debug.log*
 models/*.bin
 mlruns/
 
+# --- Local database / runtime state ---
+*.db
+*.sqlite
+*.sqlite3
+
 # --- OS / Editor ---
 .DS_Store
 Thumbs.db

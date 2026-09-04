@@ -1,0 +1,42 @@
+{
+  "contract_version": "0.1.0",
+  "client_request_id": "f090c1e8-6ef1-4d06-a31e-561cad950644",
+  "event_draft": {
+    "event_id": "evt_planner_123e4567-e89b-12d3-a456-426614174000",
+    "working_title": "가상 청년 음악축제",
+    "planner_type": "independent_planner",
+    "planning_stage": "idea",
+    "event_type": "festival",
+    "purpose": "community",
+    "theme_keywords": [
+      "청년",
+      "인디음악"
+    ],
+    "schedule_selection_mode": "fixed",
+    "start_date": "2026-10-10",
+    "end_date": "2026-10-10",
+    "region_selection_mode": "fixed",
+    "region": {
+      "area_code": "99",
+      "sigungu_code": "999",
+      "display_name": "가상도 가상시"
+    },
+    "indoor_outdoor": "outdoor",
+    "target_audience": [
+      "young_adult",
+      "local_resident"
+    ],
+    "target_attendance": 500,
+    "ticket_type": "free",
+    "budget_max_krw": 10000000,
+    "fixed_constraints": [
+      "행사 날짜는 변경할 수 없음"
+    ],
+    "other_notes": "우천 대체 공간을 아직 정하지 못했습니다."
+  },
+  "requested_outputs": [
+    "prediction",
+    "nearby_places",
+    "rule_recommendations"
+  ]
+}
