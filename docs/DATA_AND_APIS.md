@@ -15,13 +15,14 @@
 
 | 소스 | 용도 | 비고 |
 | --- | --- | --- |
-| TourAPI `searchFestival` | 축제명, 시기, 기간, 지역 코드, 카테고리, `contentid` | 축제 탐색의 기준 데이터 |
+| TourAPI `searchFestival2` | 축제명, 시기, 기간, 지역 코드, 카테고리, `contentid` | 축제 탐색의 기준 데이터 |
 | 한국관광 데이터랩 지역별 방문자 수 | 지역·기간별 방문자 시계열 | label 후보 |
 | 기상청 API | 축제 기간 날씨 | 모델 단계에서 선택적으로 추가 |
 | 공연·출연진 공개 지표 | 프로그램 관심도 후보 | 출처와 이용 조건이 명확할 때만 사용 |
 
 API key는 `.env`에 저장하고 원본 응답은 ignored `data/raw/` 경로에서 관리합니다. TourAPI 안내는
 <https://api.visitkorea.or.kr>, 관광 데이터랩 안내는 <https://datalab.visitkorea.or.kr>에서 확인합니다.
+전체 후보와 흥할지도 활용 판단은 [OpenAPI 카탈로그](OPENAPI_CATALOG.md)에 정리합니다.
 
 ## 조립 과정
 
@@ -43,7 +44,7 @@ merged = merged.merge(weather, on=["area_code", "yyyymm"], how="left")
 본격적인 모델링 전에 축제에 방문자 label을 설명 가능한 방식으로 연결할 수 있는지 확인합니다.
 
 - [ ] `TOURAPI_SERVICE_KEY`, `VISITOR_API_SERVICE_KEY` 발급
-- [ ] `searchFestival`에서 과거 축제명, 지역과 기간 수집
+- [ ] `searchFestival2`에서 과거 축제명, 지역과 기간 수집
 - [ ] 같은 지역·기간의 방문자 값 수집
 - [ ] 지역 코드와 기간으로 결합하고 유효 행 수와 결합률 측정
 - [ ] label 후보별 의미, 집계 단위, 누락과 잠재적 누수 기록

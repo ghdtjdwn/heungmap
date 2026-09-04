@@ -24,7 +24,7 @@ TourAPI의 축제·관광 정보를 서비스 탐색과 주변 정보의 기준 
 
 모델을 먼저 만들지 않고 다음 과정을 재현하는 것이 첫 번째 완료 조건입니다.
 
-1. TourAPI `searchFestival`에서 과거 축제의 이름·지역·기간·식별자를 수집합니다.
+1. TourAPI `searchFestival2`에서 과거 축제의 이름·지역·기간·식별자를 수집합니다.
 2. 같은 지역과 기간의 방문자 시계열을 별도 공공 API에서 가져옵니다.
 3. 지역 코드와 기간을 기준으로 두 표를 결합합니다.
 4. 학습에 사용할 수 있는 행 수, 결측률과 label의 의미를 기록합니다.
@@ -68,7 +68,7 @@ flowchart LR
 
 | 영역 | 현재 후보 | 확정 조건 |
 | --- | --- | --- |
-| 관광 데이터 | TourAPI `searchFestival`, 위치 기반 관광 정보 | API 응답과 이용 조건 확인 |
+| 관광 데이터 | TourAPI `searchFestival2`, 위치 기반 관광 정보 | API 응답과 이용 조건 확인 |
 | 예측 label | 지역·기간별 방문자 수 또는 평상시 대비 증가분 | 축제 단위 결합 가능성과 왜곡 검토 |
 | 데이터·모델 | Python, pandas, LightGBM, SHAP | baseline보다 의미 있는 검증 결과 |
 | API | FastAPI | model serving이 필요할 때 채택 |
@@ -96,6 +96,8 @@ cp .env.example .env
 - [서비스 범위](docs/SERVICE_SPEC.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
+- [1차·최종 심사기준과 자체 점검표](docs/EVALUATION_CRITERIA.md)
+- [한국관광공사 OpenAPI와 외부 참고 API 카탈로그](docs/OPENAPI_CATALOG.md)
 - [기술 스택 후보](docs/TECH_STACK.md)
 - [결정 로그](docs/DECISION_LOG.md)
 
