@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import json
 from datetime import date, datetime
 from html import unescape
 from typing import Any
@@ -9,19 +10,24 @@ from typing import Any
 import httpx
 
 from app.schemas import Coordinates, NearbyPlace, RegionRef, SourceRef, Venue, VenueSearchItem
+from app.services.cache import TtlCache
 
 
 BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
 
 
 class TourApiUnavailable(RuntimeError):
-    pass
+    def __init__(self, message: str, *, reason: str = "upstream") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 class TourApiClient:
-    def __init__(self, service_key: str | None = None, timeout_seconds: float = 6.0) -> None:
+    def __init__(self, service_key: str | None = None, timeout_seconds: float = 6.0, *, cache_ttl_seconds: float = 300, cache_max_entries: int = 256) -> None:
         self.service_key = (service_key or os.getenv("TOURAPI_SERVICE_KEY", "")).strip()
         self.timeout_seconds = timeout_seconds
+        self.cache: TtlCache[list[dict[str, Any]]] = TtlCache(ttl_seconds=cache_ttl_seconds, max_entries=cache_max_entries)
+        self.upstream_calls = 0
 
     @property
     def configured(self) -> bool:
@@ -29,7 +35,7 @@ class TourApiClient:
 
     def _params(self) -> dict[str, str]:
         if not self.service_key:
-            raise TourApiUnavailable("TOURAPI_SERVICE_KEY가 설정되지 않았습니다.")
+            raise TourApiUnavailable("TOURAPI_SERVICE_KEY가 설정되지 않았습니다.", reason="not_configured")
         return {
             "serviceKey": self.service_key,
             "MobileOS": "ETC",
@@ -38,28 +44,54 @@ class TourApiClient:
         }
 
     async def _get_items(self, operation: str, params: dict[str, str | int | float]) -> list[dict[str, Any]]:
+        cache_key = json.dumps([operation, sorted(params.items())], ensure_ascii=False, separators=(",", ":"))
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            return cached
         query: dict[str, str | int | float] = {**self._params(), **params}
         try:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                self.upstream_calls += 1
                 response = await client.get(f"{BASE_URL}/{operation}", params=query)
+                if response.status_code == 429:
+                    raise TourApiUnavailable("TourAPI 호출 한도에 도달했습니다.", reason="quota")
+                if response.status_code in {401, 403}:
+                    raise TourApiUnavailable("TourAPI 활용 권한을 확인해 주세요.", reason="permission")
+                if response.status_code >= 500:
+                    raise TourApiUnavailable("TourAPI가 일시적인 서버 오류를 반환했습니다.", reason="upstream")
                 response.raise_for_status()
                 payload = response.json()
+        except httpx.TimeoutException as exc:
+            raise TourApiUnavailable("TourAPI 응답 시간이 초과됐습니다.", reason="timeout") from exc
+        except TourApiUnavailable:
+            raise
         except (httpx.HTTPError, ValueError, TypeError) as exc:
-            raise TourApiUnavailable("한국관광공사 TourAPI를 불러오지 못했습니다.") from exc
+            raise TourApiUnavailable("한국관광공사 TourAPI를 불러오지 못했습니다.", reason="upstream") from exc
 
         try:
             header = payload["response"]["header"]
-            if str(header.get("resultCode", "")) not in {"0", "00", "0000"}:
-                raise TourApiUnavailable("한국관광공사 TourAPI가 오류를 반환했습니다.")
+            result_code = str(header.get("resultCode", ""))
+            if result_code not in {"0", "00", "0000"}:
+                reason = "quota" if result_code in {"22", "23"} else "permission" if result_code in {"20", "30", "31"} else "upstream"
+                raise TourApiUnavailable("한국관광공사 TourAPI가 오류를 반환했습니다.", reason=reason)
             raw_items = payload["response"]["body"].get("items") or {}
             items = raw_items.get("item") or []
         except (KeyError, AttributeError, TypeError) as exc:
             raise TourApiUnavailable("한국관광공사 TourAPI 응답 형식을 해석하지 못했습니다.") from exc
         if isinstance(items, dict):
-            return [items]
+            result = [items]
+            self.cache.set(cache_key, result)
+            return result
         if not isinstance(items, list):
             raise TourApiUnavailable("한국관광공사 TourAPI 행사 목록 형식이 올바르지 않습니다.")
-        return [item for item in items if isinstance(item, dict)]
+        result = [item for item in items if isinstance(item, dict)]
+        self.cache.set(cache_key, result)
+        return result
+
+    @property
+    def diagnostics(self) -> dict[str, int]:
+        stats = self.cache.stats
+        return {"upstream_calls": self.upstream_calls, "cache_hits": stats.hits, "cache_misses": stats.misses, "cache_entries": stats.entries}
 
     @staticmethod
     def _text(value: Any) -> str:

@@ -301,6 +301,16 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .history-list li > span { width: fit-content; height: fit-content; padding: 4px 8px; border-radius: 6px; background: var(--teal-soft); color: var(--teal-dark); font-weight: 900; }
 .history-list strong, .history-list small { display: block; }
 .history-list small { margin-top: 3px; color: var(--muted); overflow-wrap: anywhere; }
+.map-preview { margin-top: 18px; display: grid; gap: 10px; }
+.map-canvas { width: 100%; min-height: 260px; border-radius: 14px; border: 1px solid var(--line); overflow: hidden; }
+.map-canvas.hidden { display: none; }
+.map-fallback { min-height: 140px; border: 1px dashed var(--line); border-radius: 14px; padding: 24px; display: grid; place-content: center; text-align: center; background: var(--surface-soft); }
+.map-fallback p { margin: 6px 0 0; color: var(--muted); }
+.map-point-list { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.map-point-list button { min-width: 150px; border: 1px solid var(--line); border-radius: 10px; background: white; padding: 10px; text-align: left; color: inherit; cursor: pointer; }
+.map-point-list button.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.map-point-list button strong, .map-point-list button span { display: block; }
+.map-point-list button span, .map-source { margin-top: 4px; color: var(--muted); font-size: .78rem; }
 
 @media (max-width: 720px) {
   .page-shell { padding: 0 18px 40px; }

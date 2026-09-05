@@ -52,6 +52,8 @@ export function PlannerWizard() {
   const [error, setError] = useState("");
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionPhase, setSubmissionPhase] = useState("");
+  const [canCancelLlm, setCanCancelLlm] = useState(false);
   const [venueMatches, setVenueMatches] = useState<VenueSearchItem[]>([]);
   const [addressMatches, setAddressMatches] = useState<AddressSearchItem[]>([]);
   const [venueSearchMessage, setVenueSearchMessage] = useState("");
@@ -59,6 +61,7 @@ export function PlannerWizard() {
   const [searchingVenue, setSearchingVenue] = useState(false);
   const [searchingAddress, setSearchingAddress] = useState(false);
   const hydrated = useRef(false);
+  const llmAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -291,6 +294,7 @@ export function PlannerWizard() {
       if (message) { setStep(index); setError(message); return; }
     }
     setSubmitting(true);
+    setSubmissionPhase("데이터 분석 중");
     setError("");
     const request: PlannerAnalysisRequest = {
       contract_version: "0.1.0",
@@ -332,6 +336,9 @@ export function PlannerWizard() {
         warning: "실제 LLM을 사용할 수 없어 규칙 보고서로 생성했습니다.",
       };
       try {
+        setSubmissionPhase("로컬 AI 보고서 작성 중");
+        llmAbort.current = new AbortController();
+        setCanCancelLlm(true);
         const generated = await generatePlannerRecommendation({
           contract_version: "0.1.0",
           client_request_id: crypto.randomUUID(),
@@ -339,7 +346,8 @@ export function PlannerWizard() {
           planning_context: planningContext,
           rule_recommendations: analysis.rule_recommendations,
           requested_alternatives: Math.min(5, Math.max(1, details.requested_alternatives)),
-        });
+        }, llmAbort.current.signal);
+        setSubmissionPhase("결과 검증 중");
         const validation = validateStructuredRecommendation(generated.recommendation);
         if (!validation.valid) throw new ApiError(`LLM 결과 계약 검증 실패: ${validation.errors.join(" ")}`);
         recommendation = generated.recommendation;
@@ -349,6 +357,8 @@ export function PlannerWizard() {
           ? `${recommendationError.message} 규칙 보고서로 안전하게 전환했습니다.`
           : "LLM 결과를 사용할 수 없어 규칙 보고서로 안전하게 전환했습니다.";
       }
+      llmAbort.current = null;
+      setCanCancelLlm(false);
       saveDraft({ ...analyzedDraft, recommendation, recommendation_meta: recommendationMeta });
       router.push(`/planner/result?draft=${currentDraft.id}`);
     } catch (caught) {
@@ -356,7 +366,14 @@ export function PlannerWizard() {
       const fields = apiError.problem?.field_errors?.map((item) => item.message).join(" ");
       setError(fields || apiError.message);
       setSubmitting(false);
+      setSubmissionPhase("");
+      setCanCancelLlm(false);
     }
+  }
+
+  function cancelLlm() {
+    llmAbort.current?.abort();
+    setSubmissionPhase("취소 처리 중 · 분석 결과 보존");
   }
 
   return (
@@ -604,7 +621,7 @@ export function PlannerWizard() {
             <button type="button" className="button secondary" onClick={previousStep} disabled={step === 0}>이전</button>
             <div className="footer-right">
               <span>{formatSaved(savedAt)}</span>
-              {step < 6 ? <button type="button" className="button primary" onClick={nextStep}>다음</button> : <button type="button" className="button primary analyze-button" onClick={submitAnalysis} disabled={submitting}>{submitting ? "분석·보고서 생성 중…" : "분석·보고서 생성"}</button>}
+              {step < 6 ? <button type="button" className="button primary" onClick={nextStep}>다음</button> : <><button type="button" className="button primary analyze-button" onClick={submitAnalysis} disabled={submitting}>{submitting ? submissionPhase || "분석·보고서 생성 중…" : "분석·보고서 생성"}</button>{submitting && canCancelLlm ? <button type="button" className="button secondary" onClick={cancelLlm}>AI 보고서 취소</button> : null}</>}
             </div>
           </footer>
         </section>

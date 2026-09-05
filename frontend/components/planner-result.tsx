@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppHeader } from "./app-header";
+import { KakaoMapPreview } from "./kakao-map-preview";
 import { analyzePlanner, ApiError } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, findDraft } from "@/lib/drafts";
 import { optionLabel, regionFromCode, REGIONS } from "@/lib/options";
@@ -205,6 +206,7 @@ export function PlannerResult() {
             <article className="result-panel">
               <div className="panel-title"><div><span className="eyebrow">TOUR API</span><h2>주변 관광정보</h2></div><span className={`source-state ${analysis.nearby_places.status}`}>{analysis.nearby_places.status === "available" ? "조회됨" : "확인 필요"}</span></div>
               {analysis.nearby_places.status === "available" ? <ul className="nearby-list">{analysis.nearby_places.items.length ? analysis.nearby_places.items.map((place) => <li key={place.place_id}><strong>{place.name}</strong><span>{PLACE_LABELS[place.place_type] || place.place_type}{place.distance_m !== undefined ? ` · ${place.distance_m.toLocaleString("ko-KR")}m` : ""}</span></li>) : <li>반경 5km 안에 표시할 관광정보가 없습니다.</li>}</ul> : <div className="unavailable-box"><strong>주변 정보 미조회</strong><p>{analysis.nearby_places.message}</p><Link href={`/planner/new?draft=${draft.id}`}>장소 정보 수정 →</Link></div>}
+              <KakaoMapPreview venue={draft.event.venue} nearby={analysis.nearby_places} />
             </article>
           </section>
           <section className="result-panel recommendations-panel">

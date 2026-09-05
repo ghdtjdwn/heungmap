@@ -3,6 +3,7 @@ import json
 from copy import deepcopy
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app import main as main_module
@@ -221,6 +222,44 @@ def test_openai_adapter_rejects_new_numeric_claim(monkeypatch) -> None:
         raise AssertionError("new numeric claim must be rejected")
 
 
+def test_adapter_rejects_fixed_constraint_violation(monkeypatch) -> None:
+    content = generated_content()
+    content["alternatives"][0]["changes"] = ["행사 날짜를 변경합니다."]
+    payload = valid_request()
+    payload["planning_context"]["fixed_constraints"] = ["날짜 변경 불가"]
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": json.dumps(content, ensure_ascii=False)})
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "local-test-key")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    llm = PlannerLlmClient(transport=httpx.MockTransport(handler))
+    from app.schemas import PlannerRecommendationRequest
+    from app.services.llm import LlmInvalidResponse
+
+    with pytest.raises(LlmInvalidResponse, match="고정 제약"):
+        asyncio.run(llm.generate(PlannerRecommendationRequest.model_validate(payload)))
+
+
+def test_adapter_rejects_misleading_attendance_claim(monkeypatch) -> None:
+    content = generated_content()
+    content["executive_summary"] = "예상 관람객 수는 입력 목표와 같습니다."
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": json.dumps(content, ensure_ascii=False)})
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "local-test-key")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    llm = PlannerLlmClient(transport=httpx.MockTransport(handler))
+    from app.schemas import PlannerRecommendationRequest
+    from app.services.llm import LlmInvalidResponse
+
+    with pytest.raises(LlmInvalidResponse, match="관람객 수"):
+        asyncio.run(llm.generate(PlannerRecommendationRequest.model_validate(valid_request())))
+
+
 def test_openai_adapter_allows_opaque_id_numbers(monkeypatch) -> None:
     content = generated_content()
     content["priorities"][0]["id"] = "priority_999"
@@ -236,6 +275,45 @@ def test_openai_adapter_allows_opaque_id_numbers(monkeypatch) -> None:
 
     result = asyncio.run(llm.generate(PlannerRecommendationRequest.model_validate(valid_request())))
     assert result.recommendation.priorities[0].id == "priority_999"
+
+
+def test_adapter_allows_structural_ordinal_numbers(monkeypatch) -> None:
+    content = generated_content()
+    content["alternatives"][0]["title"] = "대안 1"
+    content["roadmap"][0]["phase"] = "1단계, 2차 검토"
+    content["roadmap"][0]["actions"] = ["1) 장소 운영자에게 문의합니다."]
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": json.dumps(content, ensure_ascii=False)})
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "local-test-key")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    llm = PlannerLlmClient(transport=httpx.MockTransport(handler))
+    from app.schemas import PlannerRecommendationRequest
+
+    result = asyncio.run(llm.generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert result.recommendation.alternatives[0].title == "대안 1"
+
+
+def test_adapter_allows_fixed_constraint_preservation_statement(monkeypatch) -> None:
+    content = generated_content()
+    content["alternatives"][0]["changes"] = ["날짜와 장소를 변경하지 않고 검토합니다."]
+    content["alternatives"][0]["verify"] = ["규모를 줄이는 방안은 고정 제약과 충돌하므로 제외합니다."]
+    payload = valid_request()
+    payload["planning_context"]["fixed_constraints"] = ["날짜 변경 불가", "장소 변경 불가", "규모 축소 불가"]
+
+    async def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"output_text": json.dumps(content, ensure_ascii=False)})
+
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("LLM_API_KEY", "local-test-key")
+    monkeypatch.setenv("LLM_MODEL", "test-model")
+    llm = PlannerLlmClient(transport=httpx.MockTransport(handler))
+    from app.schemas import PlannerRecommendationRequest
+
+    result = asyncio.run(llm.generate(PlannerRecommendationRequest.model_validate(payload)))
+    assert result.recommendation.generation_mode == "llm"
 
 
 def test_openai_adapter_maps_exhausted_credit_without_exposing_provider_body(monkeypatch) -> None:
@@ -287,6 +365,11 @@ def test_ollama_adapter_uses_local_structured_output(monkeypatch) -> None:
     assert "title" in captured["format"]["$defs"]["PlannerRecommendationPriority"]["properties"]
     assert captured["format"]["properties"]["alternatives"]["minItems"] == 1
     assert captured["format"]["properties"]["alternatives"]["maxItems"] == 1
+    assert captured["format"]["$defs"]["PlannerRecommendationRoadmapItem"]["properties"]["phase"]["enum"] == [
+        "지금",
+        "준비 중",
+        "행사 전",
+    ]
     schema_text = json.dumps(captured["format"])
     assert "minLength" not in schema_text
     assert "anyOf" not in schema_text

@@ -2,9 +2,10 @@
 
 ## 현재 범위
 
-로그인·서버 배포를 범위에서 제외하고, 학습된 자체 수요 모델만 mock으로 둔 기획자 로컬 흐름을 목표로
-합니다. 상세 입력은 브라우저에 저장하고, 공통 OpenAPI 계약에 포함된 값만 FastAPI 분석 endpoint로
-전달합니다.
+로그인·서버 배포를 범위에서 제외하고, 검증에서 채택되지 않은 자체 수요 모델만 mock으로 둔 기획자 로컬
+흐름입니다. 데이터 게이트는 통과했지만 LightGBM 일반화가 부족해 제품에는 연결하지 않았습니다. 상세
+입력은 브라우저에 저장하고 공통 OpenAPI 계약에 포함된 값만 FastAPI 분석 endpoint로 전달합니다. 실제
+판정은 [`DATA_GATE_REPORT.md`](DATA_GATE_REPORT.md)에 있습니다.
 
 ## 구현된 흐름
 
@@ -15,7 +16,8 @@
 3. 입력을 자동 저장하고 이전 단계 이동, 수정, 복사본 생성과 전체 검토를 수행합니다.
 4. `POST /api/v1/planner/analyses`로 분석 snapshot을 보내 규칙 기반 mock 상대 수요점수, 영향 요인, 우선 추천과 TourAPI 근거를 받습니다.
 5. Planning Context를 `POST /api/v1/planner/recommendations`에 한 번 전달해 실제 LLM 구조화 보고서를 생성합니다. LLM을 사용할 수 없으면 같은 근거의 규칙 보고서로 자동 전환합니다.
-6. 보고서, 근거·출처, LLM 또는 fallback 표시, Planning Context와 분석 version 이력을 확인합니다.
+6. 보고서, 근거·출처, LLM 또는 fallback 표시, Planning Context와 분석 version 이력을 확인합니다. Kakao
+   JavaScript 키와 domain을 사용해 선택 장소와 TourAPI 주변 장소를 지도·목록으로 함께 탐색합니다.
 7. 날짜·지역·규모·장소 수용인원·예산·공간을 바꾼 What-if를 원본과 비교합니다.
 8. 보고서를 Markdown·PDF로, 전체 결과와 Planning Context를 JSON으로 내보내고 요약을 복사합니다.
 
@@ -26,6 +28,7 @@
 - 장소·주소 검색 key나 외부 응답이 없으면 검색 오류만 표시하고 수동 입력과 분석 흐름을 유지합니다.
 - TourAPI 장소 후보에는 공식 수용인원이 없으므로 값을 생성하지 않으며 대관 가능 여부와 함께 별도 확인하도록 표시합니다.
 - frontend는 일시 오류나 timeout을 한 번 재시도하며 최종 실패 시에도 입력을 로컬에 보존합니다.
+- TourAPI와 Kakao Local의 성공 응답은 process-local TTL LRU cache로 재사용하며 오류는 cache하지 않습니다.
 - LLM 요청은 분석 버튼을 눌렀을 때 한 번만 실행하고 자동 재시도하지 않습니다. backend는 idempotency,
   100KB Context 제한, provider별 timeout, strict JSON Schema, 대안 개수, evidence reference와 입력에 없는
   숫자 생성을 검증합니다. OpenAI를 선택한 경우 provider 저장을 끕니다.
@@ -33,11 +36,24 @@
   보고서와 화면 경고로 전환됩니다.
 - 지역 방문수요나 상대지수를 특정 행사의 실제 관람객 수로 표시하지 않습니다.
 
-## 이후 공동 작업
+## 데이터·검증 현황
 
-- 데이터 게이트를 통과한 학습 모델과 SHAP 결과 연결
-- 상대 담당자의 공통 contract 검토
-- 대표 기획 scenario로 로컬 LLM 출력 품질을 반복 평가하고 prompt·schema 보정
+- 실제 TourAPI 축제 원본 688건과 지역 방문자 464,092행을 수집했습니다. 일별 기초지자체 154,706행으로
+  정규화하고 행사 중복을 제거해 514건·76.37%를 결합했습니다.
+- 시간 분할 410/104에서 지역 중앙값 baseline MAE 0.077481, LightGBM MAE 0.090058로 16.23%
+  악화됐습니다. 미관측 지역 5-fold MAE는 baseline 0.103730, LightGBM 0.100590이었습니다.
+- 시간 일반화 채택 기준을 통과하지 않아 실제 model과 SHAP은 제품에
+  연결하지 않았습니다.
+- 수집·재개·정규화·결합·품질 보고와 누수 검사는 구현하고 fixture로 검증했습니다.
+- Playwright는 7개 test로 대형·소규모, 검색·실패 fallback, validation, version·What-if,
+  localStorage, 내보내기·인쇄, 키보드와 desktop·mobile 흐름을 검사합니다.
+- 최종 병합 전 backend test 41개, frontend typecheck·lint·production build와 Playwright 7개가
+  통과했습니다.
+- 실제 로컬 `qwen3.5:9b` 평가에서 대형, 소규모, 대부분 미입력, 수용규모 모순, 강한 고정 제약의 5개
+  scenario가 최종 validator를 통과했습니다. 응답 시간은 31.054–51.978초, 평균 41.746초였습니다. 첫 full
+  run의 고정 제약 문장 오탐을 수정한 뒤 해당 scenario만 다시 실행해 통과했으므로 한 번의 동시 benchmark로
+  해석하지 않습니다. 생성문은 저장하지 않고 상태·지연·검증 진단만 ignored report에 기록했습니다.
+- 공통 prediction·label 계약은 승인 자료가 준비됐으며 상대 담당자와 **공동 검토 대기**입니다.
 
 ## 실제 완료까지 남은 외부 조건
 
@@ -45,12 +61,24 @@
 | --- | --- | --- |
 | 장소명·주변 관광정보 | TourAPI adapter, 실패 fallback, 실제 backend·frontend proxy 200 확인 | 완료 |
 | 주소·좌표 | Kakao Local adapter, 수동 입력 fallback, 실제 backend·frontend proxy 200 확인 | 완료. 기존 앱 quota와 제품 상태 유지 필요 |
-| 자체 수요 모델 | 입력·출력 계약과 mock adapter 구현 | 데이터 게이트, 학습·평가 후 실제 model 교체 |
+| 자체 수요 모델 | 514건 학습표, baseline·LightGBM 시간/group 평가 완료, 제품은 mock 유지 | 시간 분할 성능 개선 feature 확보 후 재평가 |
 | LLM 기획 추천 | Ollama `qwen3.5:9b` 기본 adapter와 선택적 OpenAI adapter, 공통 endpoint, schema·근거 검증, idempotency·timeout·규칙 fallback 구현 | 로컬 model 설치·실제 생성 smoke test 완료 |
+| Kakao 지도 | 선택 장소 marker, TourAPI 주변 marker·목록 동기화와 목록 fallback 구현 | JavaScript 키·localhost SDK domain 등록 완료, 실제 브라우저 smoke 확인 |
 | 로그인·서버 저장 | 구현 범위에서 제외 | browser `localStorage`만 사용 |
 | 서버 배포 | 구현 범위에서 제외 | localhost 실행과 재현 절차만 유지 |
 
 ## 작업 기록
+
+### 2026-09-06 — 데이터 게이트·지도·cache·LLM eval·E2E
+
+- 최초에는 방문자 API 권한이 없어 결합 0건이었지만 승인 키 적용 후 2025–2026 축제·방문자를 수집해
+  중복 제거 후 514건·76.37%로 결합했습니다.
+- 실제 LightGBM은 시간 MAE가 baseline보다 16.23% 나빠 채택하지 않았고,
+  채택 모델이 없으므로 SHAP도 계산하지 않았습니다.
+- 재개 가능한 데이터 수집·결합·품질 보고, 외부 조회 TTL LRU cache, Kakao 지도와 목록 fallback,
+  LLM 제약 검증·취소 상태, Playwright E2E와 3분 시연 자료를 추가했습니다.
+- 공통 계약 승인만 외부 작업으로 남기고 로그인·배포·방문객 화면은 범위에서 제외했습니다. 이번
+  작업에서는 commit, push, PR 변경과 배포를 수행하지 않았습니다.
 
 ### 2026-09-06 — 기획자 로컬 흐름 commit·push와 PR 갱신
 

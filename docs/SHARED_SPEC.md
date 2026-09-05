@@ -11,7 +11,8 @@
 - 현재 상태: 구현 시작용 v0.1 기준선
 - 승인자: 공유 데이터·예측 계약 관리자 작성, 통합 검토자 검토
 
-실제 TourAPI와 지역 방문자 데이터의 응답·결합 가능성은 아직 확인되지 않았다. 따라서 데이터 게이트에서
+2026-09-06 실제 TourAPI와 지역 방문자 데이터 514건을 76.37%로 결합해 데이터 게이트를 통과했다. 다만
+학습 모델은 baseline 비교와 미관측 지역 검증을 통과하지 못해 채택하지 않았다. 따라서
 확인한 필드와 label에 따라 `0.1.x` 범위에서 보완할 수 있지만, 그전까지 양쪽 화면은 이 기준선과 같은 mock을
 사용하고 서로 다른 임시 schema를 만들지 않는다.
 
@@ -41,8 +42,9 @@ field 오류를 추가한다. 성공 응답과 오류 응답을 같은 `success`
                               └──────▶ 선택적 LLM
 ```
 
-- frontend는 한국관광공사나 LLM API를 직접 호출하지 않는다.
-- 외부 API key는 backend 환경 변수에만 둔다.
+- frontend는 한국관광공사, Kakao Local REST API나 LLM API를 직접 호출하지 않는다.
+- 비밀 API key는 backend 환경 변수에만 둔다. Kakao 지도 Web SDK의 공개 JavaScript 플랫폼 키만
+  browser bundle에 포함하고 허용 domain을 제한한다.
 - 외부 응답은 adapter에서 공통 schema로 바꾸고 raw field를 화면 계약에 노출하지 않는다.
 - 같은 `event_id`와 `prediction_id`를 두 서비스가 사용한다.
 - LLM은 공통 `Prediction` 값을 읽기만 하며 수치를 새로 만들거나 변경하지 않는다.

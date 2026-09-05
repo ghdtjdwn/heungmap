@@ -183,7 +183,32 @@
 - 학습된 자체 수요 model만 계속 mock이며, LLM은 그 상대지수를 변경하거나 실제 관람객 수로 해석하지
   않습니다. 로컬 LLM도 자체 수요 예측 model을 대신하지 않습니다.
 
+## D22. 데이터 게이트와 모델 채택을 분리해 판정
+
+- 2026-09-06 `searchFestival2` 축제 원본 688건과 지역 방문자 464,092행을 수집해 중복 제거 후
+  514건·76.37%를 결합했습니다.
+  최소 50건·70%인 데이터 게이트는 통과했습니다.
+- label 후보는 직전 28일 중앙값 대비 행사 기간 기초지자체 방문수요 증가율입니다. 이는 특정 축제
+  관람객이 아니며 최종 이름·단위·UI 표현은 공동 승인 대상으로 남깁니다.
+- 2025–2026 시간 분할에서 LightGBM MAE는 지역 중앙값 baseline보다 16.23% 높고 RMSE도 나빴습니다.
+  미관측 지역 5-fold 평균 MAE는 소폭 낮았지만 시간 일반화 실패를 상쇄하지 못합니다.
+- 따라서 학습·평가 pipeline과 실제 metric은 보존하되 model artifact를 제품에 연결하지 않습니다.
+  SHAP은 채택 모델에만 적용하므로 계산하지 않고 규칙 mock과 실패 fallback을 유지합니다.
+
+## D23. 외부 조회 cache, 지도 fallback과 결정론적 E2E를 로컬 baseline에 포함
+
+- TourAPI와 Kakao Local의 동일 조회는 process-local TTL LRU cache를 사용해 quota와 반복 지연을 줄입니다.
+  cache는 원본·가공 데이터나 인증키를 디스크에 저장하지 않고 오류 응답도 저장하지 않습니다.
+- Kakao Maps JavaScript 키와 localhost domain을 설정하고 선택 장소와 TourAPI 주변 장소가 실제 지도와
+  목록에서 동기화되는 것을 확인했습니다. 키나 SDK가 없으면 출처·거리 목록을 그대로 제공합니다.
+- Playwright는 외부 API를 fixture로 고정해 입력, 검색, 실패 fallback, version, What-if, 내보내기,
+  localStorage, 키보드와 desktop·mobile 흐름을 반복 검증합니다. 실제 credential smoke는 별도 실행합니다.
+- 로컬 LLM은 실제 5개 대표 scenario에서 구조화 계약·숫자·근거·제약·사람 검토 검증을 통과했고
+  31.054–51.978초가 걸렸습니다. 위반 출력은 자동 수정하지 않고 규칙 fallback을 유지합니다.
+- 지도 관련 공통 HTTP type은 새로 만들지 않고 기존 `Coordinates`, `NearbyPlace`, `SourceRef`를 재사용하며
+  상대 담당자 검토 상태는 `공동 검토 대기`입니다.
+
 ## 미결 사항
 
-- 절대 방문자 수와 평상시 대비 증가분 중 최종 label 정의
-- 데이터 게이트 통과 기준과 모델 평가 지표의 수치 기준
+- 지역 방문수요 증가율 label 이름·단위·UI 표현의 공동 승인
+- 다년 데이터 확보 뒤 모델 채택 기준 재평가

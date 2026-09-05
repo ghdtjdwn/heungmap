@@ -85,6 +85,16 @@ def problem_response(
     return JSONResponse(payload, status_code=status, media_type="application/problem+json")
 
 
+def upstream_problem_code(reason: str) -> tuple[int, str, bool]:
+    return {
+        "not_configured": (503, "UPSTREAM_NOT_CONFIGURED", False),
+        "permission": (503, "UPSTREAM_PERMISSION_DENIED", False),
+        "quota": (429, "UPSTREAM_QUOTA_EXCEEDED", True),
+        "timeout": (504, "UPSTREAM_TIMEOUT", True),
+        "upstream": (503, "UPSTREAM_UNAVAILABLE", True),
+    }.get(reason, (503, "UPSTREAM_UNAVAILABLE", True))
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     field_errors = []
@@ -132,13 +142,15 @@ async def search_venues(
     try:
         items = await tourapi.search_venues(keyword=keyword, area_code=area_code, limit=limit)
     except TourApiUnavailable as exc:
+        reason = "not_configured" if not tourapi.configured else exc.reason
+        status, code, retryable = upstream_problem_code(reason)
         return problem_response(
             request,
-            status=503,
-            code="UPSTREAM_UNAVAILABLE",
+            status=status,
+            code=code,
             title="관광정보 장소 검색을 사용할 수 없습니다",
             detail=str(exc),
-            retryable=tourapi.configured,
+            retryable=retryable,
         )
     return VenueSearchResponse(
         items=items,
@@ -175,13 +187,15 @@ async def search_addresses(
     try:
         items = await kakao_address.search_addresses(query=query, limit=limit)
     except KakaoAddressUnavailable as exc:
+        reason = "not_configured" if not kakao_address.configured else exc.reason
+        status, code, retryable = upstream_problem_code(reason)
         return problem_response(
             request,
-            status=503,
-            code="UPSTREAM_UNAVAILABLE",
+            status=status,
+            code=code,
             title="주소 검색을 사용할 수 없습니다",
             detail=str(exc),
-            retryable=kakao_address.configured,
+            retryable=retryable,
         )
     return AddressSearchResponse(
         items=items,

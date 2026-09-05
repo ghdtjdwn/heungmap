@@ -623,7 +623,7 @@ mock prediction과 규칙 항목만 비교하며, 전체 LLM 보고서가 필요
 - [x] prediction mock response 연결
 - [x] Planning Context와 추천 결과 schema v1 작성
 - [x] LLM 없이 동작하는 규칙 진단·template 결과 구현
-- [ ] 실제 prediction API 연결
+- [ ] 실제 prediction API 연결 — 시간 분할 채택 기준 실패로 보류, 규칙 mock 유지
 - [x] 마지막에 LLM structured recommendation 연결
 - [x] 정상·누락·모순·외부 API 실패·model 실패·LLM 실패 scenario 테스트
 - [ ] 상대 담당자의 공통 contract 검토
@@ -641,6 +641,6 @@ mock prediction과 규칙 항목만 비교하며, 전체 LLM 보고서가 필요
 
 ## 미결 사항
 
-- 실제 LLM 계정의 API key·model과 계정별 비용·rate limit
+- 로컬 Ollama `qwen3.5:9b`의 대표 scenario 품질·latency 회귀 추적
 - 데이터 게이트 이후 실제 prediction API와 SHAP 교체 시점
 - 상대 담당자의 공통 contract 검토 결과

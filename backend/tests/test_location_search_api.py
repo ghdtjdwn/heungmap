@@ -119,7 +119,7 @@ def test_search_upstream_failures_use_problem_json(monkeypatch) -> None:
         response = client.get(path, params=params)
         assert response.status_code == 503
         assert response.headers["content-type"].startswith("application/problem+json")
-        assert response.json()["code"] == "UPSTREAM_UNAVAILABLE"
+        assert response.json()["code"] == "UPSTREAM_NOT_CONFIGURED"
 
 
 def test_search_query_requires_two_characters() -> None:

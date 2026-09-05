@@ -1,5 +1,33 @@
 # 문제 해결 기록
 
+## 지역별 방문자수 API가 활용 권한 오류를 반환하는 경우
+
+- 날짜: 2026-09-06
+- 상황: TourAPI `searchFestival2`에 성공한 공공데이터포털 일반 인증키로 한국관광공사 지역별 방문자수
+  `locgoRegnVisitrDDList`를 smoke 호출했습니다.
+- 기대 동작: 같은 기간·지역의 일별 방문자 행을 받아 축제 기간과 직전 기준선을 결합해야 합니다.
+- 실제 동작과 영향: 최초 API가 활용 권한 오류를 반환해 방문자 0행, 결합 0행·0%가 됐습니다.
+- 원인: 공공데이터포털의 국문 관광정보 서비스와 지역별 방문자수는 별도 활용신청 대상입니다. 한 서비스의
+  키가 정상이어도 다른 서비스 권한이 자동으로 생기지 않습니다.
+- 해결 방법: <https://www.data.go.kr/data/15101972/openapi.do>에서 별도 활용신청 후 승인된 일반 인증키를
+  `.env`의 `VISITOR_API_SERVICE_KEY`에 설정합니다. 키를 코드·문서·로그에 넣지 않습니다.
+- 재검증: 승인 키로 2025–2026 원본 464,092행, 일별 기초지자체 154,706행을 수집했고 TourAPI 축제와
+  514건·76.37%를 결합해 데이터 게이트를 통과했습니다. 이후 모델 평가는 별도로 채택 기준에 실패했습니다.
+- 회귀 방지: 수집기는 permission, quota, timeout, upstream, invalid response를 분리하고 완료 page부터
+  재개합니다. 실제 데이터가 없을 때는 빈 label이나 평가 metric을 생성하지 않습니다.
+
+## macOS에서 LightGBM이 `libomp.dylib`를 찾지 못하는 경우
+
+- 날짜: 2026-09-06
+- 상황: Apple Silicon macOS의 Python 가상환경에 LightGBM wheel을 설치하고 실제 평가 script를 실행했습니다.
+- 실제 동작과 영향: import 단계에서 `Library not loaded: @rpath/libomp.dylib` 오류가 발생해 모델 학습을
+  시작하지 못했습니다.
+- 원인: LightGBM의 macOS wheel이 사용하는 OpenMP runtime이 시스템에 설치되지 않았습니다.
+- 해결: `brew install libomp` 후 같은 가상환경에서 LightGBM import와 학습을 다시 실행했습니다.
+- 검증: 시간 분할과 5-fold 지역 group 평가가 끝까지 실행돼 JSON 평가 report를 생성했습니다.
+- 재발 방지: macOS 모델 재현 절차에 Homebrew `libomp`를 명시합니다. Windows wheel에는 같은 Homebrew
+  단계가 없으므로 Windows 체크리스트에 그대로 적용하지 않습니다.
+
 ## Ollama structured output이 `failed to parse grammar`를 반환하는 경우
 
 - 날짜: 2026-09-06

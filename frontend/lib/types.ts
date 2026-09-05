@@ -233,6 +233,7 @@ export type NearbyResult = {
     place_type: string;
     name: string;
     address?: string;
+    coordinates?: { latitude: number; longitude: number };
     distance_m?: number;
     sources: SourceRef[];
   }[];

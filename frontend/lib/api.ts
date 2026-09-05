@@ -47,8 +47,11 @@ export async function analyzePlanner(request: PlannerAnalysisRequest): Promise<P
 
 export async function generatePlannerRecommendation(
   request: PlannerRecommendationRequest,
+  externalSignal?: AbortSignal,
 ): Promise<PlannerRecommendationResponse> {
   const controller = new AbortController();
+  const cancel = () => controller.abort();
+  externalSignal?.addEventListener("abort", cancel, { once: true });
   const timer = window.setTimeout(() => controller.abort(), 195_000);
   try {
     const response = await fetch(`${longRunningApiBase}/api/v1/planner/recommendations`, {
@@ -63,11 +66,13 @@ export async function generatePlannerRecommendation(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
+      if (externalSignal?.aborted) throw new ApiError("로컬 AI 보고서 생성을 취소했습니다.");
       throw new ApiError("LLM 보고서 생성 시간이 초과되어 규칙 보고서로 전환합니다.");
     }
     throw new ApiError("LLM 서비스에 연결하지 못해 규칙 보고서로 전환합니다.");
   } finally {
     window.clearTimeout(timer);
+    externalSignal?.removeEventListener("abort", cancel);
   }
 }
 

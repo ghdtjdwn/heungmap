@@ -37,7 +37,9 @@ class LlmUpstreamUnavailable(RuntimeError):
 
 
 class LlmInvalidResponse(RuntimeError):
-    pass
+    def __init__(self, message: str, *, diagnostics: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.diagnostics = diagnostics or {}
 
 
 def _extract_output_text(payload: dict[str, Any]) -> str:
@@ -76,6 +78,31 @@ def _numeric_literals(value: Any) -> set[str]:
         token.replace(",", "")
         for token in re.findall(r"(?<![A-Za-z0-9_])\d+(?:[.,]\d+)*(?![A-Za-z0-9_])", serialized)
     }
+
+
+def _numeric_claim_literals(value: Any) -> set[str]:
+    serialized = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    # Ordinal labels organize the response and do not assert attendance, money, time, or performance.
+    serialized = re.sub(r"(?:대안|우선순위|단계)\s*\d+", "구조항목", serialized)
+    serialized = re.sub(r"제?\s*\d+\s*(?:안|단계|순위)", "구조항목", serialized)
+    serialized = re.sub(r"(?<![A-Za-z0-9_])\d+\s*(?:차|\))", "구조항목", serialized)
+    return {
+        token.replace(",", "")
+        for token in re.findall(r"(?<![A-Za-z0-9_])\d+(?:[.,]\d+)*(?![A-Za-z0-9_])", serialized)
+    }
+
+
+def _unknown_numeric_paths(value: Any, unknown: set[str], path: str = "") -> list[str]:
+    paths: list[str] = []
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            paths.extend(_unknown_numeric_paths(nested, unknown, f"{path}.{key}" if path else key))
+    elif isinstance(value, list):
+        for index, nested in enumerate(value):
+            paths.extend(_unknown_numeric_paths(nested, unknown, f"{path}[{index}]"))
+    elif _numeric_claim_literals(value) & unknown:
+        paths.append(path)
+    return paths
 
 
 def _ollama_schema(value: Any, *, property_map: bool = False) -> Any:
@@ -128,6 +155,75 @@ def _recommendation_narrative(content: PlannerRecommendationContent) -> dict[str
     }
 
 
+def _fixed_constraint_violations(planning_context: dict[str, Any], content: PlannerRecommendationContent) -> list[str]:
+    constraints = planning_context.get("fixed_constraints", [])
+    if not isinstance(constraints, list):
+        return []
+    narrative = json.dumps(_recommendation_narrative(content), ensure_ascii=False)
+    compact_narrative = re.sub(r"\s+", "", narrative)
+    # Repeating a constraint or promising to preserve it is not a proposal to violate it.
+    for preserved in (
+        "날짜변경불가",
+        "날짜를변경하지",
+        "날짜변경없이",
+        "일정변경불가",
+        "일정을변경하지",
+        "일정변경없이",
+        "장소변경불가",
+        "장소를변경하지",
+        "장소변경없이",
+        "예산증액불가",
+        "예산을늘리지",
+        "예산증액없이",
+        "예산증액대신",
+        "규모축소불가",
+        "규모를줄이지",
+        "규모축소없이",
+        "규모를줄이는대신",
+        "규모축소대신",
+        "규모축소를피",
+    ):
+        compact_narrative = compact_narrative.replace(preserved, "제약준수")
+    for constrained_action in (
+        r"(?:날짜|일정)(?:를)?변경",
+        r"장소(?:를)?변경",
+        r"예산(?:을)?(?:늘|확대|증액)",
+        r"규모(?:를)?(?:줄|축소)",
+    ):
+        compact_narrative = re.sub(
+            rf"{constrained_action}[^\".,]{{0,24}}(?:않|불가|없|제외|대신|피하|금지|충돌|제약|유지)",
+            "제약준수",
+            compact_narrative,
+        )
+    violations: list[str] = []
+    for constraint in constraints:
+        normalized = re.sub(r"\s+", "", str(constraint))
+        checks = (
+            ("날짜변경불가", ("날짜를변경", "일정을변경", "날짜변경")),
+            ("장소변경불가", ("장소를변경", "장소변경")),
+            ("예산증액불가", ("예산을늘", "예산증액", "예산을확대")),
+            ("규모축소불가", ("규모를줄", "규모축소")),
+        )
+        for marker, forbidden in checks:
+            if marker in normalized and any(phrase in compact_narrative for phrase in forbidden):
+                violations.append(str(constraint))
+                break
+    return violations
+
+
+def _has_misleading_attendance_claim(content: PlannerRecommendationContent) -> bool:
+    narrative = re.sub(r"\s+", "", json.dumps(_recommendation_narrative(content), ensure_ascii=False))
+    for safe_phrase in (
+        "실제관람객수가아닙니다",
+        "실제관람객수가아님",
+        "실제관람객수를뜻하지않습니다",
+        "특정축제관람객수가아닙니다",
+        "관람객수로해석하지않습니다",
+    ):
+        narrative = narrative.replace(safe_phrase, "해석제한")
+    return bool(re.search(r"(?:실제|확정|예상)(?:축제|행사)?관람객(?:수)?", narrative))
+
+
 class PlannerLlmClient:
     """Provider adapter isolated behind the planner recommendation boundary."""
 
@@ -165,6 +261,8 @@ class PlannerLlmClient:
             "입력에 있는 Planning Context와 rule_recommendations만 근거로 한국어 실행안을 작성한다. "
             "model_prediction 값은 자체 학습 모델 연결 전 mock 상대지수이므로 절대 실제 관람객 수로 표현하지 않는다. "
             "입력에 없는 수요 수치, 비용, 법률 판단, 장소 수용인원 또는 확인된 사실을 만들지 않는다. "
+            "입력에 없는 숫자는 단계 번호, 기간, 시각, 비율에도 쓰지 말고 '지금', '준비 중', '행사 전' 같은 말로 쓴다. "
+            "deadline은 입력에 같은 날짜나 시각이 있을 때만 쓰고 그 외에는 null로 둔다. "
             "predicted_impact는 숫자가 아닌 정성 표현만 쓴다. 사실 또는 계산을 언급하는 priority에는 입력의 evidence_id만 연결한다. "
             "고정 제약을 지키고 불확실한 내용은 assumptions, missing_information, limitations에 명시한다. "
             "모든 priority는 requires_human_review=true여야 한다. 제공된 JSON Schema에 맞는 JSON만 반환한다."
@@ -182,6 +280,11 @@ class PlannerLlmClient:
             alternatives_schema = generation_schema["properties"]["alternatives"]
             alternatives_schema["minItems"] = request.requested_alternatives
             alternatives_schema["maxItems"] = request.requested_alternatives
+            generation_schema["$defs"]["PlannerRecommendationRoadmapItem"]["properties"]["phase"]["enum"] = [
+                "지금",
+                "준비 중",
+                "행사 전",
+            ]
             body = {
                 "model": self.model,
                 "messages": [
@@ -265,9 +368,25 @@ class PlannerLlmClient:
         if unknown_refs:
             raise LlmInvalidResponse("LLM 응답에 입력 근거에 없는 evidence_ref가 포함됐습니다.")
         allowed_numbers = _numeric_literals(input_payload)
-        generated_numbers = _numeric_literals(_recommendation_narrative(content))
-        if generated_numbers - allowed_numbers:
-            raise LlmInvalidResponse("LLM 응답에 입력 근거에 없는 숫자가 포함됐습니다.")
+        narrative = _recommendation_narrative(content)
+        generated_numbers = _numeric_claim_literals(narrative)
+        unknown_numbers = generated_numbers - allowed_numbers
+        if unknown_numbers:
+            raise LlmInvalidResponse(
+                "LLM 응답에 입력 근거에 없는 숫자가 포함됐습니다.",
+                diagnostics={
+                    "unknown_numeric_literals": sorted(unknown_numbers),
+                    "unknown_numeric_paths": _unknown_numeric_paths(narrative, unknown_numbers),
+                },
+            )
+        constraint_violations = _fixed_constraint_violations(request.planning_context, content)
+        if constraint_violations:
+            raise LlmInvalidResponse(
+                "LLM 응답이 입력된 고정 제약을 위반했습니다.",
+                diagnostics={"violated_constraints": constraint_violations},
+            )
+        if _has_misleading_attendance_claim(content):
+            raise LlmInvalidResponse("LLM 응답이 상대지수를 실제 또는 예상 관람객 수로 오해하게 표현했습니다.")
 
         now = datetime.now().astimezone()
         recommendation = StructuredPlanningRecommendation(
