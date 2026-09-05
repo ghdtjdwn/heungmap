@@ -11,6 +11,7 @@ data/processed/*
 !data/**/.gitkeep
 !data/README.md
 *.csv
+!backend/tests/fixtures/**/*.csv
 *.parquet
 *.xlsx
 # (샘플/소량 데이터를 일부러 올릴 땐 개별 예외 추가)
@@ -29,12 +30,16 @@ env/
 # --- Node / Next.js ---
 node_modules/
 .next/
+test-results/
+playwright-report/
+blob-report/
 out/
 dist/
 build/
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+*.tsbuildinfo
 
 # --- ML artifacts ---
 *.pkl
