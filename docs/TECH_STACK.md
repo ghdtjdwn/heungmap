@@ -14,7 +14,7 @@ application 스택을 확정합니다. 학습 model과 LLM은 데이터·품질 
 | backend API | FastAPI·Pydantic | Python 추론 통합과 OpenAPI 3.1 contract 생성 |
 | frontend | Next.js App Router·TypeScript | 캘린더·지도·URL 상태와 반응형 UI 구현 |
 | 지도 | Kakao Map JavaScript SDK | 국내 위치·주차·숙소 표현 |
-| 설명 생성 | 공급자 중립 LLM API | 선택 기능으로 격리하고 timeout·fallback 제공 |
+| 설명 생성 | 공급자 중립 내부 계약 + Ollama `qwen3.5:9b` 기본 adapter | 로컬 structured output, timeout·idempotency·검증·fallback 제공; OpenAI는 선택 adapter |
 | 공통 계약 | OpenAPI 3.1.0·JSON Schema 2020-12 | Python·TypeScript 사이 단일 API schema |
 | 초기 저장 | SQLite 또는 저장 없음 | cache·draft가 필요할 때만 SQLite 추가 |
 | 서버 | Ubuntu·Nginx·systemd | 단일 개인 서버, 같은 origin으로 frontend·API 제공 |

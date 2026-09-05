@@ -526,8 +526,9 @@ confidence
 requires_human_review
 ```
 
-LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 출처에 없는 숫자·장소·법규를 단정하면
-재생성하거나 해당 항목을 제외한다.
+LLM 결과는 server에서 schema와 evidence reference를 검증한다. 필수 field가 없거나 입력에 없는 근거를
+참조하면 응답 전체를 거부하고 frontend가 검증된 규칙 fallback으로 전환한다. 새 수요·비용·장소·법규
+사실을 생성하지 말라는 제약을 prompt와 사람 확인 표시에도 함께 적용한다.
 
 ## 화면 구성 후보
 
@@ -571,6 +572,19 @@ LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 �
 
 ## 구현 단계
 
+### 현재 입력 범위 분류
+
+| 분류 | 항목 |
+| --- | --- |
+| MVP 필수 | 기획자 유형·기획 단계, 행사 유형·목적·테마, 목표 이용객 |
+| 선택 입력 | 일정·지역·장소·수용 규모, 티켓·예산, 프로그램·홍보·운영·안전·접근성, 제약·대안 수 |
+| 자체 model 이후 | 학습 예측·SHAP, 데이터 게이트를 통과한 추가 feature |
+| 현재 제외 | 로그인·server draft·공개 공유, 문서 upload, 결제·예매, 법률·안전 승인, 확인되지 않은 공식 수용인원 자동 추정 |
+
+선택 입력은 비워도 흐름을 완료할 수 있고 결과의 `missing_information`과 확인 순서로 돌려줍니다. form은
+7단계, 내보내기는 Markdown·JSON·browser PDF 인쇄로 확정합니다. What-if는 중복 LLM 비용을 만들지 않고
+mock prediction과 규칙 항목만 비교하며, 전체 LLM 보고서가 필요하면 변경안을 새 기획 version으로 분석합니다.
+
 ### 단계 0 — 입력과 template
 
 - 핵심 입력 10~15개와 `기타`, `모름`, `추천받기`
@@ -602,16 +616,16 @@ LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 �
 ## 첫 작업 체크리스트
 
 - [x] 기획자 기능 담당자 이름 확정 — 홍성주
-- [ ] 대형 행사 기획자와 소규모 독립 기획자·가수 대표 scenario 각각 1개 작성
-- [ ] 후보 입력을 MVP 필수·선택·추후·제외로 분류
-- [ ] 단계형 form wireflow 작성
-- [ ] 입력 schema와 mock request 작성
-- [ ] prediction mock response 연결
-- [ ] Planning Context와 추천 결과 schema v1 작성
-- [ ] LLM 없이 동작하는 규칙 진단·template 결과 구현
+- [x] 대형 행사 기획자와 소규모 독립 기획자·가수 대표 scenario 각각 1개 작성
+- [x] 후보 입력을 MVP 필수·선택·추후·제외로 분류
+- [x] 단계형 form wireflow 작성
+- [x] 입력 schema와 mock request 작성
+- [x] prediction mock response 연결
+- [x] Planning Context와 추천 결과 schema v1 작성
+- [x] LLM 없이 동작하는 규칙 진단·template 결과 구현
 - [ ] 실제 prediction API 연결
-- [ ] 마지막에 LLM structured recommendation 연결
-- [ ] 정상·누락·모순·외부 API 실패·model 실패·LLM 실패 scenario 테스트
+- [x] 마지막에 LLM structured recommendation 연결
+- [x] 정상·누락·모순·외부 API 실패·model 실패·LLM 실패 scenario 테스트
 - [ ] 상대 담당자의 공통 contract 검토
 
 ## 완료 조건
@@ -627,10 +641,6 @@ LLM 결과는 server에서 schema를 검증한다. 필수 필드가 없거나 �
 
 ## 미결 사항
 
-- 최종 MVP 입력 항목과 form 단계 수
-- 로그인·draft 영구 저장·공유 기능 포함 여부
-- LLM 제공자와 model, 비용·timeout·rate limit
-- 장소·비용·법규 근거 데이터 확보 범위
-- upload 문서 저장·삭제·개인정보 정책
-- what-if에서 다시 실행할 예측과 LLM 범위
-- 기획안 내보내기 형식과 제출 화면 범위
+- 실제 LLM 계정의 API key·model과 계정별 비용·rate limit
+- 데이터 게이트 이후 실제 prediction API와 SHAP 교체 시점
+- 상대 담당자의 공통 contract 검토 결과

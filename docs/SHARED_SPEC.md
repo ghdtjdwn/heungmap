@@ -258,15 +258,24 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 | `GET /events/{event_id}` | 행사 상세 | `EventDetail` |
 | `GET /events/{event_id}/nearby` | 주변 시설·관광지 | `NearbyPlaceListResponse` |
 | `GET /events/{event_id}/prediction` | 같은 행사 예측 조회 | `PredictionResult` |
+| `GET /venues/search` | TourAPI 장소 후보 검색 | `VenueSearchResponse` |
+| `GET /addresses/search` | 주소·좌표 검색 | `AddressSearchResponse` |
 | `POST /planner/analyses` | 기획자 입력 snapshot 분석 | `PlannerAnalysisResponse` |
+| `POST /planner/recommendations` | Planning Context 기반 실제 LLM 추천 | `PlannerRecommendationResponse` |
 
-현재는 로그인, draft 영구 저장·공개, 즐겨찾기, 알림, 실제 예매와 LLM endpoint를 정의하지 않는다. 필요성이
-확정되기 전에 인증과 DB를 공통 의존성으로 만들지 않기 위해서다.
+현재는 로그인, draft 영구 저장·공개, 즐겨찾기, 알림과 실제 예매를 정의하지 않는다. 필요성이 확정되기
+전에 인증과 DB를 공통 의존성으로 만들지 않기 위해서다.
 
 `POST /planner/analyses`는 Tier 0에서 동기식 규칙 분석으로 시작한다. 응답에는 정규화한 요청 snapshot,
 `PredictionResult`, 주변 장소의 available·unavailable 상태, 사용한 evidence와 규칙 추천이 포함된다.
-장소 좌표가 없으면 주변 장소를 빈 검색 결과로 가장하지 않고 `missing_coordinates`로 설명한다. LLM은
-나중에 같은 `analysis_id`와 `PredictionResult`를 읽는 별도 기능으로 추가한다.
+장소 좌표가 없으면 주변 장소를 빈 검색 결과로 가장하지 않고 `missing_coordinates`로 설명한다.
+`POST /planner/recommendations`는 같은 `analysis_id`, Planning Context와 규칙 추천을 읽는 별도 단계다.
+실제 LLM의 strict JSON output과 evidence reference를 server에서 검증하며 수요 수치는 변경하지 않는다.
+실패 시 frontend가 규칙 fallback을 저장해 분석 결과를 유지한다.
+
+`GET /venues/search`는 TourAPI `searchKeyword2` 결과를 공용 `Venue`로 매핑하지만 공식 수용인원을
+추정하지 않는다. `GET /addresses/search`는 Kakao Local 주소 검색 결과의 도로명·지번 주소와 좌표를
+반환한다. 두 endpoint가 실패해도 기획자는 수동 입력하거나 장소를 비우고 추천 조건을 받을 수 있다.
 
 ## 성공 응답
 

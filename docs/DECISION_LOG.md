@@ -115,6 +115,74 @@
 - 첫 배포는 systemd를 사용하고 Docker·Redis·PostgreSQL은 실제 운영 필요가 확인되기 전에는 추가하지 않습니다. 저장이 필요하면 SQLite부터 검토합니다.
 - 세부 구조와 보안·운영 점검은 `DEPLOYMENT.md`에서 관리합니다.
 
+## D17. 로그인 전 기획자 초안은 브라우저에만 보관
+
+- 로그인 구현 전에는 기획자 초안과 분석 결과를 browser `localStorage`에 저장하고 server에는 영구
+  저장하지 않습니다.
+- 자동 저장, 수정, 복사와 결과 재확인은 같은 browser 안에서 제공하되 다른 기기 동기화·공유·공개를
+  약속하지 않습니다.
+- 자체 수요 모델 연결부는 공통 `Prediction` 계약을 따르는 mock 상대지수로 격리하고 `is_mock=true`,
+  낮은 신뢰도와 한계를 항상 표시합니다. 데이터 게이트와 baseline 비교를 통과하기 전에는 실제 관람객
+  예측으로 표현하지 않습니다.
+- TourAPI 키나 장소 좌표가 없거나 외부 API가 실패하면 주변 근거만 `unavailable`로 반환하고 입력,
+  규칙 추천과 보고서는 유지합니다.
+- 서버 draft 저장은 인증·개인정보·삭제 정책과 공유 요구가 합의된 뒤 별도 결정으로 추가합니다.
+
+## D18. 상세 기획 입력은 공통 계약 밖의 로컬 Planning Context로 관리
+
+- 공통 `EventDraft`와 `Prediction` 의미는 변경하지 않고, 팀·이용객·프로그램·티켓·예산·홍보·운영·안전·접근성 상세 입력은 기획자 전용 `PlanningDetails`로 브라우저에 저장합니다.
+- 분석 시 상세 입력과 공통 `PlannerAnalysisResponse`를 `Planning Context 1.0`으로 조립해 출처, 값 종류, 단위, 한계와 누락 정보를 함께 내보냅니다.
+- 공유 LLM endpoint와 제공자가 확정되기 전에는 외부 LLM을 호출하지 않고 규칙 template을 사용합니다. 자체 수요 결과만 `model_mock=true`로 표시하며 규칙 문장이 새로운 예측 수치를 만들지 않게 합니다.
+- 분석 실행 때 최대 20개의 로컬 version snapshot을 남깁니다. What-if는 원본을 수정하지 않고 날짜·지역·규모·장소 수용인원·예산·공간 조건을 임시 비교합니다.
+- 상세 입력을 공통 OpenAPI에 추가하는 안은 사용자 화면과 model adapter까지 영향을 주므로 공동 계약 검토 전에는 채택하지 않습니다.
+
+## D19. 장소 후보와 주소 검색은 공용 backend 계약으로 제공
+
+- 장소명 후보는 필수 관광 데이터 활용을 분명히 하기 위해 TourAPI `searchKeyword2`로 검색하고 공용
+  `Venue`의 이름·주소·좌표에 매핑합니다.
+- TourAPI 검색 결과에 없는 공식 수용인원, 대관 가능 여부와 시설 상태는 추정하지 않으며 장소 운영자
+  확인 전에는 빈 값으로 둡니다.
+- 주소는 선택한 Kakao 지도 스택과 같은 Kakao Local REST API를 backend에서 호출해 도로명·지번 주소와
+  좌표를 반환합니다. REST API 키는 browser bundle에 노출하지 않습니다.
+- 두 검색은 기획자 전용 중복 type 대신 `/venues/search`, `/addresses/search` 공용 endpoint와 기존
+  `Venue`, `Coordinates`, `SourceRef`, `Problem` 계약을 재사용합니다. 상대 담당자의 계약 검토 전에는
+  로컬 변경으로 유지합니다.
+- 장소가 미정이면 존재하지 않는 후보를 생성하지 않고 목표 인원에 필요한 수용 규모, 접근성, 시설과
+  실제 후보 확인 순서를 추천합니다. 검색 실패 시에도 수동 입력과 분석 흐름은 유지합니다.
+
+## D20. 현재 제품 범위에서 로그인과 서버 배포 제외
+
+- 현재 완료 기준은 두 팀원이 macOS와 Windows에서 재현할 수 있는 localhost 제품 흐름입니다.
+- 로그인, 계정, server-side draft 저장, 기기 간 동기화와 운영 서버 배포는 구현하지 않습니다.
+- 기획자 초안과 분석 결과는 기존 결정대로 browser `localStorage`에만 저장하며 화면에서 이 한계를
+  명시합니다.
+- `DEPLOYMENT.md`와 D16은 이전에 검토한 후보 구조의 기록으로만 남기고 현재 구현·검증 범위에는 적용하지
+  않습니다.
+- 제외 결정은 학습 모델을 제외한 기획자 입력, 실제 외부 API, LLM 추천, 오류 fallback과 로컬 검증 범위를
+  줄이지 않습니다.
+
+## D21. 실제 LLM 보고서는 공급자 adapter로 격리하고 로컬 Ollama를 기본 사용
+
+- 공통 HTTP 계약에 `POST /planner/recommendations`를 추가하고 frontend는 분석 완료 뒤 Planning Context와
+  규칙 추천을 한 번 전달합니다.
+- SDK 의존성을 추가하지 않고 기존 `httpx`로 provider API를 호출합니다. provider, base URL과 model은
+  환경변수로 주입해 application 계약과 특정 model 이름을 분리합니다.
+- 16GB Apple Silicon 개발 장비에서는 Ollama `qwen3.5:9b`를 기본으로 사용합니다. 같은 계열 27B는 model
+  크기만 16GB를 넘고 운영체제·application 메모리가 추가로 필요해 제외했습니다. 더 오래된 12B·14B보다
+  최신 다국어 instruction model을 선택하되 실제 품질은 기획 scenario로 계속 평가합니다.
+- 선택 근거는 Qwen의 공식 9B model card, Ollama 공식 model registry와 macOS·structured output 문서로
+  확인했습니다: <https://huggingface.co/Qwen/Qwen3.5-9B>, <https://ollama.com/library/qwen3.5/tags>,
+  <https://docs.ollama.com/macos>, <https://docs.ollama.com/capabilities/structured-outputs>.
+- Ollama의 JSON Schema `format`과 OpenAI Responses의 Structured Outputs를 같은 Pydantic 응답 계약으로
+  검증합니다. backend는 100KB Context 제한, provider별 timeout, idempotency, 요청한 대안 개수, 입력에
+  존재하는 `evidence_ref`와 입력에 없는 숫자를 생성했는지 검증합니다. OpenAI 요청은 `store=false`입니다.
+- 자동 LLM 재시도는 중복 비용과 대기시간을 피하기 위해 하지 않습니다. 미설정·timeout·upstream 오류나
+  잘못된 출력이면 frontend가 기존 규칙 추천으로 보고서를 만들고 생성 방식을 명시합니다.
+- 자유 형식 text endpoint는 출력 검증이 약해 제외했고, provider SDK 직접 결합은 dependency와 교체 비용을
+  늘려 제외했습니다. OpenAI는 유료 credit을 쓸 수 있을 때 선택하는 adapter로 유지합니다.
+- 학습된 자체 수요 model만 계속 mock이며, LLM은 그 상대지수를 변경하거나 실제 관람객 수로 해석하지
+  않습니다. 로컬 LLM도 자체 수요 예측 model을 대신하지 않습니다.
+
 ## 미결 사항
 
 - 절대 방문자 수와 평상시 대비 증가분 중 최종 label 정의
