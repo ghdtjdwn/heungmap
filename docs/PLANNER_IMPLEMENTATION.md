@@ -52,6 +52,18 @@
 
 ## 작업 기록
 
+### 2026-09-06 — 기획자 로컬 흐름 commit·push와 PR 갱신
+
+- 공통 계약·구현 문서, FastAPI 분석·외부 API·로컬 LLM backend, Next.js 기획자 화면을 각각 논리적인
+  commit으로 분리했습니다: `5ae955c`, `7859b36`, `03e23ff`.
+- push 직전 Git 사용자 email의 GitHub 계정 연결, 인증 계정과 저장소 소유자 일치, staged·commit 대상의
+  secret pattern, `.env` permission 600과 Git ignore 상태를 확인했습니다.
+- backend test 29개와 frontend typecheck·lint·production build가 통과한 상태로
+  `feat/planner-prototype`을 push했습니다.
+- 기존 PR #16의 제목과 본문을 실제 구현 범위, 검증 결과, mock model 한계와 공동 검토 항목에 맞게
+  갱신했습니다.
+- PR merge와 배포는 수행하지 않았습니다. 다음 작업 단위는 데이터 게이트와 실제 model pipeline입니다.
+
 ### 2026-09-06 — 다음 세션 전체 잔여 작업 인계
 
 - 기획자 담당자가 혼자 완료할 수 있는 데이터 게이트, 실제 모델, 제품 연결, 지도·날씨 판단, cache,
