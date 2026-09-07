@@ -41,6 +41,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .mode-chip { padding: 5px 9px; border-radius: 999px; background: var(--teal-soft); color: var(--teal-dark); font-size: 0.82rem; font-weight: 800; }
 .local-note { margin-left: auto; color: var(--muted); font-size: 0.86rem; }
 .header-detail { max-width: 40vw; overflow: hidden; color: var(--muted); font-size: 0.88rem; text-overflow: ellipsis; white-space: nowrap; }
+.mode-switch { padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--teal-dark); font-size: .8rem; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.mode-switch:hover { border-color: var(--teal); background: var(--teal-soft); }
 .workspace-heading {
   max-width: 1180px;
   margin: 54px auto 28px;
