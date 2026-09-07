@@ -3,13 +3,25 @@ from __future__ import annotations
 import os
 import re
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from html import unescape
 from typing import Any
 
 import httpx
 
-from app.schemas import Coordinates, NearbyPlace, RegionRef, SourceRef, Venue, VenueSearchItem
+from app.schemas import (
+    Coordinates,
+    DataQuality,
+    EventDetail,
+    EventStatus,
+    EventSummary,
+    ImageRef,
+    NearbyPlace,
+    RegionRef,
+    SourceRef,
+    Venue,
+    VenueSearchItem,
+)
 from app.services.cache import TtlCache
 
 
@@ -193,6 +205,154 @@ class TourApiClient:
             limitation="같은 지역·기간의 TourAPI 행사 수이며 경쟁 강도나 관람객 수를 뜻하지 않습니다.",
         )
         return len(items), source
+
+    @staticmethod
+    def _parse_yyyymmdd(value: Any) -> date | None:
+        text = str(value or "").strip()
+        if len(text) != 8 or not text.isdigit():
+            return None
+        try:
+            return datetime.strptime(text, "%Y%m%d").date()
+        except ValueError:
+            return None
+
+    def _festival_to_summary(self, item: dict[str, Any], now: datetime) -> EventSummary | None:
+        content_id = self._text(item.get("contentid"))
+        title = self._text(item.get("title"))
+        start = self._parse_yyyymmdd(item.get("eventstartdate"))
+        if not content_id or not title or not start:
+            return None
+        end = self._parse_yyyymmdd(item.get("eventenddate")) or start
+        area_code = self._text(item.get("areacode")) or "0"
+        sigungu_code = self._text(item.get("sigungucode")) or None
+        addr1 = self._text(item.get("addr1"))
+        addr2 = self._text(item.get("addr2"))
+        address = " ".join(part for part in (addr1, addr2) if part) or None
+        display_name = " ".join(addr1.split()[:2]) if addr1 else f"지역코드 {area_code}"
+        coordinates = None
+        try:
+            if item.get("mapx") not in (None, "") and item.get("mapy") not in (None, ""):
+                coordinates = Coordinates(latitude=float(item["mapy"]), longitude=float(item["mapx"]))
+        except (TypeError, ValueError):
+            coordinates = None
+        thumbnail = None
+        image_url = self._text(item.get("firstimage")) or self._text(item.get("firstimage2"))
+        if image_url:
+            try:
+                thumbnail = ImageRef(url=image_url, alt=title)
+            except ValueError:
+                thumbnail = None
+        today = now.date()
+        status: EventStatus
+        if end < today:
+            status = "ended"
+        elif start <= today <= end:
+            status = "ongoing"
+        else:
+            status = "scheduled"
+        source = SourceRef(
+            source_id=f"src_tourapi_festival_{content_id}",
+            source_type="tourapi",
+            provider_name="한국관광공사",
+            dataset_name="국문 관광정보 서비스 searchFestival2",
+            source_record_id=content_id,
+            retrieved_at=now,
+            limitation="TourAPI 축제 정보이며 실제 운영 여부와 관람객 수는 보장하지 않습니다.",
+        )
+        return EventSummary(
+            event_id=f"evt_tourapi_{content_id}",
+            origin="tourapi",
+            visibility="public",
+            title=title,
+            event_type="festival",
+            event_status=status,
+            start_date=start,
+            end_date=end,
+            region=RegionRef(area_code=area_code, sigungu_code=sigungu_code, display_name=display_name),
+            venue=Venue(name=title, address=address, coordinates=coordinates) if (address or coordinates) else None,
+            thumbnail=thumbnail,
+            sources=[source],
+            data_quality=DataQuality(
+                completeness="medium" if (coordinates and address) else "low",
+                warnings=[] if coordinates else ["좌표 정보가 제공되지 않았습니다."],
+                is_mock=False,
+            ),
+            updated_at=now,
+        )
+
+    async def search_festivals(
+        self,
+        *,
+        query: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        area_code: str | None = None,
+        sigungu_code: str | None = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> list[EventSummary]:
+        range_start = start_date or date.today()
+        range_end = end_date or (range_start + timedelta(days=90))
+        params: dict[str, str | int] = {
+            "eventStartDate": range_start.strftime("%Y%m%d"),
+            "eventEndDate": range_end.strftime("%Y%m%d"),
+            "arrange": "A",
+            "pageNo": page,
+            "numOfRows": page_size,
+        }
+        if area_code:
+            params["areaCode"] = area_code
+        if sigungu_code:
+            params["sigunguCode"] = sigungu_code
+        items = await self._get_items("searchFestival2", params)
+        now = datetime.now().astimezone()
+        summaries: list[EventSummary] = []
+        for item in items:
+            summary = self._festival_to_summary(item, now)
+            if summary is None:
+                continue
+            if query and query not in summary.title:
+                continue
+            summaries.append(summary)
+        return summaries
+
+    async def get_festival_by_id(self, content_id: str) -> EventDetail | None:
+        """Fetch a single festival's full detail via detailCommon2 + detailIntro2."""
+        common_items = await self._get_items(
+            "detailCommon2",
+            {
+                "contentId": content_id,
+                "defaultYN": "Y",
+                "overviewYN": "Y",
+                "addrinfoYN": "Y",
+                "mapinfoYN": "Y",
+                "firstImageYN": "Y",
+                "areacodeYN": "Y",
+                "catcodeYN": "N",
+            },
+        )
+        if not common_items:
+            return None
+        common = common_items[0]
+        try:
+            intro_items = await self._get_items("detailIntro2", {"contentId": content_id, "contentTypeId": "15"})
+        except TourApiUnavailable:
+            intro_items = []
+        intro = intro_items[0] if intro_items else {}
+        merged = {
+            **common,
+            "eventstartdate": intro.get("eventstartdate"),
+            "eventenddate": intro.get("eventenddate"),
+        }
+        now = datetime.now().astimezone()
+        summary = self._festival_to_summary(merged, now)
+        if summary is None:
+            return None
+        description = self._text(common.get("overview")) or None
+        homepage_raw = str(common.get("homepage") or "")
+        match = re.search(r'href="([^"]+)"', homepage_raw)
+        homepage_url = match.group(1) if match else (self._text(homepage_raw) or None)
+        return EventDetail(**summary.model_dump(), description=description, homepage_url=homepage_url)
 
     async def nearby_places(self, coordinates: Coordinates, radius_m: int = 5000) -> list[NearbyPlace]:
         items = await self._get_items(

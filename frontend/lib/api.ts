@@ -1,9 +1,14 @@
 import type {
   AddressSearchResponse,
+  EventDetail,
+  EventListQuery,
+  EventListResponse,
+  NearbyPlaceListResponse,
   PlannerAnalysisRequest,
   PlannerAnalysisResponse,
   PlannerRecommendationRequest,
   PlannerRecommendationResponse,
+  Prediction,
   Problem,
   VenueSearchResponse,
 } from "./types";
@@ -107,4 +112,31 @@ export function searchVenues(keyword: string, areaCode?: string): Promise<VenueS
 export function searchAddresses(query: string): Promise<AddressSearchResponse> {
   const params = new URLSearchParams({ query, limit: "10" });
   return searchRequest(`/api/v1/addresses/search?${params.toString()}`);
+}
+
+export function listEvents(query: EventListQuery): Promise<EventListResponse> {
+  const params = new URLSearchParams();
+  if (query.query) params.set("query", query.query);
+  if (query.start_date) params.set("start_date", query.start_date);
+  if (query.end_date) params.set("end_date", query.end_date);
+  if (query.area_code) params.set("area_code", query.area_code);
+  if (query.sigungu_code) params.set("sigungu_code", query.sigungu_code);
+  for (const type of query.event_types ?? []) params.append("event_types", type);
+  params.set("sort", query.sort ?? "start_date");
+  params.set("page", String(query.page ?? 1));
+  params.set("page_size", String(query.page_size ?? 20));
+  return searchRequest(`/api/v1/events?${params.toString()}`);
+}
+
+export function getEvent(eventId: string): Promise<EventDetail> {
+  return searchRequest(`/api/v1/events/${encodeURIComponent(eventId)}`);
+}
+
+export function getEventNearby(eventId: string, radiusM = 3000): Promise<NearbyPlaceListResponse> {
+  const params = new URLSearchParams({ radius_m: String(radiusM) });
+  return searchRequest(`/api/v1/events/${encodeURIComponent(eventId)}/nearby?${params.toString()}`);
+}
+
+export function getEventPrediction(eventId: string): Promise<Prediction> {
+  return searchRequest(`/api/v1/events/${encodeURIComponent(eventId)}/prediction`);
 }
