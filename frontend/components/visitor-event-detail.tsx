@@ -27,7 +27,7 @@ const CONFIDENCE_LABELS = { low: "낮음", medium: "보통", high: "높음" } as
 type Resource<T> =
   | { status: "loading" }
   | { status: "ready"; data: T }
-  | { status: "error"; message: string };
+  | { status: "error"; message: string; notFound?: boolean };
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(new Date(`${value}T00:00:00`));
@@ -35,6 +35,10 @@ function formatDate(value: string): string {
 
 function errorMessage(result: PromiseRejectedResult, fallback: string): string {
   return result.reason instanceof ApiError ? result.reason.message : fallback;
+}
+
+function isNotFound(result: PromiseRejectedResult): boolean {
+  return result.reason instanceof ApiError && result.reason.problem?.code === "EVENT_NOT_FOUND";
 }
 
 export function VisitorEventDetail({ eventId }: { eventId: string }) {
@@ -54,7 +58,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
       if (!active) return;
       setEvent(eventResult.status === "fulfilled"
         ? { status: "ready", data: eventResult.value }
-        : { status: "error", message: errorMessage(eventResult, "행사 정보를 불러오지 못했습니다.") });
+        : { status: "error", message: errorMessage(eventResult, "행사 정보를 불러오지 못했습니다."), notFound: isNotFound(eventResult) });
       setNearby(nearbyResult.status === "fulfilled"
         ? { status: "ready", data: nearbyResult.value }
         : { status: "error", message: errorMessage(nearbyResult, "주변 정보를 불러오지 못했습니다.") });
@@ -77,11 +81,13 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
   }
 
   if (event.status === "error") {
+    const heading = event.notFound ? "존재하지 않거나 종료된 행사입니다" : "행사 정보를 불러오지 못했습니다";
     return (
       <main className="page-shell visitor-detail-shell">
-        <AppHeader detail="행사 없음" />
+        <AppHeader detail={event.notFound ? "행사 없음" : "일시적 오류"} />
         <section className="panel visitor-detail-missing">
-          <div className="empty-icon">!</div><h1>존재하지 않거나 종료된 행사입니다</h1><p>{event.message}</p>
+          <div className="empty-icon">!</div><h1>{heading}</h1><p>{event.message}</p>
+          {!event.notFound && <p>mock 목록으로 바꾸지 않았습니다. 잠시 뒤 실제 TourAPI 상태를 다시 확인해 주세요.</p>}
           <div className="button-row"><Link href="/visitor" className="button primary">축제 목록으로</Link><button type="button" className="button secondary" onClick={retry}>다시 확인</button></div>
         </section>
       </main>
