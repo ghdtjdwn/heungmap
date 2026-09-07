@@ -12,7 +12,7 @@ export function AppHeader({ detail }: { detail?: string }) {
       <span className="mode-chip">{isVisitor ? "방문객 모드" : "기획자 모드"}</span>
       {detail && <span className="header-detail">{detail}</span>}
       <span className="local-note">{isVisitor ? "한국관광공사 TourAPI 행사 정보" : "로그인 없이 이 기기에만 저장"}</span>
-      <Link href={isVisitor ? "/planner" : "/visitor"} className="mode-switch">{isVisitor ? "기획자 모드로" : "방문객 모드로"}</Link>
+      <Link href={isVisitor ? "/planner" : "/visitor"} className="text-button">{isVisitor ? "기획자 모드로" : "방문객 모드로"}</Link>
     </header>
   );
 }
