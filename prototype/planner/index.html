@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>흥할지도 · 기획자 흐름 검토</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17233c; --muted: #657087; --line: #dce2ea; --paper: #fff;
+      --canvas: #f4f7f9; --brand: #0e766e; --brand-dark: #075a55;
+      --accent: #f0a33b; --soft: #e8f5f2; --warn: #fff4dd; --danger: #b33232;
+      font: 16px/1.55 Pretendard, "Noto Sans KR", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--canvas); }
+    button, input, select, textarea { font: inherit; }
+    button, input, select, textarea { min-height: 44px; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 3px solid #f2a43c; outline-offset: 2px; }
+    [hidden] { display: none !important; }
+    .topbar { background: var(--ink); color: white; }
+    .topbar-inner, .shell { width: min(1120px, calc(100% - 32px)); margin: auto; }
+    .topbar-inner { min-height: 64px; display: flex; align-items: center; gap: 12px; }
+    .brand { font-size: 1.2rem; font-weight: 800; letter-spacing: -.03em; }
+    .badge { padding: 4px 9px; border-radius: 999px; background: var(--accent); color: #261b08; font-size: .78rem; font-weight: 800; }
+    .save-note { margin-left: auto; color: #c7d0de; font-size: .88rem; }
+    .shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 24px; padding: 28px 0 56px; }
+    .sidebar { align-self: start; position: sticky; top: 20px; }
+    .sidebar h2 { margin: 0 0 14px; font-size: .9rem; color: var(--muted); }
+    .steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+    .steps li { display: grid; grid-template-columns: 32px 1fr; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; color: var(--muted); }
+    .steps li[aria-current="step"] { background: var(--soft); color: var(--brand-dark); font-weight: 800; }
+    .step-num { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 50%; background: white; }
+    .steps li.done .step-num { color: white; border-color: var(--brand); background: var(--brand); }
+    .scope { margin-top: 20px; padding: 14px; border: 1px solid #f0d39f; border-radius: 12px; background: var(--warn); font-size: .88rem; }
+    .card { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 10px 30px rgba(23,35,60,.06); }
+    .card-head { padding: 24px 26px 18px; border-bottom: 1px solid var(--line); }
+    .eyebrow { margin: 0 0 4px; color: var(--brand); font-size: .84rem; font-weight: 800; }
+    h1 { margin: 0; font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.25; letter-spacing: -.04em; }
+    .desc { margin: 8px 0 0; color: var(--muted); }
+    .progress { height: 6px; margin-top: 18px; border-radius: 999px; background: #e8ecf2; overflow: hidden; }
+    .progress span { display: block; height: 100%; width: 25%; background: var(--brand); transition: width .2s ease; }
+    .form-body { padding: 26px; }
+    .form-step h2 { margin: 0 0 18px; font-size: 1.25rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .field { display: grid; gap: 7px; align-content: start; }
+    .field.full { grid-column: 1 / -1; }
+    label, legend { font-weight: 750; }
+    .hint { margin: 0; color: var(--muted); font-size: .86rem; }
+    input, select, textarea { width: 100%; border: 1px solid #b9c3d0; border-radius: 10px; padding: 10px 12px; color: var(--ink); background: white; }
+    textarea { min-height: 94px; resize: vertical; }
+    fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+    fieldset legend { margin-bottom: 8px; }
+    .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choice { display: flex; align-items: center; gap: 7px; min-height: 42px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; background: white; }
+    .choice:has(input:checked) { border-color: var(--brand); background: var(--soft); color: var(--brand-dark); }
+    .choice input { width: 18px; min-height: auto; accent-color: var(--brand); }
+    .conditional { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 16px; border-radius: 12px; background: #f6f8fa; }
+    .review { margin: 0; display: grid; grid-template-columns: 140px 1fr; }
+    .review dt, .review dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .review dt { color: var(--muted); }
+    .actions { display: flex; justify-content: space-between; gap: 12px; padding: 18px 26px; border-top: 1px solid var(--line); }
+    .action-group { display: flex; gap: 10px; margin-left: auto; }
+    .btn { border: 1px solid var(--line); border-radius: 10px; padding: 9px 16px; background: white; color: var(--ink); font-weight: 800; }
+    .btn.primary { border-color: var(--brand); background: var(--brand); color: white; }
+    .btn.primary:hover { background: var(--brand-dark); }
+    .btn.ghost { color: var(--brand-dark); background: transparent; }
+    .error { margin: 0 0 16px; padding: 12px; border-radius: 10px; background: #fff0f0; color: var(--danger); font-weight: 700; }
+    .result { padding: 26px; }
+    .result-head { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+    .status { display: inline-flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 999px; background: var(--warn); font-weight: 800; font-size: .84rem; }
+    .result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+    .result-box { padding: 18px; border: 1px solid var(--line); border-radius: 14px; }
+    .result-box.wide { grid-column: 1 / -1; }
+    .result-box h3 { margin: 0 0 8px; font-size: 1rem; }
+    .result-box p { margin: 0; color: var(--muted); }
+    .recommendation { border-left: 4px solid var(--accent); }
+    .clean-list { margin: 8px 0 0; padding-left: 20px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    @media (max-width: 760px) {
+      .save-note { display: none; }
+      .shell { grid-template-columns: 1fr; padding-top: 16px; }
+      .sidebar { position: static; }
+      .sidebar h2, .scope { display: none; }
+      .steps { grid-template-columns: repeat(4, 1fr); }
+      .steps li { grid-template-columns: 1fr; justify-items: center; padding: 6px; text-align: center; font-size: .76rem; }
+      .step-num { width: 28px; height: 28px; }
+      .grid, .conditional, .result-grid { grid-template-columns: 1fr; }
+      .field.full, .result-box.wide { grid-column: auto; }
+      .card-head, .form-body, .result { padding: 20px; }
+      .actions { padding: 16px 20px; }
+      .review { grid-template-columns: 1fr; }
+      .review dt { padding-bottom: 0; border: 0; font-size: .84rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <span class="brand">흥할지도</span><span class="badge">검토용 MOCK</span>
+      <span class="save-note">입력은 저장되지 않습니다</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <aside class="sidebar" aria-label="입력 단계">
+      <h2>기획자 진단</h2>
+      <ol class="steps">
+        <li aria-current="step"><span class="step-num">1</span><span>기획 상태</span></li>
+        <li><span class="step-num">2</span><span>행사·이용객</span></li>
+        <li><span class="step-num">3</span><span>일정·지역</span></li>
+        <li><span class="step-num">4</span><span>제약·검토</span></li>
+      </ol>
+      <div class="scope">실제 예측·저장·LLM 없이 입력 흐름과 결과 구조만 확인하는 프로토타입입니다.</div>
+    </aside>
+
+    <section class="card" id="workspace">
+      <div class="card-head">
+        <p class="eyebrow" id="stepLabel">1 / 4</p>
+        <h1 id="pageTitle">어떤 기획을 준비하고 있나요?</h1>
+        <p class="desc" id="pageDesc">현재 상황을 알려주면 다음 질문을 줄일 수 있어요.</p>
+        <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+      </div>
+
+      <form id="plannerForm" novalidate>
+        <div class="form-body">
+          <p class="error" id="formError" role="alert" hidden></p>
+
+          <section class="form-step" data-step="0">
+            <h2 class="sr-only">기획 상태</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="plannerType">기획자 유형</label>
+                <select id="plannerType" name="planner_type" required>
+                  <option value="">선택해 주세요</option>
+                  <option value="local_government">지자체</option>
+                  <option value="event_agency">행사 대행사</option>
+                  <option value="independent_planner">독립 기획자</option>
+                  <option value="artist">가수·아티스트</option>
+                  <option value="other">기타</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="planningStage">현재 단계</label>
+                <select id="planningStage" name="planning_stage" required>
+                  <option value="">선택해 주세요</option>
+                  <option value="idea">아이디어</option>
+                  <option value="research">사전 조사</option>
+                  <option value="budget_application">예산 신청</option>
+                  <option value="venue_search">장소 탐색</option>
+                  <option value="marketing_preparation">홍보 준비</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="workingTitle">행사명 또는 임시 이름 <span class="hint">(선택)</span></label>
+                <input id="workingTitle" name="working_title" maxlength="200" placeholder="예: 가상 청년 음악축제">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-step" data-step="1" hidden>
+            <h2 class="sr-only">행사와 목표 이용객</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="eventType">행사 유형</label>
+                <select id="eventType" name="event_type" required>
+                  <option value="festival">축제</option>
+                  <option value="local_event">지역 행사</option>
+                  <option value="concert">콘서트</option>
+                  <option value="club_performance">클럽 공연</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="purpose">가장 중요한 목적</label>
+                <select id="purpose" name="purpose" required>
+                  <option value="regional_revitalization">지역 활성화</option>
+                  <option value="tourism">관광 유입</option>
+                  <option value="profit">수익</option>
+                  <option value="community">커뮤니티</option>
+                  <option value="culture">문화 향유</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label for="themes">주제·테마</label>
+                <input id="themes" name="theme_keywords" required placeholder="쉼표로 구분: 청년, 인디음악">
+              </div>
+              <fieldset class="field full" id="audienceGroup" tabindex="-1">
+                <legend>목표 이용객</legend>
+                <div class="choices">
+                  <label class="choice"><input type="checkbox" name="target_audience" value="family">가족</label>
+                  <label class="choice"><input type="checkbox" name="target_audience" value="young_adult">청년</label>
+                  <label class="choice"><input type="checkbox" name="target_audience" value="local_resident">지역 주민</label>
+                  <label class="choice"><input type="checkbox" name="target_audience" value="domestic_tourist">국내 관광객</label>
+                  <label class="choice"><input type="checkbox" name="target_audience" value="fandom">팬덤</label>
+                </div>
+              </fieldset>
+              <fieldset class="field full">
+                <legend>티켓 방식</legend>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="ticket_type" value="free" required>무료</label>
+                  <label class="choice"><input type="radio" name="ticket_type" value="paid">유료</label>
+                  <label class="choice"><input type="radio" name="ticket_type" value="mixed">부분 유료</label>
+                  <label class="choice"><input type="radio" name="ticket_type" value="undecided">아직 모름</label>
+                </div>
+              </fieldset>
+            </div>
+          </section>
+
+          <section class="form-step" data-step="2" hidden>
+            <h2 class="sr-only">일정과 지역</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="scheduleMode">일정 상태</label>
+                <select id="scheduleMode" name="schedule_selection_mode" required>
+                  <option value="fixed">날짜 확정</option>
+                  <option value="candidates">후보 비교</option>
+                  <option value="recommend">추천받기</option>
+                  <option value="unknown">아직 모름</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="regionMode">지역 상태</label>
+                <select id="regionMode" name="region_selection_mode" required>
+                  <option value="fixed">지역 확정</option>
+                  <option value="candidates">후보 비교</option>
+                  <option value="recommend">추천받기</option>
+                  <option value="unknown">아직 모름</option>
+                </select>
+              </div>
+              <div class="conditional" id="fixedDates">
+                <div class="field"><label for="startDate">시작일</label><input id="startDate" name="start_date" type="date"></div>
+                <div class="field"><label for="endDate">종료일</label><input id="endDate" name="end_date" type="date"></div>
+              </div>
+              <div class="conditional" id="candidateDates" hidden>
+                <div class="field"><label for="dateOneStart">후보 1 시작일</label><input id="dateOneStart" name="date_candidate_1_start" type="date"></div>
+                <div class="field"><label for="dateOneEnd">후보 1 종료일</label><input id="dateOneEnd" name="date_candidate_1_end" type="date"></div>
+                <div class="field"><label for="dateTwoStart">후보 2 시작일</label><input id="dateTwoStart" name="date_candidate_2_start" type="date"></div>
+                <div class="field"><label for="dateTwoEnd">후보 2 종료일</label><input id="dateTwoEnd" name="date_candidate_2_end" type="date"></div>
+              </div>
+              <div class="conditional" id="fixedRegion">
+                <div class="field full"><label for="regionName">희망 지역</label><input id="regionName" name="region_name" placeholder="예: 가상도 가상시"></div>
+              </div>
+              <div class="conditional" id="candidateRegions" hidden>
+                <div class="field"><label for="regionOne">후보 지역 1</label><input id="regionOne" name="region_candidate_1"></div>
+                <div class="field"><label for="regionTwo">후보 지역 2</label><input id="regionTwo" name="region_candidate_2"></div>
+              </div>
+              <fieldset class="field full">
+                <legend>공간 유형</legend>
+                <div class="choices">
+                  <label class="choice"><input type="radio" name="indoor_outdoor" value="indoor" required>실내</label>
+                  <label class="choice"><input type="radio" name="indoor_outdoor" value="outdoor">실외</label>
+                  <label class="choice"><input type="radio" name="indoor_outdoor" value="mixed">혼합</label>
+                  <label class="choice"><input type="radio" name="indoor_outdoor" value="undecided">아직 모름</label>
+                </div>
+              </fieldset>
+              <div class="field full">
+                <label for="attendance">목표 인원 <span class="hint">(선택, 예측값 아님)</span></label>
+                <input id="attendance" name="target_attendance" type="number" min="1" inputmode="numeric" placeholder="예: 500">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-step" data-step="3" hidden>
+            <h2>입력을 확인해 주세요</h2>
+            <div class="grid">
+              <div class="field">
+                <label for="budget">최대예산 <span class="hint">(선택, 원)</span></label>
+                <input id="budget" name="budget_max_krw" type="number" min="0" step="10000" inputmode="numeric">
+              </div>
+              <div class="field full">
+                <label for="constraints">바꿀 수 없는 조건</label>
+                <textarea id="constraints" name="fixed_constraints" placeholder="한 줄에 하나씩 적어 주세요"></textarea>
+              </div>
+              <div class="field full">
+                <label for="notes">그 밖의 고민 <span class="hint">(선택)</span></label>
+                <textarea id="notes" name="other_notes" maxlength="3000"></textarea>
+              </div>
+              <div class="field full"><dl class="review" id="reviewList"></dl></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="actions">
+          <button class="btn ghost" type="button" id="sampleBtn">예시 채우기</button>
+          <div class="action-group">
+            <button class="btn" type="button" id="backBtn" hidden>이전</button>
+            <button class="btn primary" type="button" id="nextBtn">다음</button>
+            <button class="btn primary" type="submit" id="submitBtn" hidden>mock 분석하기</button>
+          </div>
+        </div>
+      </form>
+
+      <section class="result" id="result" aria-live="polite" hidden>
+        <div class="result-head">
+          <div><p class="eyebrow">분석 완료</p><h1 tabindex="-1">먼저 확인할 조건을 찾았어요</h1></div>
+          <span class="status">예측 준비 전</span>
+        </div>
+        <div class="result-grid">
+          <article class="result-box">
+            <h3>입력 요약</h3><p id="resultSummary"></p>
+          </article>
+          <article class="result-box">
+            <h3>수요 예측</h3><p>데이터가 충분하지 않아 수치를 제공하지 않습니다. 목표 인원은 기획 입력이지 예측값이 아닙니다.</p>
+          </article>
+          <article class="result-box">
+            <h3>주변 장소</h3><p>정확한 장소 좌표가 없어 주차·숙박·관광지를 계산하지 않았습니다.</p>
+          </article>
+          <article class="result-box recommendation">
+            <h3>우선 보완점</h3><p id="ruleText"></p>
+          </article>
+          <article class="result-box wide">
+            <h3>다음에 확인할 것</h3>
+            <ul class="clean-list"><li>TourAPI 행사·주변 정보</li><li>같은 지역·기간의 방문수요</li><li>장소 수용인원과 우천·안전 계획</li></ul>
+          </article>
+        </div>
+        <div class="actions"><button class="btn" type="button" id="editBtn">입력 수정</button><button class="btn ghost" type="button" id="resetBtn">처음부터</button></div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const form = document.querySelector('#plannerForm');
+    const steps = [...document.querySelectorAll('.form-step')];
+    const stepItems = [...document.querySelectorAll('.steps li')];
+    const titles = [
+      ['어떤 기획을 준비하고 있나요?', '현재 상황을 알려주면 다음 질문을 줄일 수 있어요.'],
+      ['행사의 목표와 이용객을 정해볼게요', '확정된 내용만 선택하고 모르는 값은 뒤에서 생략할 수 있어요.'],
+      ['언제, 어디서, 어느 규모로 열까요?', '날짜와 지역은 확정·후보·추천·모름으로 구분해요.'],
+      ['마지막으로 제약을 확인할게요', '입력값은 저장되지 않으며 mock 결과만 보여줘요.']
+    ];
+    let step = 0;
+
+    const $ = id => document.getElementById(id);
+    const selectedText = name => form.querySelector(`[name="${name}"]:checked`)?.parentElement.textContent.trim() || '미정';
+    const inputText = id => $(id).value.trim() || '미정';
+    const attendanceText = () => inputText('attendance') === '미정' ? '목표 미정' : `${inputText('attendance')}명`;
+
+    function renderStep() {
+      steps.forEach((item, index) => item.hidden = index !== step);
+      stepItems.forEach((item, index) => {
+        item.toggleAttribute('aria-current', index === step);
+        item.classList.toggle('done', index < step);
+      });
+      $('stepLabel').textContent = `${step + 1} / 4`;
+      $('pageTitle').textContent = titles[step][0];
+      $('pageDesc').textContent = titles[step][1];
+      $('progressBar').style.width = `${(step + 1) * 25}%`;
+      $('backBtn').hidden = step === 0;
+      $('nextBtn').hidden = step === 3;
+      $('submitBtn').hidden = step !== 3;
+      $('formError').hidden = true;
+      if (step === 3) renderReview();
+      steps[step].querySelector('select, input, textarea, button')?.focus();
+    }
+
+    function syncConditional() {
+      const schedule = $('scheduleMode').value;
+      $('fixedDates').hidden = schedule !== 'fixed';
+      $('candidateDates').hidden = schedule !== 'candidates';
+      ['startDate', 'endDate'].forEach(id => $(id).required = schedule === 'fixed');
+      ['dateOneStart', 'dateOneEnd', 'dateTwoStart', 'dateTwoEnd'].forEach(id => $(id).required = schedule === 'candidates');
+      const region = $('regionMode').value;
+      $('fixedRegion').hidden = region !== 'fixed';
+      $('candidateRegions').hidden = region !== 'candidates';
+      $('regionName').required = region === 'fixed';
+      ['regionOne', 'regionTwo'].forEach(id => $(id).required = region === 'candidates');
+    }
+
+    function validateCurrent() {
+      syncConditional();
+      const fields = [...steps[step].querySelectorAll('input, select, textarea')].filter(field => !field.closest('[hidden]'));
+      const invalid = fields.find(field => !field.checkValidity());
+      if (invalid) { invalid.reportValidity(); return false; }
+      const dateRanges = $('scheduleMode').value === 'fixed'
+        ? [['startDate', 'endDate']]
+        : $('scheduleMode').value === 'candidates'
+          ? [['dateOneStart', 'dateOneEnd'], ['dateTwoStart', 'dateTwoEnd']]
+          : [];
+      const reversed = dateRanges.find(([start, end]) => $(start).value > $(end).value);
+      if (reversed) {
+        $(reversed[1]).setCustomValidity('종료일은 시작일보다 빠를 수 없습니다.');
+        $(reversed[1]).reportValidity();
+        $(reversed[1]).setCustomValidity('');
+        return false;
+      }
+      if (step === 1 && !form.querySelector('[name="target_audience"]:checked')) {
+        $('formError').textContent = '목표 이용객을 하나 이상 선택해 주세요.';
+        $('formError').hidden = false;
+        $('audienceGroup').focus();
+        return false;
+      }
+      return true;
+    }
+
+    function renderReview() {
+      const pairs = [
+        ['행사', inputText('workingTitle')],
+        ['기획자·단계', `${$('plannerType').selectedOptions[0].text} · ${$('planningStage').selectedOptions[0].text}`],
+        ['목적·테마', `${$('purpose').selectedOptions[0].text} · ${inputText('themes')}`],
+        ['일정', $('scheduleMode').selectedOptions[0].text],
+        ['지역', $('regionMode').value === 'fixed' ? inputText('regionName') : $('regionMode').selectedOptions[0].text],
+        ['공간·목표', `${selectedText('indoor_outdoor')} · ${attendanceText()}`]
+      ];
+      const list = $('reviewList');
+      list.replaceChildren();
+      pairs.forEach(([key, value]) => {
+        const term = document.createElement('dt');
+        const description = document.createElement('dd');
+        term.textContent = key;
+        description.textContent = value;
+        list.append(term, description);
+      });
+    }
+
+    function fillSample() {
+      const values = {
+        plannerType: 'independent_planner', planningStage: 'idea', workingTitle: '가상 청년 음악축제',
+        eventType: 'festival', purpose: 'community', themes: '청년, 인디음악', scheduleMode: 'fixed',
+        startDate: '2026-10-10', endDate: '2026-10-10', regionMode: 'fixed', regionName: '가상도 가상시',
+        attendance: '500', budget: '10000000', constraints: '행사 날짜는 변경할 수 없음',
+        notes: '우천 대체 공간을 아직 정하지 못했습니다.'
+      };
+      Object.entries(values).forEach(([id, value]) => $(id).value = value);
+      form.querySelector('[name="target_audience"][value="young_adult"]').checked = true;
+      form.querySelector('[name="target_audience"][value="local_resident"]').checked = true;
+      form.querySelector('[name="ticket_type"][value="free"]').checked = true;
+      form.querySelector('[name="indoor_outdoor"][value="outdoor"]').checked = true;
+      syncConditional();
+      if (step === 3) renderReview();
+    }
+
+    $('nextBtn').addEventListener('click', () => { if (validateCurrent()) { step++; renderStep(); } });
+    $('backBtn').addEventListener('click', () => { step--; renderStep(); });
+    $('sampleBtn').addEventListener('click', fillSample);
+    $('scheduleMode').addEventListener('change', syncConditional);
+    $('regionMode').addEventListener('change', syncConditional);
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!validateCurrent()) return;
+      $('submitBtn').disabled = true;
+      $('submitBtn').textContent = '확인 중…';
+      setTimeout(() => {
+        const title = inputText('workingTitle');
+        $('resultSummary').textContent = `${title}, ${$('regionMode').value === 'fixed' ? inputText('regionName') : '지역 미정'}, ${attendanceText()}`;
+        $('ruleText').textContent = selectedText('indoor_outdoor') === '실외'
+          ? '실외 행사이므로 우천 대체 공간과 연기 기준을 먼저 확인하세요.'
+          : '장소 수용인원과 입장·퇴장 동선을 먼저 확인하세요.';
+        form.hidden = true; document.querySelector('.card-head').hidden = true; $('result').hidden = false;
+        $('result').querySelector('h1').focus();
+        $('submitBtn').disabled = false; $('submitBtn').textContent = 'mock 분석하기';
+      }, 450);
+    });
+    $('editBtn').addEventListener('click', () => { $('result').hidden = true; form.hidden = false; document.querySelector('.card-head').hidden = false; renderStep(); });
+    $('resetBtn').addEventListener('click', () => { form.reset(); step = 0; $('result').hidden = true; form.hidden = false; document.querySelector('.card-head').hidden = false; syncConditional(); renderStep(); });
+    syncConditional(); renderStep();
+  </script>
+</body>
+</html>

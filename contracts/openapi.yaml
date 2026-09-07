@@ -13,6 +13,7 @@ servers:
 tags:
   - name: system
   - name: events
+  - name: locations
   - name: planner
 paths:
   /health:
@@ -206,6 +207,74 @@ paths:
                 $ref: "#/components/schemas/PredictionResult"
         "404":
           $ref: "#/components/responses/EventNotFound"
+  /venues/search:
+    get:
+      tags: [locations]
+      operationId: searchVenues
+      summary: TourAPI 관광 콘텐츠에서 행사 장소 후보 검색
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: area_code
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 20
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 10
+      responses:
+        "200":
+          description: 공식 수용인원을 제외한 장소명·주소·좌표 후보
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VenueSearchResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /addresses/search:
+    get:
+      tags: [locations]
+      operationId: searchAddresses
+      summary: 주소를 검색해 표준 주소와 좌표 조회
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+            default: 10
+      responses:
+        "200":
+          description: Kakao Local 주소·좌표 검색 결과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AddressSearchResponse"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
   /planner/analyses:
     post:
       tags: [planner]
@@ -224,10 +293,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlannerAnalysisResponse"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
         "422":
           $ref: "#/components/responses/ValidationError"
         "503":
           $ref: "#/components/responses/UpstreamUnavailable"
+  /planner/recommendations:
+    post:
+      tags: [planner]
+      operationId: createPlannerRecommendation
+      summary: Planning Context 기반 실제 LLM 구조화 기획 추천 생성
+      description: |
+        설정된 LLM이 입력 근거를 재구성한다. 자체 수요 예측값은 변경하지 않으며 모든 추천은 사람의 확인이 필요하다.
+        LLM을 사용할 수 없을 때의 규칙 fallback은 frontend에서 생성해 분석 흐름을 유지한다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannerRecommendationRequest"
+      responses:
+        "200":
+          description: JSON Schema와 evidence reference 검증을 통과한 LLM 기획 추천
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannerRecommendationResponse"
+        "409":
+          $ref: "#/components/responses/IdempotencyConflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "502":
+          $ref: "#/components/responses/InvalidLlmResponse"
+        "503":
+          $ref: "#/components/responses/UpstreamUnavailable"
+        "504":
+          $ref: "#/components/responses/UpstreamTimeout"
 components:
   parameters:
     EventId:
@@ -260,6 +362,24 @@ components:
             $ref: "#/components/schemas/Problem"
     UpstreamUnavailable:
       description: 필요한 외부 API가 일시적으로 불가하고 안전한 fallback도 없음
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    IdempotencyConflict:
+      description: 같은 client_request_id에 다른 요청 body가 전달됨
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InvalidLlmResponse:
+      description: LLM 응답이 구조화 계약 또는 근거 검증을 통과하지 못함
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    UpstreamTimeout:
+      description: LLM 응답 시간 초과
       content:
         application/problem+json:
           schema:
@@ -419,6 +539,61 @@ components:
         accessibility_summary:
           type: string
           maxLength: 500
+    VenueSearchItem:
+      type: object
+      required: [venue, source]
+      properties:
+        venue:
+          $ref: "#/components/schemas/Venue"
+        category:
+          type: string
+          maxLength: 100
+        content_type_id:
+          type: string
+          maxLength: 20
+        source:
+          $ref: "#/components/schemas/SourceRef"
+    VenueSearchResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VenueSearchItem"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
+    AddressSearchItem:
+      type: object
+      required: [address_name, coordinates, source]
+      properties:
+        address_name:
+          type: string
+          minLength: 1
+          maxLength: 300
+        road_address_name:
+          type: string
+          maxLength: 300
+        jibun_address_name:
+          type: string
+          maxLength: 300
+        building_name:
+          type: string
+          maxLength: 200
+        coordinates:
+          $ref: "#/components/schemas/Coordinates"
+        source:
+          $ref: "#/components/schemas/SourceRef"
+    AddressSearchResponse:
+      type: object
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AddressSearchItem"
+        meta:
+          $ref: "#/components/schemas/ResponseMeta"
     ImageRef:
       type: object
       required: [url, alt]
@@ -1386,6 +1561,246 @@ components:
             $ref: "#/components/schemas/Recommendation"
         meta:
           $ref: "#/components/schemas/ResponseMeta"
+    PlannerRecommendationRequest:
+      type: object
+      additionalProperties: false
+      required: [contract_version, client_request_id, analysis_id, planning_context, rule_recommendations]
+      properties:
+        contract_version:
+          type: string
+          const: 0.1.0
+        client_request_id:
+          type: string
+          format: uuid
+        analysis_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        planning_context:
+          type: object
+          additionalProperties: true
+        rule_recommendations:
+          type: array
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        requested_alternatives:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 2
+    PlannerRecommendationPriority:
+      type: object
+      additionalProperties: false
+      required: [id, priority, category, title, action, reason, evidence_refs, assumptions, predicted_impact, confidence, cost_level, difficulty, deadline, dependencies, risks, requires_human_review]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        priority:
+          type: string
+          enum: [low, medium, high]
+        category:
+          type: string
+          enum: [demand, venue, budget, marketing, operation, risk, accessibility, tourism]
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        action:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        evidence_refs:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+        assumptions:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        predicted_impact:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        confidence:
+          type: string
+          enum: [low, medium, high]
+        cost_level:
+          type: string
+          enum: [unknown, low, medium, high]
+        difficulty:
+          type: string
+          enum: [easy, moderate, hard, needs_review]
+        deadline:
+          anyOf:
+            - type: string
+              maxLength: 100
+            - type: "null"
+        dependencies:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        risks:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        requires_human_review:
+          type: boolean
+          const: true
+    PlannerRecommendationAlternative:
+      type: object
+      additionalProperties: false
+      required: [id, title, changes, verify]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        changes:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        verify:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+    PlannerRecommendationRoadmapItem:
+      type: object
+      additionalProperties: false
+      required: [phase, actions]
+      properties:
+        phase:
+          type: string
+          minLength: 1
+          maxLength: 100
+        actions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+    StructuredPlanningRecommendation:
+      type: object
+      additionalProperties: false
+      required: [executive_summary, priorities, alternatives, roadmap, missing_information, limitations, schema_version, prompt_version, generation_mode, generated_at]
+      properties:
+        executive_summary:
+          type: string
+          minLength: 1
+          maxLength: 3000
+        priorities:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: "#/components/schemas/PlannerRecommendationPriority"
+        alternatives:
+          type: array
+          minItems: 1
+          maxItems: 5
+          items:
+            $ref: "#/components/schemas/PlannerRecommendationAlternative"
+        roadmap:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: "#/components/schemas/PlannerRecommendationRoadmapItem"
+        missing_information:
+          type: array
+          maxItems: 30
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        limitations:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1000
+        schema_version:
+          type: string
+          const: "1.0"
+        prompt_version:
+          type: string
+          const: planner-recommendation-1.0
+        generation_mode:
+          type: string
+          const: llm
+        generated_at:
+          type: string
+          format: date-time
+    LlmResponseMeta:
+      type: object
+      additionalProperties: false
+      required: [contract_version, generated_at, request_id, provider, model, prompt_version]
+      properties:
+        contract_version:
+          type: string
+          const: 0.1.0
+        generated_at:
+          type: string
+          format: date-time
+        request_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        provider:
+          type: string
+          minLength: 1
+          maxLength: 100
+        model:
+          type: string
+          minLength: 1
+          maxLength: 200
+        prompt_version:
+          type: string
+          const: planner-recommendation-1.0
+    PlannerRecommendationResponse:
+      type: object
+      additionalProperties: false
+      required: [recommendation, meta]
+      properties:
+        recommendation:
+          $ref: "#/components/schemas/StructuredPlanningRecommendation"
+        meta:
+          $ref: "#/components/schemas/LlmResponseMeta"
     FieldError:
       type: object
       required: [field, message]

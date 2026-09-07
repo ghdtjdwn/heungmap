@@ -3,9 +3,11 @@
 한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
 
-현재 저장소에는 제품·데이터·기술 명세, 기계 판독 가능한 공통 API 계약과 환경 변수 예시가 있습니다.
-구현된 애플리케이션이나 학습된 모델은 아직 제공하지 않으며, 모델링에 앞서 축제와 방문자 데이터를
-방어 가능한 방식으로 결합할 수 있는지 검증하는 단계입니다.
+현재 저장소에는 제품·데이터·기술 명세와 공통 API 계약, Next.js 기획자 화면, FastAPI 분석 API,
+재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 로그인과 서버 배포는 제외했으며, 실제 데이터
+게이트는 514건·76.37% 결합으로 통과했습니다. 다만 실제 LightGBM의 시간 분할 MAE가 baseline보다
+16.23% 나빠, 자체 수요 모델은 화면·계약 검증용 mock 상대지수로 유지합니다.
+자세한 실제 판정은 [데이터 게이트·모델 평가 보고서](docs/DATA_GATE_REPORT.md)에 있습니다.
 
 ## 해결하려는 문제
 
@@ -84,28 +86,59 @@ EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해 정보구조�
 | 영역 | 현재 기준 | 확인·적용 조건 |
 | --- | --- | --- |
 | 관광 데이터 | TourAPI `searchFestival2`, 위치 기반 관광 정보 | API 응답과 이용 조건 확인 |
-| 예측 label | 지역·기간별 방문자 수 또는 평상시 대비 증가분 | 축제 단위 결합 가능성과 왜곡 검토 |
+| 예측 label 후보 | 평상시 대비 지역 방문수요 증감률 | 특정 축제 관람객이 아님을 표시하고 공동 계약 검토 |
 | 데이터·모델 | Python, pandas, LightGBM, SHAP | baseline보다 의미 있는 검증 결과 |
 | API | FastAPI·Pydantic | Python data·model과 OpenAPI 계약 연결 |
 | Web | Next.js App Router·TypeScript | 캘린더·지도·단계형 form과 URL 상태 구현 |
 | Map | Kakao Map JavaScript SDK | 위치·주차·숙박 표현 검증 |
-| 배포 | 개인 Ubuntu 서버·Nginx·systemd | server 사전점검을 통과한 뒤 단일 instance 배포 |
+| 실행 | macOS·Windows 로컬 실행 | 로그인과 서버 배포 없이 두 팀원이 재현 가능한 개발 환경 유지 |
 
 API key, 원본·가공 dataset, 학습 artifact와 개인 설정은 Git에 포함하지 않습니다. 재현 절차와 schema만
 문서화하고 실제 데이터는 ignored `data/` 경로에서 다룹니다.
 
 ## 저장소 사용법
 
-현재는 문서, 공통 API 계약과 환경 변수 예시만 있으며 실행할 application command는 없습니다.
+Python 3.11 이상과 Node.js 20.9 이상이 필요합니다. 두 터미널에서 backend와 frontend를 각각 실행합니다.
 
 ```bash
-git clone https://github.com/ghdtjdwn/heungmap.git
-cd heungmap
 cp .env.example .env
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements-dev.txt
+# macOS에서 실제 LightGBM 평가를 재현할 때만 추가 설치
+brew install libomp
+.venv/bin/pip install -r backend/requirements-model.txt
+PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
-`.env`에는 발급받은 key를 로컬에서만 저장합니다. 첫 실행 명령과 자동 검증은 데이터 수집 코드가
-추가될 때 함께 정의합니다.
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+브라우저에서 <http://localhost:3000/planner>를 엽니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
+검색에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
+`qwen3.5:9b`를 사용하므로 별도 API key나 사용료가 없습니다. Ollama 설치 후 `ollama pull qwen3.5:9b`를
+한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, mock 수요 점수와 규칙
+보고서는 계속 동작합니다. 선택적으로 OpenAI를 사용할 때만 `.env.example`의 provider와 key를 바꿉니다.
+
+검증 명령은 다음과 같습니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
+PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py \
+  --output data/processed/llm-eval.json
+PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model.py
+cd frontend
+npm run typecheck
+npm run lint
+npm run build
+npm run e2e
+npm run smoke:map
+```
+
+데이터 게이트 수집·결합 명령은 [data/README.md](data/README.md)에 있습니다. Playwright는 외부 API를
+fixture로 고정하며 실제 credential·지도 smoke와 로컬 Ollama 평가는 별도 명령으로 실행합니다.
 
 ## 문서 지도
 
@@ -114,6 +147,9 @@ cp .env.example .env
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
 - [기획자·사용자 공통 데이터와 API 스펙](docs/SHARED_SPEC.md)
 - [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
+- [현재 기획자 기능 구현 상태](docs/PLANNER_IMPLEMENTATION.md)
+- [데이터 게이트와 실제 모델 평가](docs/DATA_GATE_REPORT.md)
+- [3분 기획자 시연과 Windows 재현](docs/PLANNER_DEMO.md)
 - [사용자 캘린더·지도·상세 흐름과 담당 범위](docs/VISITOR_WORKFLOW.md)
 - [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
 - [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
@@ -122,10 +158,14 @@ cp .env.example .env
 - [한국관광공사 OpenAPI와 외부 참고 API 카탈로그](docs/OPENAPI_CATALOG.md)
 - [확정 기술 스택과 폴더 구조](docs/TECH_STACK.md)
 - [개인 서버 배포 조건과 구조](docs/DEPLOYMENT.md)
+- [외부 API 문제 해결 기록](docs/TROUBLESHOOTING.md)
 - [결정 로그](docs/DECISION_LOG.md)
 
 ## 현재 제약
 
-- 학습 데이터 결합, 예측 성능, frontend/backend 구현과 배포는 아직 검증되지 않았습니다.
-- 절대 방문자 수와 평상시 대비 증가분 중 어떤 label이 더 방어 가능한지는 데이터 검증 후 결정합니다.
-- 팀의 세부 구현 기여는 실제 작업이 시작된 뒤 기록합니다.
+- 축제 원본 688건과 지역 방문자 464,092행을 실제 수집해 중복 제거 후 514건·76.37%로 결합했습니다. label 후보는 지역
+  방문수요 증가율이며 특정 축제 관람객 수가 아닙니다.
+- 데이터 게이트는 통과했지만 2025–2026 시간 분할에서 LightGBM이 baseline보다 나빠
+  실제 model과 SHAP은 제품에 연결하지 않았습니다. label·prediction 표현은 공동 검토 대기입니다.
+- 로그인과 서버 배포는 현재 구현 범위에 포함하지 않습니다.
+- 기획자 초안은 로그인 전 단계에서 브라우저 `localStorage`에만 보관되며 다른 기기와 동기화되지 않습니다.
