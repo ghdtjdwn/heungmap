@@ -223,7 +223,8 @@ class TourApiClient:
         if not content_id or not title or not start:
             return None
         end = self._parse_yyyymmdd(item.get("eventenddate")) or start
-        area_code = self._text(item.get("areacode")) or "0"
+        raw_area_code = self._text(item.get("areacode"))
+        area_code = raw_area_code or "0"
         sigungu_code = self._text(item.get("sigungucode")) or None
         addr1 = self._text(item.get("addr1"))
         addr2 = self._text(item.get("addr2"))
@@ -274,7 +275,10 @@ class TourApiClient:
             sources=[source],
             data_quality=DataQuality(
                 completeness="medium" if (coordinates and address) else "low",
-                warnings=[] if coordinates else ["좌표 정보가 제공되지 않았습니다."],
+                warnings=[
+                    *([] if coordinates else ["좌표 정보가 제공되지 않았습니다."]),
+                    *([] if raw_area_code else ["TourAPI가 지역 코드를 제공하지 않아 주소 기반으로 지역명을 표시합니다."]),
+                ],
                 is_mock=False,
             ),
             updated_at=now,
@@ -320,16 +324,7 @@ class TourApiClient:
         """Fetch a single festival's full detail via detailCommon2 + detailIntro2."""
         common_items = await self._get_items(
             "detailCommon2",
-            {
-                "contentId": content_id,
-                "defaultYN": "Y",
-                "overviewYN": "Y",
-                "addrinfoYN": "Y",
-                "mapinfoYN": "Y",
-                "firstImageYN": "Y",
-                "areacodeYN": "Y",
-                "catcodeYN": "N",
-            },
+            {"contentId": content_id},
         )
         if not common_items:
             return None
