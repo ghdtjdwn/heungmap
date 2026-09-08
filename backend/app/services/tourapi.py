@@ -292,30 +292,49 @@ class TourApiClient:
         end_date: date | None = None,
         area_code: str | None = None,
         sigungu_code: str | None = None,
-        page: int = 1,
-        page_size: int = 20,
     ) -> list[EventSummary]:
         range_start = start_date or date.today()
         range_end = end_date or (range_start + timedelta(days=90))
-        params: dict[str, str | int] = {
+        base_params: dict[str, str | int] = {
             "eventStartDate": range_start.strftime("%Y%m%d"),
             "eventEndDate": range_end.strftime("%Y%m%d"),
             "arrange": "A",
-            "pageNo": page,
-            "numOfRows": page_size,
         }
         if area_code:
-            params["areaCode"] = area_code
+            base_params["areaCode"] = area_code
         if sigungu_code:
-            params["sigunguCode"] = sigungu_code
-        items = await self._get_items("searchFestival2", params)
+            base_params["sigunguCode"] = sigungu_code
+
+        # TourAPI does not provide a title query for searchFestival2. Fetch each
+        # upstream page first so local title filtering and stable sorting happen
+        # before the HTTP API applies its own page/page_size window.
+        fetch_page_size = 100
+        items: list[dict[str, Any]] = []
+        upstream_page = 1
+        while True:
+            page_items = await self._get_items(
+                "searchFestival2",
+                {
+                    **base_params,
+                    "pageNo": upstream_page,
+                    "numOfRows": fetch_page_size,
+                },
+            )
+            items.extend(page_items)
+            if len(page_items) < fetch_page_size:
+                break
+            upstream_page += 1
+            if upstream_page > 100:
+                raise TourApiUnavailable("TourAPI 축제 목록의 페이지 범위가 비정상적으로 큽니다.")
+
         now = datetime.now().astimezone()
         summaries: list[EventSummary] = []
+        normalized_query = query.casefold() if query else None
         for item in items:
             summary = self._festival_to_summary(item, now)
             if summary is None:
                 continue
-            if query and query not in summary.title:
+            if normalized_query and normalized_query not in summary.title.casefold():
                 continue
             summaries.append(summary)
         return summaries
@@ -329,10 +348,7 @@ class TourApiClient:
         if not common_items:
             return None
         common = common_items[0]
-        try:
-            intro_items = await self._get_items("detailIntro2", {"contentId": content_id, "contentTypeId": "15"})
-        except TourApiUnavailable:
-            intro_items = []
+        intro_items = await self._get_items("detailIntro2", {"contentId": content_id, "contentTypeId": "15"})
         intro = intro_items[0] if intro_items else {}
         merged = {
             **common,

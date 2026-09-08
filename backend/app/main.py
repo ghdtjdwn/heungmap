@@ -230,6 +230,7 @@ async def get_event(
 @app.get(
     "/api/v1/events/{event_id}/nearby",
     response_model=NearbyPlaceListResponse,
+    response_model_exclude_none=True,
     operation_id="listNearbyPlaces",
     tags=["events"],
     responses=EVENT_ERROR_RESPONSES,

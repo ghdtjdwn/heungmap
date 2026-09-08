@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { EventSummary } from "@/lib/types";
 
@@ -18,14 +18,23 @@ type KakaoMarker = {
 type KakaoMaps = {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => unknown;
-  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { setCenter(point: unknown): void };
+  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { relayout(): void; setCenter(point: unknown): void };
   Marker: new (options: { map: unknown; position: unknown; title: string }) => KakaoMarker;
   event: { addListener(target: unknown, eventName: string, handler: () => void): void };
 };
-type KakaoWindow = { kakao?: { maps: KakaoMaps } };
+type KakaoWindow = { kakao?: { maps: KakaoMaps }; __HEUNGMAP_E2E_KAKAO_MAP_KEY__?: string };
 
 function getKakao() {
   return (window as unknown as KakaoWindow).kakao;
+}
+
+function getRuntimeKakaoMapKey(): string | undefined {
+  if (process.env.NODE_ENV === "production") return undefined;
+  return (window as unknown as KakaoWindow).__HEUNGMAP_E2E_KAKAO_MAP_KEY__?.trim() || undefined;
+}
+
+function subscribeToRuntimeConfig(): () => void {
+  return () => undefined;
 }
 
 export function VisitorEventMap({
@@ -38,11 +47,12 @@ export function VisitorEventMap({
   onSelect: (eventId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ setCenter(point: unknown): void } | null>(null);
+  const mapRef = useRef<{ relayout(): void; setCenter(point: unknown): void } | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const onSelectRef = useRef(onSelect);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
-  const key = process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim();
+  const runtimeKey = useSyncExternalStore(subscribeToRuntimeConfig, getRuntimeKakaoMapKey, () => undefined);
+  const key = process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim() || runtimeKey;
   const points = useMemo<MapEvent[]>(() => events.flatMap((event) => {
     const coordinates = event.venue?.coordinates;
     return coordinates ? [{
@@ -78,6 +88,11 @@ export function VisitorEventMap({
         return { eventId: point.eventId, marker, point };
       });
       setState("ready");
+      window.requestAnimationFrame(() => {
+        if (disposed) return;
+        map.relayout();
+        map.setCenter(center);
+      });
     });
 
     if (getKakao()?.maps) {
@@ -120,7 +135,7 @@ export function VisitorEventMap({
   const visibleState = key ? state : "missing_key";
   return (
     <div className="visitor-map">
-      <div ref={containerRef} className={`map-canvas ${visibleState !== "ready" ? "hidden" : ""}`} aria-label="검색된 축제 위치 지도" />
+      <div ref={containerRef} className={`map-canvas ${visibleState === "missing_key" || visibleState === "failed" ? "hidden" : ""}`} aria-label="검색된 축제 위치 지도" />
       {visibleState === "loading" && <div className="map-fallback" role="status">축제 위치 지도를 불러오는 중…</div>}
       {visibleState === "missing_key" && <div className="map-fallback"><strong>지도 SDK 키 미설정</strong><p>목록 탐색은 계속 사용할 수 있습니다. Kakao JavaScript 키를 설정하면 위치가 표시됩니다.</p></div>}
       {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>TourAPI 행사 목록에서 축제를 계속 선택할 수 있습니다.</p></div>}

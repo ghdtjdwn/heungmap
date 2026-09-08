@@ -351,6 +351,9 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .visitor-map { display: grid; gap: 10px; }
 .visitor-map .map-canvas { min-height: 480px; }
 .map-coordinate-note { margin: 0; color: #856435; font-size: .8rem; }
+.visitor-pagination { max-width: 1180px; margin: 20px auto 0; display: flex; align-items: center; justify-content: center; gap: 14px; }
+.visitor-pagination span { color: var(--muted); font-size: .88rem; }
+.visitor-pagination .button:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (max-width: 720px) {
   .page-shell { padding: 0 18px 40px; }

@@ -7,7 +7,8 @@ export default defineConfig({
   reporter: "list",
   use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
   webServer: {
-    command: "HEUNGMAP_SKIP_ROOT_ENV=true npm run dev -- --hostname 127.0.0.1 --port 3100",
+    command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
+    env: { HEUNGMAP_SKIP_ROOT_ENV: "true" },
     url: "http://127.0.0.1:3100/planner",
     reuseExistingServer: true,
     timeout: 120_000,

@@ -148,7 +148,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
           {nearby.status === "error" && <div className="unavailable-box"><strong>주변 정보 조회 실패</strong><p>{nearby.message}</p><p>행사 기본 정보와 수요 지표는 계속 확인할 수 있습니다.</p><button type="button" className="text-button" onClick={retry}>다시 시도</button></div>}
           {nearby.status === "ready" && (sortedNearby.length > 0 ? <ul className="visitor-nearby-list">{sortedNearby.map((place) => {
             const display = PLACE_LABELS[place.place_type] ?? PLACE_LABELS.other;
-            return <li key={place.place_id}><span className="visitor-place-icon">{display.icon}</span><div><strong>{place.name}</strong><span>{display.label}{place.distance_m !== undefined ? ` · ${place.distance_m.toLocaleString("ko-KR")}m` : " · 거리 미제공"}</span>{place.address && <small>{place.address}</small>}</div></li>;
+            return <li key={place.place_id}><span className="visitor-place-icon">{display.icon}</span><div><strong>{place.name}</strong><span>{display.label}{place.distance_m != null ? ` · ${place.distance_m.toLocaleString("ko-KR")}m` : " · 거리 미제공"}</span>{place.address && <small>{place.address}</small>}</div></li>;
           })}</ul> : <div className="unavailable-box"><strong>표시할 주변 장소가 없습니다</strong><p>검색 반경 안에서 TourAPI 장소를 찾지 못했습니다.</p></div>)}
         </section>
       </div>

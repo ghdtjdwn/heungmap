@@ -13,7 +13,7 @@ import { filtersToSearchParams, invalidFilterMessage, parseFiltersFromSearchPara
 
 type LoadState =
   | { status: "loading"; items: EventSummary[] }
-  | { status: "ready"; items: EventSummary[] }
+  | { status: "ready"; items: EventSummary[]; page: number; pageSize: number; totalCount: number }
   | { status: "error"; items: EventSummary[]; message: string; retryable: boolean };
 
 function formatDateRange(event: EventSummary): string {
@@ -49,7 +49,13 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
   useEffect(() => {
     let active = true;
     listEvents(filters).then((response) => {
-      if (active) setResult({ status: "ready", items: response.items });
+      if (active) setResult({
+        status: "ready",
+        items: response.items,
+        page: response.page,
+        pageSize: response.page_size,
+        totalCount: response.total_count ?? response.items.length,
+      });
     }).catch((error: unknown) => {
       if (!active) return;
       const apiError = error instanceof ApiError ? error : undefined;
@@ -93,6 +99,16 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
     router.replace(`/visitor?${next.toString()}`, { scroll: false });
   }
 
+  function changePage(page: number) {
+    const next = filtersToSearchParams({ ...filters, page, selectedEventId: undefined });
+    router.push(next.size ? `/visitor?${next.toString()}` : "/visitor");
+  }
+
+  const currentPage = result.status === "ready" ? result.page : (filters.page ?? 1);
+  const totalPages = result.status === "ready" ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
+  const hasPreviousPage = result.status === "ready" && result.page > 1;
+  const hasNextPage = result.status === "ready" && result.page < totalPages;
+
   return (
     <main className="page-shell visitor-shell">
       <AppHeader detail="TourAPI 축제 탐색" />
@@ -111,7 +127,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
 
       <div className="visitor-result-heading">
         <div><p className="eyebrow">TOURAPI FESTIVALS</p><h2>축제 목록과 지도</h2><span>{filterSummary(filters)}</span></div>
-        {result.status === "ready" && <strong>{result.items.length}건</strong>}
+        {result.status === "ready" && <strong>총 {result.totalCount}건</strong>}
       </div>
 
       {result.status === "loading" && <section className="panel loading-panel" aria-live="polite"><strong>TourAPI 축제 결과를 불러오는 중입니다</strong><p>목록과 지도에 같은 결과를 준비하고 있어요.</p></section>}
@@ -150,6 +166,14 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
           </section>
           <aside className="panel visitor-map-panel"><VisitorEventMap events={result.items} selectedEventId={selectedEventId} onSelect={selectEvent} /></aside>
         </div>
+      )}
+
+      {result.status === "ready" && (hasPreviousPage || hasNextPage) && (
+        <nav className="visitor-pagination" aria-label="축제 목록 페이지">
+          <button className="button secondary" type="button" disabled={!hasPreviousPage} onClick={() => changePage(currentPage - 1)}>이전 페이지</button>
+          <span><strong>{currentPage}</strong> / {totalPages} 페이지</span>
+          <button className="button secondary" type="button" disabled={!hasNextPage} onClick={() => changePage(currentPage + 1)}>다음 페이지</button>
+        </nav>
       )}
     </main>
   );

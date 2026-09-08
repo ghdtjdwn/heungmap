@@ -78,14 +78,16 @@ async def build_event_list(
             end_date=end_date,
             area_code=area_code,
             sigungu_code=sigungu_code,
-            page=page,
-            page_size=page_size,
         )
     items.sort(key=lambda event: (event.start_date, event.event_id))
+    total_count = len(items)
+    page_start = (page - 1) * page_size
+    page_items = items[page_start:page_start + page_size]
     return EventListResponse(
-        items=items,
+        items=page_items,
         page=page,
         page_size=page_size,
+        total_count=total_count,
         applied_filters=filters,
         meta=_response_meta(),
     )
