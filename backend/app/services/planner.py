@@ -199,7 +199,7 @@ def build_mock_prediction(draft: EventDraft, evidence: list[Evidence], sources: 
         indicators=PredictionIndicators(
             demand_score=score,
             congestion_level=_level(score),
-            ticket_demand_level=_level(score) if draft.ticket_type in {"paid", "mixed"} else "unknown",
+            ticket_demand_level="unknown",
         ),
         confidence="low",
         data_sufficiency="limited",

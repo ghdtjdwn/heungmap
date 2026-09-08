@@ -1,6 +1,21 @@
 import type { DraftRecord, EventDraft, PlanningDetails } from "./types";
 
 const STORAGE_KEY = "heungmap.planner.drafts.v1";
+let owner: string | null = null;
+export function setDraftOwner(userId: string | null) { owner = userId; }
+function storageKey() { return owner ? STORAGE_KEY + "." + owner : STORAGE_KEY; }
+
+export function importLegacyDrafts(): number {
+  if (!owner) return 0;
+  const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+  if (!Array.isArray(parsed)) return 0;
+  let count = 0;
+  for (const value of parsed) {
+    const draft = normalizeDraft(value);
+    if (draft && !findDraft(draft.id)) { saveDraft(draft); count += 1; }
+  }
+  return count;
+}
 
 export const EMPTY_DETAILS: PlanningDetails = {
   experience_level: "unknown",
@@ -265,7 +280,7 @@ export function sampleDraft(kind: "independent" | "large"): DraftRecord {
 export function readDrafts(): DraftRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+    const parsed = JSON.parse(localStorage.getItem(storageKey()) ?? "[]");
     return Array.isArray(parsed) ? parsed.map(normalizeDraft).filter(Boolean) as DraftRecord[] : [];
   } catch {
     return [];
@@ -294,12 +309,12 @@ export function saveDraft(draft: DraftRecord): DraftRecord {
   const index = drafts.findIndex((item) => item.id === draft.id);
   if (index >= 0) drafts[index] = updated;
   else drafts.unshift(updated);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+  localStorage.setItem(storageKey(), JSON.stringify(drafts));
   return updated;
 }
 
 export function removeDraft(id: string): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(readDrafts().filter((draft) => draft.id !== id)));
+  localStorage.setItem(storageKey(), JSON.stringify(readDrafts().filter((draft) => draft.id !== id)));
 }
 
 export function duplicateDraft(source: DraftRecord): DraftRecord {

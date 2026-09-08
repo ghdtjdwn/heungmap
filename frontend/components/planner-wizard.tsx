@@ -62,6 +62,8 @@ export function PlannerWizard() {
   const [searchingAddress, setSearchingAddress] = useState(false);
   const hydrated = useRef(false);
   const llmAbort = useRef<AbortController | null>(null);
+  const saveTimer = useRef<number | null>(null);
+  const analyzing = useRef(false);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -82,11 +84,13 @@ export function PlannerWizard() {
   }, []);
 
   useEffect(() => {
-    if (!draft || !hydrated.current) return;
+    if (!draft || !hydrated.current || analyzing.current) return;
     const timer = window.setTimeout(() => {
+      if (analyzing.current) return;
       const stored = saveDraft({ ...draft, current_step: step, status: draft.analysis ? "analyzed" : "draft" });
       setSavedAt(stored.updated_at);
     }, 450);
+    saveTimer.current = timer;
     return () => window.clearTimeout(timer);
   }, [draft, step]);
 
@@ -289,10 +293,14 @@ export function PlannerWizard() {
   }
 
   async function submitAnalysis() {
+    if (analyzing.current) return;
     for (let index = 0; index < 6; index += 1) {
       const message = validate(index);
       if (message) { setStep(index); setError(message); return; }
     }
+    analyzing.current = true;
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveDraft({ ...currentDraft, current_step: step });
     setSubmitting(true);
     setSubmissionPhase("데이터 분석 중");
     setError("");
@@ -362,6 +370,7 @@ export function PlannerWizard() {
       saveDraft({ ...analyzedDraft, recommendation, recommendation_meta: recommendationMeta });
       router.push(`/planner/result?draft=${currentDraft.id}`);
     } catch (caught) {
+      analyzing.current = false;
       const apiError = caught as ApiError;
       const fields = apiError.problem?.field_errors?.map((item) => item.message).join(" ");
       setError(fields || apiError.message);

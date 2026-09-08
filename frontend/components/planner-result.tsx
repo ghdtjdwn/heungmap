@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { AppHeader } from "./app-header";
+import { PublicationPanel } from "./publication-panel";
 import { KakaoMapPreview } from "./kakao-map-preview";
 import { analyzePlanner, ApiError } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, findDraft } from "@/lib/drafts";
@@ -188,6 +189,7 @@ export function PlannerResult() {
       <nav className="result-tabs no-print" aria-label="분석 결과 메뉴">
         {(["overview", "report", "compare", "evidence"] as Tab[]).map((value) => <button className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{({ overview: "한눈에 보기", report: "기획 보고서", compare: "대안 비교", evidence: "근거·출처" })[value]}</button>)}
       </nav>
+      <PublicationPanel draft={draft} />
 
       {tab === "overview" && (
         <div className="result-content">

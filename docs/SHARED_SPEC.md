@@ -253,6 +253,11 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 
 ## HTTP API v1
 
+D25 확장: /auth/session, /auth/mock, /auth/role, /auth/logout, /auth/google 및
+/auth/google/callback에서 모의/Google 인증과 역할을 처리합니다. /planner/publications의 GET/POST와
+/planner/publications/{event_id}의 DELETE가 본인 행사 공개를 관리합니다. 정확한 schema는
+contracts/openapi.yaml을 따릅니다. 기존의 로그인·공개 저장 제외 문구는 D25로 대체합니다.
+
 | method·path | 역할 | 주요 응답 |
 | --- | --- | --- |
 | `GET /health` | demo와 운영 상태 확인 | 외부 의존성과 분리한 process 상태 |

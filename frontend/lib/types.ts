@@ -374,6 +374,103 @@ export type PlanningContext = {
   };
 };
 
+export type EventOrigin = "tourapi" | "planner";
+export type EventVisibility = "public" | "draft";
+export type EventCategory =
+  | "festival" | "local_event" | "concert" | "club_performance" | "exhibition"
+  | "conference" | "experience" | "market" | "other";
+export type EventLifecycleStatus = "scheduled" | "ongoing" | "ended" | "cancelled" | "unknown";
+export type EventSort = "relevance" | "start_date" | "distance" | "demand";
+export type DemandLevel = "low" | "medium" | "high" | "very_high" | "unknown";
+
+export type ImageRef = { url: string; alt: string; source_id?: string };
+
+export type DataQuality = { completeness: "low" | "medium" | "high"; warnings: string[]; is_mock: boolean };
+
+export type PredictionSummary = {
+  status: "available";
+  prediction_id: string;
+  prediction_type: "official_attendance" | "ticket_demand" | "regional_visit_demand" | "relative_demand_score";
+  as_of: string;
+  demand_score?: number;
+  congestion_level?: DemandLevel;
+  ticket_demand_level?: DemandLevel;
+  confidence: "low" | "medium" | "high";
+  is_mock: boolean;
+} | {
+  status: "unavailable";
+  reason_code: "insufficient_data" | "unsupported_event_type" | "missing_required_input" | "model_unavailable" | "upstream_unavailable";
+  message: string;
+  as_of: string;
+  retryable: boolean;
+  is_mock: boolean;
+};
+
+export type EventSummary = {
+  event_id: string;
+  origin: EventOrigin;
+  visibility: EventVisibility;
+  title: string;
+  event_type: EventCategory;
+  event_status: EventLifecycleStatus;
+  start_date: string;
+  end_date: string;
+  start_time?: string;
+  end_time?: string;
+  region: RegionRef;
+  venue?: Venue;
+  thumbnail?: ImageRef;
+  price_summary?: string;
+  prediction_summary?: PredictionSummary;
+  sources: SourceRef[];
+  data_quality: DataQuality;
+  updated_at: string;
+};
+
+export type EventDetail = EventSummary & {
+  description?: string;
+  homepage_url?: string;
+  images?: ImageRef[];
+  program_summary?: string;
+};
+
+export type EventListQuery = {
+  query?: string;
+  start_date?: string;
+  end_date?: string;
+  area_code?: string;
+  sigungu_code?: string;
+  event_types?: EventCategory[];
+  sort?: EventSort;
+  page?: number;
+  page_size?: number;
+};
+
+export type EventListResponse = {
+  items: EventSummary[];
+  page: number;
+  page_size: number;
+  total_count?: number;
+  applied_filters: EventListQuery & { sort: EventSort; page: number; page_size: number };
+  meta: { contract_version: "0.1.0"; generated_at: string; request_id: string; warnings?: string[] };
+};
+
+export type NearbyPlaceListResponse = {
+  event_id: string;
+  items: {
+    place_id: string;
+    place_type: string;
+    name: string;
+    address?: string;
+    coordinates?: { latitude: number; longitude: number };
+    distance_m?: number;
+    accessibility_summary?: string;
+    sources: SourceRef[];
+  }[];
+  radius_m: number;
+  meta: { contract_version: "0.1.0"; generated_at: string; request_id: string; warnings?: string[] };
+};
+
 export type Problem = {
   title?: string;
   detail?: string;

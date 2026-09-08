@@ -8,7 +8,7 @@ type MapPoint = { id: string; name: string; category: string; distance?: number;
 type KakaoMaps = {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => unknown;
-  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { setCenter(point: unknown): void };
+  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { setCenter(point: unknown): void; relayout(): void };
   Marker: new (options: { map: unknown; position: unknown; title: string }) => { setMap(map: unknown | null): void };
 };
 
@@ -41,6 +41,7 @@ export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: Near
       mapRef.current = map;
       markersRef.current = points.map((point) => new maps.Marker({ map, position: new maps.LatLng(point.latitude, point.longitude), title: point.name }));
       setState("ready");
+      window.requestAnimationFrame(() => { if (!disposed) { map.relayout(); map.setCenter(center); } });
     });
     if (window.kakao?.maps) render();
     else {
@@ -69,7 +70,7 @@ export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: Near
   if (!venue?.coordinates) return <div className="map-fallback"><strong>지도 위치 미정</strong><p>장소 주소나 좌표를 입력하면 지도와 주변 관광정보를 함께 확인할 수 있습니다.</p></div>;
   const visibleState = key ? state : "missing_key";
   return <div className="map-preview">
-    <div ref={containerRef} className={`map-canvas ${visibleState !== "ready" ? "hidden" : ""}`} aria-label="선택 행사장과 주변 관광정보 지도" />
+    <div ref={containerRef} className={`map-canvas ${visibleState === "missing_key" || visibleState === "failed" ? "hidden" : ""}`} aria-label="선택 행사장과 주변 관광정보 지도" />
     {visibleState === "loading" && <div className="map-fallback" role="status">지도 불러오는 중…</div>}
     {visibleState === "missing_key" && <div className="map-fallback"><strong>지도 SDK 키 미설정</strong><p>목록과 거리 정보는 계속 사용할 수 있습니다. KAKAO_JAVASCRIPT_KEY와 localhost 도메인을 설정하면 지도가 표시됩니다.</p></div>}
     {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>아래 TourAPI 목록은 그대로 유지됩니다.</p></div>}
