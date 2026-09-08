@@ -53,6 +53,7 @@ mlruns/
 *.db
 *.sqlite
 *.sqlite3
+.omc/
 
 # --- OS / Editor ---
 .DS_Store

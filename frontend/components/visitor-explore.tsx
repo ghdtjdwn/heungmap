@@ -8,8 +8,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { VisitorEventMap } from "@/components/visitor-event-map";
 import { ApiError, listEvents } from "@/lib/api";
+import { REGIONS, regionFromCode } from "@/lib/options";
 import type { EventListQuery, EventSummary } from "@/lib/types";
-import { filtersToSearchParams, invalidFilterMessage, parseFiltersFromSearchParams } from "@/lib/visitor-filters";
+import { filtersToSearchParams, invalidFilterMessage, parseFiltersFromSearchParams, parseVisitorView, type VisitorView } from "@/lib/visitor-filters";
 
 type LoadState =
   | { status: "loading"; items: EventSummary[] }
@@ -25,16 +26,46 @@ function formatDateRange(event: EventSummary): string {
 function filterSummary(filters: EventListQuery): string {
   const parts = [
     filters.query && `검색어 “${filters.query}”`,
-    filters.start_date && filters.end_date && `${filters.start_date}~${filters.end_date}`,
-    filters.area_code && `지역코드 ${filters.area_code}`,
+    filters.start_date && filters.end_date
+      ? `${filters.start_date}~${filters.end_date}`
+      : filters.start_date
+        ? `${filters.start_date}부터`
+        : filters.end_date
+          ? `${filters.end_date}까지`
+          : undefined,
+    filters.area_code && (regionFromCode(filters.area_code)?.display_name ?? `지역코드 ${filters.area_code}`),
   ].filter(Boolean);
   return parts.length ? parts.join(" · ") : "오늘부터 90일 이내 · 전국";
 }
 
-function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchParamsValue: string; selectedEventId?: string }) {
+function EventCard({ event, selected, onSelect }: { event: EventSummary; selected: boolean; onSelect?: (eventId: string) => void }) {
+  const content = <>
+    {event.thumbnail ? <Image className="visitor-card-image" src={event.thumbnail.url} alt={event.thumbnail.alt} width={180} height={120} unoptimized /> : <span className="visitor-card-image placeholder" aria-label="대표 이미지 없음">축제</span>}
+    <span className="visitor-card-body">
+      <span className="card-topline"><b>{event.event_type === "festival" ? "축제" : event.event_type}</b><small>{event.event_status === "ongoing" ? "진행 중" : event.event_status === "scheduled" ? "예정" : "일정 확인"}</small></span>
+      <strong>{event.title}</strong><span>{formatDateRange(event)}</span><span>{event.venue?.address ?? event.region.display_name}</span>
+      {!event.venue?.coordinates && <em>좌표 없음 · 목록에서만 확인 가능</em>}
+      {event.prediction_summary?.status === "available" && <em>상대 수요 지수 {event.prediction_summary.demand_score ?? "–"} · {event.prediction_summary.is_mock ? "mock" : "예측"}</em>}
+    </span>
+  </>;
+
+  return <article className={`visitor-event-card ${selected ? "selected" : ""}`}>
+    {onSelect
+      ? <button type="button" className="visitor-card-select" onClick={() => onSelect(event.event_id)} aria-pressed={selected}>{content}</button>
+      : <div className="visitor-card-select">{content}</div>}
+    <div className="visitor-card-footer"><small>출처: {event.sources.map((source) => source.provider_name).join(", ")}</small><Link className="text-button" href={`/visitor/${event.event_id}`}>상세 보기 →</Link></div>
+  </article>;
+}
+
+function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { searchParamsValue: string; selectedEventId?: string; view: VisitorView }) {
   const router = useRouter();
   const rawParams = useMemo(() => new URLSearchParams(searchParamsValue), [searchParamsValue]);
   const filters = useMemo(() => parseFiltersFromSearchParams(rawParams), [rawParams]);
+  const requestFilters = useMemo<EventListQuery>(() => ({
+    ...filters,
+    page: view === "map" ? 1 : filters.page,
+    page_size: view === "map" ? 100 : 20,
+  }), [filters, view]);
   const urlWarning = invalidFilterMessage(rawParams);
   const [draft, setDraft] = useState({
     query: filters.query ?? "",
@@ -48,7 +79,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
 
   useEffect(() => {
     let active = true;
-    listEvents(filters).then((response) => {
+    listEvents(requestFilters).then((response) => {
       if (active) setResult({
         status: "ready",
         items: response.items,
@@ -67,7 +98,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
       });
     });
     return () => { active = false; };
-  }, [filters, retryKey]);
+  }, [requestFilters, retryKey]);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,13 +108,13 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
     }
     setFormError(undefined);
     const next = filtersToSearchParams({
+      view,
       query: draft.query || undefined,
       start_date: draft.start_date || undefined,
       end_date: draft.end_date || undefined,
       area_code: draft.area_code || undefined,
       sort: "start_date",
       page: 1,
-      page_size: 20,
     });
     router.push(next.size ? `/visitor?${next.toString()}` : "/visitor");
   }
@@ -91,23 +122,35 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
   function resetFilters() {
     setDraft({ query: "", start_date: "", end_date: "", area_code: "" });
     setFormError(undefined);
-    router.push("/visitor");
+    router.push(`/visitor?view=${view}`);
   }
 
   function selectEvent(eventId: string) {
-    const next = filtersToSearchParams({ ...filters, selectedEventId: eventId });
+    const next = filtersToSearchParams({ ...filters, view, page_size: undefined, selectedEventId: eventId });
     router.replace(`/visitor?${next.toString()}`, { scroll: false });
   }
 
   function changePage(page: number) {
-    const next = filtersToSearchParams({ ...filters, page, selectedEventId: undefined });
+    const next = filtersToSearchParams({ ...filters, view, page, page_size: undefined, selectedEventId: undefined });
     router.push(next.size ? `/visitor?${next.toString()}` : "/visitor");
+  }
+
+  function viewHref(nextView: VisitorView): string {
+    const next = filtersToSearchParams({
+      ...filters,
+      view: nextView,
+      page: 1,
+      page_size: undefined,
+      selectedEventId,
+    });
+    return `/visitor?${next.toString()}`;
   }
 
   const currentPage = result.status === "ready" ? result.page : (filters.page ?? 1);
   const totalPages = result.status === "ready" ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
   const hasPreviousPage = result.status === "ready" && result.page > 1;
   const hasNextPage = result.status === "ready" && result.page < totalPages;
+  const selectedEvent = result.items.find((event) => event.event_id === selectedEventId);
 
   return (
     <main className="page-shell visitor-shell">
@@ -120,14 +163,20 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
         <label><span>축제명</span><input value={draft.query} onChange={(event) => setDraft({ ...draft, query: event.target.value })} placeholder="축제 이름 검색" /></label>
         <label><span>시작일</span><input type="date" value={draft.start_date} onChange={(event) => setDraft({ ...draft, start_date: event.target.value })} /></label>
         <label><span>종료일</span><input type="date" value={draft.end_date} min={draft.start_date || undefined} onChange={(event) => setDraft({ ...draft, end_date: event.target.value })} /></label>
-        <label><span>지역 코드</span><input value={draft.area_code} onChange={(event) => setDraft({ ...draft, area_code: event.target.value })} placeholder="예: 1 (서울)" /></label>
+        <label><span>지역</span><select value={draft.area_code} onChange={(event) => setDraft({ ...draft, area_code: event.target.value })}><option value="">전국</option>{REGIONS.map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label>
         <div className="visitor-filter-actions"><button className="button primary" type="submit">검색</button><button className="button secondary" type="button" onClick={resetFilters}>초기화</button></div>
       </form>
       {(formError || urlWarning) && <p className="form-error visitor-message" role="alert">{formError || urlWarning}</p>}
 
       <div className="visitor-result-heading">
-        <div><p className="eyebrow">TOURAPI FESTIVALS</p><h2>축제 목록과 지도</h2><span>{filterSummary(filters)}</span></div>
-        {result.status === "ready" && <strong>총 {result.totalCount}건</strong>}
+        <div><p className="eyebrow">TOURAPI FESTIVALS</p><h2>{view === "list" ? "목록으로 보는 축제" : "지도로 넓게 보는 축제"}</h2><span>{filterSummary(filters)}</span></div>
+        <div className="visitor-result-actions">
+          {result.status === "ready" && <strong>총 {result.totalCount}건</strong>}
+          <nav className="visitor-view-switcher" aria-label="축제 보기 방식">
+            <Link href={viewHref("list")} className={view === "list" ? "active" : ""} aria-current={view === "list" ? "page" : undefined}>목록 보기</Link>
+            <Link href={viewHref("map")} className={view === "map" ? "active" : ""} aria-current={view === "map" ? "page" : undefined}>지도 보기</Link>
+          </nav>
+        </div>
       </div>
 
       {result.status === "loading" && <section className="panel loading-panel" aria-live="polite"><strong>TourAPI 축제 결과를 불러오는 중입니다</strong><p>목록과 지도에 같은 결과를 준비하고 있어요.</p></section>}
@@ -146,29 +195,25 @@ function VisitorExploreView({ searchParamsValue, selectedEventId }: { searchPara
         </section>
       )}
 
-      {result.status === "ready" && result.items.length > 0 && (
-        <div className="visitor-explore-layout">
+      {result.status === "ready" && result.items.length > 0 && view === "list" && (
+        <div className="visitor-list-layout">
           <section className="visitor-event-list" aria-label="검색된 축제 목록">
             {result.items.map((event) => (
-              <article key={event.event_id} className={`visitor-event-card ${selectedEventId === event.event_id ? "selected" : ""}`}>
-                <button type="button" className="visitor-card-select" onClick={() => selectEvent(event.event_id)} aria-pressed={selectedEventId === event.event_id}>
-                  {event.thumbnail ? <Image className="visitor-card-image" src={event.thumbnail.url} alt={event.thumbnail.alt} width={180} height={120} unoptimized /> : <span className="visitor-card-image placeholder" aria-label="대표 이미지 없음">축제</span>}
-                  <span className="visitor-card-body">
-                    <span className="card-topline"><b>{event.event_type === "festival" ? "축제" : event.event_type}</b><small>{event.event_status === "ongoing" ? "진행 중" : event.event_status === "scheduled" ? "예정" : "일정 확인"}</small></span>
-                    <strong>{event.title}</strong><span>{formatDateRange(event)}</span><span>{event.venue?.address ?? event.region.display_name}</span>
-                    {!event.venue?.coordinates && <em>좌표 없음 · 목록에서만 확인 가능</em>}
-                    {event.prediction_summary?.status === "available" && <em>상대 수요 지수 {event.prediction_summary.demand_score ?? "–"} · {event.prediction_summary.is_mock ? "mock" : "예측"}</em>}
-                  </span>
-                </button>
-                <div className="visitor-card-footer"><small>출처: {event.sources.map((source) => source.provider_name).join(", ")}</small><Link className="text-button" href={`/visitor/${event.event_id}`}>상세 보기 →</Link></div>
-              </article>
+              <EventCard key={event.event_id} event={event} selected={false} />
             ))}
           </section>
-          <aside className="panel visitor-map-panel"><VisitorEventMap events={result.items} selectedEventId={selectedEventId} onSelect={selectEvent} /></aside>
         </div>
       )}
 
-      {result.status === "ready" && (hasPreviousPage || hasNextPage) && (
+      {result.status === "ready" && result.items.length > 0 && view === "map" && (
+        <div className="visitor-map-layout">
+          <p className="visitor-map-scope">같은 조건의 행사 중 최대 100건을 한 지도에서 표시합니다. 목록 보기보다 넓은 행사 범위를 비교할 수 있어요.</p>
+          <section className="panel visitor-map-panel"><VisitorEventMap events={result.items} selectedEventId={selectedEventId} onSelect={selectEvent} focus /></section>
+          {selectedEvent && <section className="visitor-map-selection" aria-live="polite"><div><span className="eyebrow">SELECTED EVENT</span><strong>{selectedEvent.title}</strong><small>{formatDateRange(selectedEvent)} · {selectedEvent.venue?.address ?? selectedEvent.region.display_name}</small></div><Link className="button primary" href={`/visitor/${selectedEvent.event_id}`}>상세 보기</Link></section>}
+        </div>
+      )}
+
+      {view === "list" && result.status === "ready" && (hasPreviousPage || hasNextPage) && (
         <nav className="visitor-pagination" aria-label="축제 목록 페이지">
           <button className="button secondary" type="button" disabled={!hasPreviousPage} onClick={() => changePage(currentPage - 1)}>이전 페이지</button>
           <span><strong>{currentPage}</strong> / {totalPages} 페이지</span>
@@ -183,7 +228,8 @@ export function VisitorExplore() {
   const searchParams = useSearchParams();
   const params = new URLSearchParams(searchParams.toString());
   const selectedEventId = params.get("selected_event_id") || undefined;
+  const view = parseVisitorView(params);
   params.delete("selected_event_id");
   const searchParamsValue = params.toString();
-  return <VisitorExploreView key={searchParamsValue} searchParamsValue={searchParamsValue} selectedEventId={selectedEventId} />;
+  return <VisitorExploreView key={searchParamsValue} searchParamsValue={searchParamsValue} selectedEventId={selectedEventId} view={view} />;
 }

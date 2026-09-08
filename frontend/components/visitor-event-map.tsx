@@ -18,7 +18,8 @@ type KakaoMarker = {
 type KakaoMaps = {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => unknown;
-  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { relayout(): void; setCenter(point: unknown): void };
+  LatLngBounds: new () => { extend(point: unknown): void };
+  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void };
   Marker: new (options: { map: unknown; position: unknown; title: string }) => KakaoMarker;
   event: { addListener(target: unknown, eventName: string, handler: () => void): void };
 };
@@ -41,13 +42,15 @@ export function VisitorEventMap({
   events,
   selectedEventId,
   onSelect,
+  focus = false,
 }: {
   events: EventSummary[];
   selectedEventId?: string;
   onSelect: (eventId: string) => void;
+  focus?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ relayout(): void; setCenter(point: unknown): void } | null>(null);
+  const mapRef = useRef<{ relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void } | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const onSelectRef = useRef(onSelect);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
@@ -91,7 +94,13 @@ export function VisitorEventMap({
       window.requestAnimationFrame(() => {
         if (disposed) return;
         map.relayout();
-        map.setCenter(center);
+        if (points.length === 1) {
+          map.setCenter(center);
+        } else {
+          const bounds = new maps.LatLngBounds();
+          points.forEach((point) => bounds.extend(new maps.LatLng(point.latitude, point.longitude)));
+          map.setBounds(bounds);
+        }
       });
     });
 
@@ -134,7 +143,7 @@ export function VisitorEventMap({
 
   const visibleState = key ? state : "missing_key";
   return (
-    <div className="visitor-map">
+    <div className={`visitor-map ${focus ? "visitor-map-focus" : ""}`}>
       <div ref={containerRef} className={`map-canvas ${visibleState === "missing_key" || visibleState === "failed" ? "hidden" : ""}`} aria-label="검색된 축제 위치 지도" />
       {visibleState === "loading" && <div className="map-fallback" role="status">축제 위치 지도를 불러오는 중…</div>}
       {visibleState === "missing_key" && <div className="map-fallback"><strong>지도 SDK 키 미설정</strong><p>목록 탐색은 계속 사용할 수 있습니다. Kakao JavaScript 키를 설정하면 위치가 표시됩니다.</p></div>}

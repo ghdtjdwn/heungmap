@@ -34,18 +34,20 @@ async function mockVisitorApis(page: Page) {
     status: 200,
     contentType: "application/javascript",
     body: `
-      window.__heungmapMapMetrics = { width: 0, height: 0, relayouts: 0 };
+      window.__heungmapMapMetrics = { width: 0, height: 0, relayouts: 0, boundsUpdates: 0 };
       class HeungMapLatLng { constructor(latitude, longitude) { this.latitude = latitude; this.longitude = longitude; } }
+      class HeungMapLatLngBounds { extend() {} }
       class HeungMapMap {
         constructor(container) {
           window.__heungmapMapMetrics.width = container.offsetWidth;
           window.__heungmapMapMetrics.height = container.offsetHeight;
         }
         relayout() { window.__heungmapMapMetrics.relayouts += 1; }
+        setBounds() { window.__heungmapMapMetrics.boundsUpdates += 1; }
         setCenter() {}
       }
       class HeungMapMarker { setMap() {} setOpacity() {} setZIndex() {} }
-      window.kakao = { maps: { load: (callback) => callback(), LatLng: HeungMapLatLng, Map: HeungMapMap, Marker: HeungMapMarker, event: { addListener() {} } } };
+      window.kakao = { maps: { load: (callback) => callback(), LatLng: HeungMapLatLng, LatLngBounds: HeungMapLatLngBounds, Map: HeungMapMap, Marker: HeungMapMarker, event: { addListener() {} } } };
     `,
   }));
   await page.route(/\/api\/v1\/events\?.*/, async (route) => {
@@ -109,7 +111,7 @@ test("방문객 행사 상세에서 주변 정보와 mock 수요 지표를 확�
 });
 
 test("21번째 이후 행사까지 URL 페이지 상태로 탐색한다", async ({ page }) => {
-  await page.goto("/visitor");
+  await page.goto("/visitor?view=list");
   await expect(page.getByText("총 21건")).toBeVisible();
   await page.getByRole("button", { name: "다음 페이지" }).click();
   await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
@@ -121,12 +123,61 @@ test("21번째 이후 행사까지 URL 페이지 상태로 탐색한다", async 
 });
 
 test("표시된 크기로 Kakao 지도를 초기화하고 다시 배치한다", async ({ page }) => {
-  await page.goto("/visitor");
+  await page.goto("/visitor?view=map");
   await expect(page.getByLabel("검색된 축제 위치 지도")).toBeVisible();
   await expect.poll(async () => page.evaluate(() => (window as typeof window & { __heungmapMapMetrics?: { relayouts: number } }).__heungmapMapMetrics?.relayouts ?? 0)).toBeGreaterThan(0);
-  const metrics = await page.evaluate(() => (window as typeof window & { __heungmapMapMetrics: { width: number; height: number; relayouts: number } }).__heungmapMapMetrics);
+  const metrics = await page.evaluate(() => (window as typeof window & { __heungmapMapMetrics: { width: number; height: number; relayouts: number; boundsUpdates: number } }).__heungmapMapMetrics);
   expect(metrics.width).toBeGreaterThan(0);
   expect(metrics.height).toBeGreaterThan(0);
+  expect(metrics.boundsUpdates).toBeGreaterThan(0);
+});
+
+test("검색·날짜·지역 필터를 보기 전환 URL에 유지하고 지도에서 더 많은 행사를 요청한다", async ({ page }) => {
+  await page.goto("/visitor?view=list");
+  await page.getByLabel("축제명").fill("서울 축제");
+  await page.getByLabel("시작일").fill("2026-10-01");
+  await page.getByLabel("종료일").fill("2026-10-31");
+  await page.getByLabel("지역").selectOption("1");
+  await page.getByRole("button", { name: "검색", exact: true }).click();
+  await expect(page).toHaveURL(/view=list/);
+  await expect(page).toHaveURL(/query=%EC%84%9C%EC%9A%B8\+%EC%B6%95%EC%A0%9C/);
+  await expect(page).toHaveURL(/start_date=2026-10-01/);
+  await expect(page).toHaveURL(/end_date=2026-10-31/);
+  await expect(page).toHaveURL(/region_code=1/);
+
+  const mapRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === "/api/v1/events" && url.searchParams.get("page_size") === "100";
+  });
+  await page.getByRole("link", { name: "지도 보기" }).click();
+  await mapRequest;
+  await expect(page).toHaveURL(/view=map/);
+  await expect(page).toHaveURL(/region_code=1/);
+  await expect(page.getByRole("heading", { name: "지도로 넓게 보는 축제" })).toBeVisible();
+  await expect(page.getByText("최대 100건을 한 지도에서 표시합니다")).toBeVisible();
+  await page.locator(".map-point-list button").first().click();
+  await expect(page).toHaveURL(/selected_event_id=evt_tourapi_123/);
+  await expect(page.locator(".visitor-map-selection").getByText("서울 테스트 축제 1", { exact: true })).toBeVisible();
+  await expect(page.locator(".visitor-map-selection").getByRole("link", { name: "상세 보기" })).toHaveAttribute("href", "/visitor/evt_tourapi_123");
+});
+
+test("responsive 방문자 목록과 큰 지도를 작은 화면에서도 탐색한다", async ({ page }) => {
+  await page.goto("/visitor?view=list");
+  const listBox = await page.getByLabel("검색된 축제 목록").boundingBox();
+  const cardBox = await page.locator(".visitor-event-card").first().boundingBox();
+  expect(listBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  if ((page.viewportSize()?.width ?? 0) <= 720) {
+    expect(cardBox!.width).toBeGreaterThan(listBox!.width * 0.9);
+  } else {
+    expect(cardBox!.width).toBeLessThan(listBox!.width * 0.6);
+  }
+
+  await page.getByRole("link", { name: "지도 보기" }).click();
+  const mapBox = await page.getByLabel("검색된 축제 위치 지도").boundingBox();
+  expect(mapBox).not.toBeNull();
+  expect(mapBox!.height).toBeGreaterThan(300);
+  await expect(page.getByRole("navigation", { name: "축제 보기 방식" })).toBeVisible();
 });
 
 test("존재하지 않는 행사 안내와 목록 복귀 링크를 보여준다", async ({ page }) => {

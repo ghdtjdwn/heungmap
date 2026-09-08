@@ -1,6 +1,7 @@
 import type { EventListQuery } from "./types";
 
-export type VisitorFilters = EventListQuery & { selectedEventId?: string };
+export type VisitorView = "list" | "map";
+export type VisitorFilters = EventListQuery & { view?: VisitorView; selectedEventId?: string };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -39,8 +40,13 @@ export function parseFiltersFromSearchParams(params: URLSearchParams): EventList
   };
 }
 
+export function parseVisitorView(params: URLSearchParams): VisitorView {
+  return params.get("view") === "map" ? "map" : "list";
+}
+
 export function filtersToSearchParams(filters: VisitorFilters): URLSearchParams {
   const params = new URLSearchParams();
+  if (filters.view) params.set("view", filters.view);
   if (filters.query?.trim()) params.set("query", filters.query.trim());
   if (filters.start_date) params.set("start_date", filters.start_date);
   if (filters.end_date) params.set("end_date", filters.end_date);
@@ -52,6 +58,10 @@ export function filtersToSearchParams(filters: VisitorFilters): URLSearchParams 
 }
 
 export function invalidFilterMessage(params: URLSearchParams): string | undefined {
+  const rawView = params.get("view");
+  if (rawView && rawView !== "list" && rawView !== "map") {
+    return "URL의 보기 방식이 올바르지 않아 목록 보기로 표시합니다.";
+  }
   const rawStart = params.get("start_date");
   const rawEnd = params.get("end_date");
   const start = validDate(rawStart);
