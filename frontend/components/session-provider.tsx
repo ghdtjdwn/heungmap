@@ -13,13 +13,24 @@ const Context = createContext<{
 } | null>(null);
 
 async function request(path: string, body?: object): Promise<Session> {
-  const response = await fetch("/api/v1/auth/" + path, {
-    method: body ? "POST" : "GET", credentials: "same-origin", cache: "no-store",
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!response.ok) throw new Error(response.status === 401 ? "세션이 만료되었습니다. 다시 로그인해 주세요." : "로그인 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
-  return response.json();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch("/api/v1/auth/" + path, {
+      method: body ? "POST" : "GET", credentials: "same-origin", cache: "no-store",
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined, signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(response.status === 401 ? "세션이 만료되었습니다. 다시 로그인해 주세요." : "로그인 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요.");
+    return response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("로그인 상태 확인 시간이 초과되었습니다. 다시 시도해 주세요.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
