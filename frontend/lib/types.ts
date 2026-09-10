@@ -380,7 +380,7 @@ export type EventCategory =
   | "festival" | "local_event" | "concert" | "club_performance" | "exhibition"
   | "conference" | "experience" | "market" | "other";
 export type EventLifecycleStatus = "scheduled" | "ongoing" | "ended" | "cancelled" | "unknown";
-export type EventSort = "relevance" | "start_date" | "distance" | "demand";
+export type EventSort = "start_date";
 export type DemandLevel = "low" | "medium" | "high" | "very_high" | "unknown";
 
 export type ImageRef = { url: string; alt: string; source_id?: string };

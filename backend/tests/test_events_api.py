@@ -53,7 +53,7 @@ def event(*, detail: bool = False, coordinates: bool = True):
     return EventDetail(**fields, description="축제 설명") if detail else EventSummary(**fields)
 
 
-def test_event_list_returns_sorted_tourapi_items(monkeypatch) -> None:
+def test_event_list_returns_items_sorted_by_start_date(monkeypatch) -> None:
     class FakeTourApi:
         configured = True
 
@@ -64,12 +64,37 @@ def test_event_list_returns_sorted_tourapi_items(monkeypatch) -> None:
             return [later, earlier]
 
     monkeypatch.setattr(main_module, "tourapi", FakeTourApi())
-    response = client.get("/api/v1/events", params={"area_code": "1", "sort": "demand"})
+    response = client.get("/api/v1/events", params={"area_code": "1", "sort": "start_date"})
     assert response.status_code == 200
     data = response.json()
     assert [item["event_id"] for item in data["items"]] == ["evt_tourapi_456", "evt_tourapi_123"]
-    assert data["applied_filters"]["sort"] == "demand"
+    assert data["applied_filters"]["sort"] == "start_date"
     assert data["total_count"] == 2
+
+
+def test_event_list_rejects_unsupported_sort_location_and_reversed_dates() -> None:
+    unsupported_sort = client.get("/api/v1/events", params={"sort": "demand"})
+    assert unsupported_sort.status_code == 422
+    assert unsupported_sort.json()["code"] == "VALIDATION_ERROR"
+
+    unsupported_location = client.get(
+        "/api/v1/events",
+        params={"latitude": 37.5, "longitude": 127.0},
+    )
+    assert unsupported_location.status_code == 422
+    assert {error["field"] for error in unsupported_location.json()["field_errors"]} == {
+        "latitude",
+        "longitude",
+    }
+
+    reversed_dates = client.get(
+        "/api/v1/events",
+        params={"start_date": "2026-10-02", "end_date": "2026-10-01"},
+    )
+    assert reversed_dates.status_code == 422
+    assert reversed_dates.json()["field_errors"] == [
+        {"field": "start_date", "message": "종료일보다 늦을 수 없습니다."}
+    ]
 
 
 def test_event_list_filters_and_sorts_before_pagination(monkeypatch) -> None:

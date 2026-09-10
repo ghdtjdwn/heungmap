@@ -334,7 +334,7 @@ class ResponseMeta(ContractModel):
 
 
 EventStatus = Literal["scheduled", "ongoing", "ended", "cancelled", "unknown"]
-EventSort = Literal["relevance", "start_date", "distance", "demand"]
+EventSort = Literal["start_date"]
 DemandLevel = Literal["low", "medium", "high", "very_high", "unknown"]
 
 
@@ -416,12 +416,6 @@ class SearchFilter(ContractModel):
     sigungu_code: str | None = None
     event_types: list[EventType] | None = None
     sort: EventSort
-    latitude: float | None = Field(default=None, ge=-90, le=90)
-    longitude: float | None = Field(default=None, ge=-180, le=180)
-    south: float | None = Field(default=None, ge=-90, le=90)
-    west: float | None = Field(default=None, ge=-180, le=180)
-    north: float | None = Field(default=None, ge=-90, le=90)
-    east: float | None = Field(default=None, ge=-180, le=180)
     page: int = Field(ge=1)
     page_size: int = Field(ge=1, le=100)
 

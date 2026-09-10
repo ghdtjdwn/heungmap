@@ -2,14 +2,14 @@
 
 ## 현재 범위
 
-로그인·서버 배포를 범위에서 제외하고, 검증에서 채택되지 않은 자체 수요 모델만 mock으로 둔 기획자 로컬
-흐름입니다. 데이터 게이트는 통과했지만 LightGBM 일반화가 부족해 제품에는 연결하지 않았습니다. 상세
-입력은 브라우저에 저장하고 공통 OpenAPI 계약에 포함된 값만 FastAPI 분석 endpoint로 전달합니다. 실제
-판정은 [`DATA_GATE_REPORT.md`](DATA_GATE_REPORT.md)에 있습니다.
+D25 기준 모의 로그인·역할 기억과 행사 공개를 포함한 로컬 통합 흐름입니다. 실제 Google 연결·배포와
+학습 모델 채택은 제외합니다. 상세 초안은 계정별 브라우저에, 분석 snapshot과 공개 행사는 서버 SQLite에
+저장합니다. 모델 판정은 [데이터 보고서](DATA_GATE_REPORT.md), 최신 실행·검증·저장 한계는
+[통합 안내](SERVICE_INTEGRATION.md), PR 상태는 [세션 인계](NEXT_SESSION_COMMAND.md)를 따릅니다.
 
 ## 구현된 흐름
 
-1. 기획 목록에서 빈 기획 또는 대형·소규모 대표 scenario를 시작합니다.
+1. 소개 페이지에서 모의 로그인 후 기획자 역할을 선택하고, 기획 목록에서 빈 기획 또는 대형·소규모 대표 scenario를 시작합니다.
 2. 기획자 상태, 행사 목표, 이용객·티켓, 일정·지역, 장소·규모, 프로그램·예산·홍보·운영·안전, 제약을 단계형 form으로 작성합니다.
    장소명은 TourAPI `searchKeyword2`, 주소와 좌표는 Kakao Local 주소 검색으로 자동 입력할 수 있습니다.
    장소·주소·공식 수용인원을 비우면 필요한 규모·접근성·시설 조건과 확인 순서를 결과에서 안내합니다.
@@ -20,6 +20,8 @@
    JavaScript 키와 domain을 사용해 선택 장소와 TourAPI 주변 장소를 지도·목록으로 함께 탐색합니다.
 7. 날짜·지역·규모·장소 수용인원·예산·공간을 바꾼 What-if를 원본과 비교합니다.
 8. 보고서를 Markdown·PDF로, 전체 결과와 Planning Context를 JSON으로 내보내고 요약을 복사합니다.
+9. 일정·지역·장소가 확정된 분석에 공개 소개문과 동의를 추가해 방문객에게 공개합니다. 결과와
+   대시보드에서 공개 갱신·철회를 처리하며, 초안 삭제와 공개 철회는 별개입니다.
 
 ## 실패와 한계 처리
 
@@ -45,10 +47,8 @@
 - 시간 일반화 채택 기준을 통과하지 않아 실제 model과 SHAP은 제품에
   연결하지 않았습니다.
 - 수집·재개·정규화·결합·품질 보고와 누수 검사는 구현하고 fixture로 검증했습니다.
-- Playwright는 7개 test로 대형·소규모, 검색·실패 fallback, validation, version·What-if,
-  localStorage, 내보내기·인쇄, 키보드와 desktop·mobile 흐름을 검사합니다.
-- 최종 병합 전 backend test 41개, frontend typecheck·lint·production build와 Playwright 7개가
-  통과했습니다.
+- 2026-09-08 통합 검증에서 backend 62개, 전체 Playwright 19개, frontend typecheck·lint·production build가
+  통과했습니다. 로그인·역할 기억·공개 연결과 자동 저장 회귀를 포함하며, 실제 외부 서비스 재호출은 제외합니다.
 - 실제 로컬 `qwen3.5:9b` 평가에서 대형, 소규모, 대부분 미입력, 수용규모 모순, 강한 고정 제약의 5개
   scenario가 최종 validator를 통과했습니다. 응답 시간은 31.054–51.978초, 평균 41.746초였습니다. 첫 full
   run의 고정 제약 문장 오탐을 수정한 뒤 해당 scenario만 다시 실행해 통과했으므로 한 번의 동시 benchmark로
@@ -64,10 +64,13 @@
 | 자체 수요 모델 | 514건 학습표, baseline·LightGBM 시간/group 평가 완료, 제품은 mock 유지 | 시간 분할 성능 개선 feature 확보 후 재평가 |
 | LLM 기획 추천 | Ollama `qwen3.5:9b` 기본 adapter와 선택적 OpenAI adapter, 공통 endpoint, schema·근거 검증, idempotency·timeout·규칙 fallback 구현 | 로컬 model 설치·실제 생성 smoke test 완료 |
 | Kakao 지도 | 선택 장소 marker, TourAPI 주변 marker·목록 동기화와 목록 fallback 구현 | JavaScript 키·localhost SDK domain 등록 완료, 실제 브라우저 smoke 확인 |
-| 로그인·서버 저장 | 구현 범위에서 제외 | browser `localStorage`만 사용 |
+| 로그인·서버 저장 | 모의 로그인·Google OAuth 경로·세션·분석·공개 저장 구현 | 실제 Google 연결 별도, 초안은 계정별 localStorage |
 | 서버 배포 | 구현 범위에서 제외 | localhost 실행과 재현 절차만 유지 |
 
 ## 작업 기록
+
+아래는 당시 상태를 보존한 과거 기록입니다. 현재 범위·전달 상태는 위 안내가 우선하며,
+이전의 로그인 제외·직접 backend LLM 호출·로컬 미전달 문구를 현재 지시로 적용하지 않습니다.
 
 ### 2026-09-06 — 데이터 게이트·지도·cache·LLM eval·E2E
 

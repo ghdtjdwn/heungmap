@@ -203,6 +203,32 @@ async def list_events(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> EventListResponse | JSONResponse:
+    unsupported_location_filters = {
+        "latitude", "longitude", "south", "west", "north", "east"
+    }.intersection(request.query_params.keys())
+    if unsupported_location_filters:
+        return problem_response(
+            request,
+            status=422,
+            code="VALIDATION_ERROR",
+            title="지원하지 않는 행사 검색 조건입니다",
+            detail="현재 MVP 행사 검색은 좌표와 지도 경계 조건을 지원하지 않습니다.",
+            retryable=False,
+            field_errors=[
+                {"field": field, "message": "현재 MVP에서 지원하지 않는 검색 조건입니다."}
+                for field in sorted(unsupported_location_filters)
+            ],
+        )
+    if start_date and end_date and start_date > end_date:
+        return problem_response(
+            request,
+            status=422,
+            code="VALIDATION_ERROR",
+            title="날짜 범위를 확인해 주세요",
+            detail="시작일은 종료일보다 늦을 수 없습니다.",
+            retryable=False,
+            field_errors=[{"field": "start_date", "message": "종료일보다 늦을 수 없습니다."}],
+        )
     try:
         return await build_event_list(
             tourapi=tourapi,

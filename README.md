@@ -4,6 +4,9 @@
 기획 행사 공개·철회를 포함합니다. 최신 실행 흐름과 Google 연결 설정은
 [통합 서비스 안내](docs/SERVICE_INTEGRATION.md)를 따릅니다. 아래 초기 계획·평가 기록보다 D25가 우선합니다.
 
+2026-09-08 전달 상태: [통합 PR #23](https://github.com/ghdtjdwn/heungmap/pull/23) 생성·push 완료,
+미병합입니다. 세션 종료 시점과 다음 확인 순서는 [세션 인계](docs/NEXT_SESSION_COMMAND.md)에 있습니다.
+
 한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
 
@@ -95,7 +98,7 @@ EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해 정보구조�
 | API | FastAPI·Pydantic | Python data·model과 OpenAPI 계약 연결 |
 | Web | Next.js App Router·TypeScript | 캘린더·지도·단계형 form과 URL 상태 구현 |
 | Map | Kakao Map JavaScript SDK | 위치·주차·숙박 표현 검증 |
-| 실행 | macOS·Windows 로컬 실행 | 로그인과 서버 배포 없이 두 팀원이 재현 가능한 개발 환경 유지 |
+| 실행 | 모의 로그인 기반 로컬 실행 | macOS 검증 완료, Windows 공동 재현·실제 Google 연결·배포는 별도 확인 |
 
 API key, 원본·가공 dataset, 학습 artifact와 개인 설정은 Git에 포함하지 않습니다. 재현 절차와 schema만
 문서화하고 실제 데이터는 ignored `data/` 경로에서 다룹니다.

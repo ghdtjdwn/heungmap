@@ -78,3 +78,34 @@ def test_llm_recommendation_operation_and_problem_media_types_match_contract() -
     assert generated_operation["operationId"] == approved_operation["operationId"]
     for status in ("409", "422", "502", "503", "504"):
         assert "application/problem+json" in generated_operation["responses"][status]["content"]
+
+
+def test_protected_operations_and_google_redirects_are_documented() -> None:
+    approved = yaml.safe_load((REPOSITORY_ROOT / "contracts/openapi.yaml").read_text(encoding="utf-8"))
+    protected_operations = (
+        ("/auth/role", "post"),
+        ("/planner/publications", "get"),
+        ("/planner/publications", "post"),
+        ("/planner/publications/{event_id}", "delete"),
+        ("/planner/analyses", "post"),
+        ("/planner/recommendations", "post"),
+    )
+    assert approved["components"]["securitySchemes"]["sessionCookie"] == {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "heungmap_session",
+        "description": "로그인 후 발급되는 HttpOnly 세션 쿠키",
+    }
+    for path, method in protected_operations:
+        assert approved["paths"][path][method]["security"] == [{"sessionCookie": []}]
+    assert set(approved["paths"]["/auth/google"]["get"]["responses"]) >= {"307"}
+    assert set(approved["paths"]["/auth/google/callback"]["get"]["responses"]) >= {"303"}
+
+
+def test_event_search_contract_only_advertises_supported_mvp_filters() -> None:
+    approved = yaml.safe_load((REPOSITORY_ROOT / "contracts/openapi.yaml").read_text(encoding="utf-8"))
+    assert approved["components"]["schemas"]["EventSort"]["enum"] == ["start_date"]
+    parameter_names = {
+        parameter["name"] for parameter in approved["paths"]["/events"]["get"]["parameters"]
+    }
+    assert not parameter_names.intersection({"latitude", "longitude", "south", "west", "north", "east"})
