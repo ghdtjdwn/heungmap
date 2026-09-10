@@ -37,6 +37,7 @@ from app.services.events import (
     build_event_prediction,
 )
 from app.services.kakao_address import KakaoAddressClient, KakaoAddressUnavailable
+from app.services.kakao_places import KakaoPlacesClient
 from app.services.llm import (
     LlmInvalidResponse,
     LlmNotConfigured,
@@ -70,6 +71,7 @@ app.add_middleware(
 
 tourapi = TourApiClient()
 kakao_address = KakaoAddressClient()
+kakao_places = KakaoPlacesClient()
 llm = PlannerLlmClient()
 analysis_cache: dict[str, tuple[str, PlannerAnalysisResponse]] = {}
 analysis_locks: dict[str, asyncio.Lock] = {}
@@ -295,7 +297,7 @@ async def list_nearby_places(
             retryable=False,
         )
     try:
-        return await build_event_nearby(event, tourapi, radius_m)
+        return await build_event_nearby(event, tourapi, kakao_places, radius_m)
     except TourApiUnavailable as exc:
         return tourapi_problem_response(request, exc, "주변 관광정보를 불러올 수 없습니다")
 

@@ -8,6 +8,7 @@ from app.schemas import (
     EventDetail,
     EventListResponse,
     EventType,
+    NearbyPlace,
     NearbyPlaceListResponse,
     PredictionFactor,
     PredictionIndicators,
@@ -17,6 +18,7 @@ from app.schemas import (
     SourceRef,
     UnavailablePrediction,
 )
+from app.services.kakao_places import KakaoPlacesClient, KakaoPlacesUnavailable
 from app.services.tourapi import TourApiClient, TourApiUnavailable
 from app.publications import published_event, published_events
 
@@ -122,18 +124,92 @@ async def build_event_detail(event_id: str, tourapi: TourApiClient) -> EventDeta
 async def build_event_nearby(
     event: EventDetail,
     tourapi: TourApiClient,
+    kakao_places: KakaoPlacesClient,
     radius_m: int,
 ) -> NearbyPlaceListResponse:
     if event.venue is None or event.venue.coordinates is None:
         raise ValueError("장소 좌표가 없어 주변 정보를 조회할 수 없습니다.")
     places = await tourapi.nearby_places(event.venue.coordinates, radius_m)
+    warnings: list[str] = []
+    if kakao_places.configured:
+        try:
+            places = _merge_nearby_places(
+                places,
+                await kakao_places.nearby_places(event.venue.coordinates, radius_m),
+            )
+        except KakaoPlacesUnavailable:
+            warnings.append(
+                "Kakao Local 주차·숙박 정보를 불러오지 못해 TourAPI 결과만 제공합니다."
+            )
+    else:
+        warnings.append(
+            "KAKAO_REST_API_KEY가 없어 주차장 보강을 생략했습니다. 숙박은 TourAPI 결과만 제공합니다."
+        )
     places.sort(key=lambda place: (place.distance_m is None, place.distance_m or 0, place.name))
     return NearbyPlaceListResponse(
         event_id=event.event_id,
         items=places,
         radius_m=radius_m,
-        meta=_response_meta(),
+        meta=_response_meta().model_copy(update={"warnings": warnings or None}),
     )
+
+
+def _merge_nearby_places(
+    primary: list[NearbyPlace],
+    supplemental: list[NearbyPlace],
+) -> list[NearbyPlace]:
+    merged = list(primary)
+    for place in supplemental:
+        existing_index = next(
+            (
+                index
+                for index, existing in enumerate(merged)
+                if _same_nearby_place(existing, place)
+            ),
+            None,
+        )
+        if existing_index is None:
+            merged.append(place)
+            continue
+        existing = merged[existing_index]
+        source_ids = {source.source_id for source in existing.sources}
+        sources = existing.sources + [
+            source for source in place.sources if source.source_id not in source_ids
+        ]
+        distances = [
+            value
+            for value in (existing.distance_m, place.distance_m)
+            if value is not None
+        ]
+        merged[existing_index] = existing.model_copy(
+            update={
+                "address": existing.address or place.address,
+                "coordinates": existing.coordinates or place.coordinates,
+                "distance_m": min(distances) if distances else None,
+                "sources": sources,
+            }
+        )
+    return merged
+
+
+def _same_nearby_place(first: NearbyPlace, second: NearbyPlace) -> bool:
+    if first.place_type != second.place_type:
+        return False
+    normalized_first_name = "".join(first.name.casefold().split())
+    normalized_second_name = "".join(second.name.casefold().split())
+    if normalized_first_name != normalized_second_name:
+        return False
+    if first.coordinates is not None and second.coordinates is not None:
+        return (
+            abs(first.coordinates.latitude - second.coordinates.latitude) <= 0.001
+            and abs(first.coordinates.longitude - second.coordinates.longitude) <= 0.001
+        )
+    if first.address and second.address:
+        return (
+            "".join(first.address.casefold().split())
+            == "".join(second.address.casefold().split())
+        )
+    return False
 
 
 async def build_event_prediction(
