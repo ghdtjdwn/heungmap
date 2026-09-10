@@ -124,7 +124,7 @@ npm run dev
 ```
 
 브라우저에서 <http://localhost:3000>를 열고 로그인 버튼으로 역할을 선택합니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
-검색에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
+검색과 방문객 주변 주차장·숙박시설 보강에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
 `qwen3.5:9b`를 사용하므로 별도 API key나 사용료가 없습니다. Ollama 설치 후 `ollama pull qwen3.5:9b`를
 한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, mock 수요 점수와 규칙
 보고서는 계속 동작합니다. 선택적으로 OpenAI를 사용할 때만 `.env.example`의 provider와 key를 바꿉니다.

@@ -80,7 +80,11 @@ async function mockVisitorApis(page: Page) {
   await page.route("**/api/v1/events/evt_tourapi_123/nearby?**", async (route) => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ event_id: event.event_id, radius_m: 3000, items: [{ place_id: "place_1", place_type: "tourist_attraction", name: "하늘공원", address: "서울 마포구", distance_m: null, sources: event.sources }], meta: { contract_version: "0.1.0", generated_at: now, request_id: "nearby_e2e" } }),
+    body: JSON.stringify({ event_id: event.event_id, radius_m: 3000, items: [
+      { place_id: "place_parking_1", place_type: "parking", name: "월드컵공원 주차장", address: "서울 마포구", distance_m: 180, sources: [{ source_id: "src_kakao_parking_1", source_type: "other_public", provider_name: "카카오", dataset_name: "Kakao Local 카테고리 검색 PK6", source_record_id: "parking_1", source_url: "https://place.map.kakao.com/parking_1", retrieved_at: now }] },
+      { place_id: "place_lodging_1", place_type: "lodging", name: "마포 테스트 호텔", address: "서울 마포구", distance_m: 420, sources: [{ source_id: "src_kakao_lodging_1", source_type: "other_public", provider_name: "카카오", dataset_name: "Kakao Local 카테고리 검색 AD5", source_record_id: "lodging_1", source_url: "https://place.map.kakao.com/lodging_1", retrieved_at: now }] },
+      { place_id: "place_1", place_type: "tourist_attraction", name: "하늘공원", address: "서울 마포구", distance_m: null, sources: event.sources },
+    ], meta: { contract_version: "0.1.0", generated_at: now, request_id: "nearby_e2e" } }),
   }));
   await page.route("**/api/v1/events/evt_tourapi_143/nearby?**", async (route) => route.fulfill({
     status: 200,
@@ -105,6 +109,12 @@ test("방문객 행사 상세에서 주변 정보와 mock 수요 지표를 확�
   await page.goto("/visitor/evt_tourapi_123");
   await expect(page.getByRole("heading", { name: "서울 테스트 축제" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "주변 정보" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "주차장" })).toBeVisible();
+  await expect(page.getByText("월드컵공원 주차장")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "숙박", exact: true })).toBeVisible();
+  await expect(page.getByText("마포 테스트 호텔")).toBeVisible();
+  await expect(page.getByText("출처: 카카오").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "카카오맵에서 확인 ↗" }).first()).toHaveAttribute("href", "https://place.map.kakao.com/parking_1");
   await expect(page.getByText("하늘공원")).toBeVisible();
   await expect(page.getByText("관광지 · 거리 미제공")).toBeVisible();
   await expect(page.getByRole("heading", { name: "수요 지표" })).toBeVisible();

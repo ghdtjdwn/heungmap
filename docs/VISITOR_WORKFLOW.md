@@ -195,6 +195,7 @@ fallback_used
 - 지역·날짜·유형 filter
 - Kakao Map marker와 목록 동기화
 - 주변 관광·숙박 등 검증된 정보
+- Kakao Local `PK6` 주차장·`AD5` 숙박 보강과 source별 실패 안내
 - API·지도 오류 fallback
 
 ### 단계 2 — 예측 결과 연결
@@ -245,6 +246,6 @@ fallback_used
 - 캘린더·지도 layout과 interaction의 실제 벤치마킹 결과
 - MVP filter와 정렬 범위
 - 현재 위치·거리순 기능 포함 여부
-- 주변 시설에 사용할 TourAPI 세부 endpoint
+- 주변 시설은 TourAPI `locationBasedList2`와 Kakao Local 카테고리 검색을 사용하며 운영 정보는 추정하지 않음
 - 사용자용 티켓 수요 지표의 데이터와 경계값
 - 행사 즐겨찾기·알림·로그인 포함 여부
