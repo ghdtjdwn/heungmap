@@ -24,6 +24,7 @@ const events = Array.from({ length: 21 }, (_, index) => ({
   ...event,
   event_id: `evt_tourapi_${123 + index}`,
   title: index === 20 ? "21번째 축제" : `서울 테스트 축제 ${index + 1}`,
+  ...(index === 0 ? { start_date: "2026-09-30", end_date: "2026-10-02" } : {}),
   sources: event.sources.map((source) => ({ ...source, source_record_id: String(123 + index) })),
 }));
 
@@ -160,6 +161,43 @@ test("검색·날짜·지역 필터를 보기 전환 URL에 유지하고 지도�
   await expect(page).toHaveURL(/selected_event_id=evt_tourapi_123/);
   await expect(page.locator(".visitor-map-selection").getByText("서울 테스트 축제 1", { exact: true })).toBeVisible();
   await expect(page.locator(".visitor-map-selection").getByRole("link", { name: "상세 보기" })).toHaveAttribute("href", "/visitor/evt_tourapi_123");
+});
+
+test("달력 날짜 선택을 목록·지도·URL과 동기화하고 월 경계 다일 행사를 표시한다", async ({ page }) => {
+  await page.goto("/visitor?view=calendar&start_date=2026-10-01&end_date=2026-10-31&region_code=1");
+
+  const octoberFirst = page.locator('.calendar-day[data-date="2026-10-01"]');
+  const octoberSecond = page.locator('.calendar-day[data-date="2026-10-02"]');
+  await expect(octoberFirst.getByRole("link", { name: "서울 테스트 축제 1" })).toBeVisible();
+  await expect(octoberSecond.getByRole("link", { name: "서울 테스트 축제 1" })).toBeVisible();
+
+  const selectedDateRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === "/api/v1/events"
+      && url.searchParams.get("start_date") === "2026-10-02"
+      && url.searchParams.get("end_date") === "2026-10-02";
+  });
+  await page.getByRole("button", { name: "2026년 10월 2일 선택" }).click();
+  await selectedDateRequest;
+  await expect(page).toHaveURL(/start_date=2026-10-02/);
+  await expect(page).toHaveURL(/end_date=2026-10-02/);
+  await expect(page).toHaveURL(/region_code=1/);
+  await expect(page.getByRole("button", { name: "2026년 10월 2일 선택" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "2026년 10월 2일 선택" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("link", { name: "목록 보기" }).click();
+  await expect(page).toHaveURL(/view=list/);
+  await expect(page).toHaveURL(/start_date=2026-10-02/);
+  await page.getByRole("link", { name: "지도 보기" }).click();
+  await expect(page).toHaveURL(/view=map/);
+  await expect(page).toHaveURL(/end_date=2026-10-02/);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/view=list/);
+  await page.goBack();
+  await expect(page).toHaveURL(/view=calendar/);
+  await expect(page.getByRole("button", { name: "2026년 10월 2일 선택" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("responsive 방문자 목록과 큰 지도를 작은 화면에서도 탐색한다", async ({ page }) => {

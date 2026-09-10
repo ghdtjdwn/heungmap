@@ -157,7 +157,21 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
       start_date: month + "-01", end_date: month + "-" + new Date(year, number, 0).getDate() });
     router.push("/visitor?" + next.toString());
   }
+
+  function selectCalendarDate(date: string) {
+    const next = filtersToSearchParams({
+      ...filters,
+      view: "calendar",
+      page: 1,
+      page_size: undefined,
+      start_date: date,
+      end_date: date,
+      selectedEventId: undefined,
+    });
+    router.push("/visitor?" + next.toString());
+  }
   const calendarMonth = filters.start_date?.slice(0, 7) ?? new Date().getFullYear() + "-" + String(new Date().getMonth() + 1).padStart(2, "0");
+  const selectedCalendarDate = filters.start_date === filters.end_date ? filters.start_date : undefined;
 
   const currentPage = result.status === "ready" ? result.page : (filters.page ?? 1);
   const totalPages = result.status === "ready" ? Math.max(1, Math.ceil(result.totalCount / result.pageSize)) : 1;
@@ -194,7 +208,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
       </div>
 
       {result.status === "ready" && result.warnings?.map(warning => <p role="status" key={warning}>{warning}</p>)}
-      {result.status === "ready" && view === "calendar" && <VisitorCalendar events={result.items} month={calendarMonth} onMonth={changeMonth} />}
+      {result.status === "ready" && view === "calendar" && <VisitorCalendar events={result.items} month={calendarMonth} selectedDate={selectedCalendarDate} onMonth={changeMonth} onDate={selectCalendarDate} />}
 
       {result.status === "loading" && <section className="panel loading-panel" aria-live="polite"><strong>TourAPI 축제 결과를 불러오는 중입니다</strong><p>목록과 지도에 같은 결과를 준비하고 있어요.</p></section>}
 
