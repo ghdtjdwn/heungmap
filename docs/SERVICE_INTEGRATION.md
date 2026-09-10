@@ -1,11 +1,11 @@
 # 통합 로컬 서비스
 
-## 전달 상태 (2026-09-08)
+## 전달 상태 (2026-09-10)
 
-[PR #23](https://github.com/ghdtjdwn/heungmap/pull/23), `feat/service-integration`의 `2f1d526`으로
-구현 commit·push를 완료했습니다. PR은 OPEN이며 병합·배포하지 않았습니다. 방문객 PR #17의 수정 코드를
-포함하므로 병합 시 중복 변경 검토가 필요합니다. 원격 CI 체크 결과는 없고 아래 검증은 로컬 실행 결과입니다.
-세션 종료 문서 변경은 이후 로컬에만 반영했습니다. [다음 세션 인계](NEXT_SESSION_COMMAND.md)를 참조합니다.
+[PR #23](https://github.com/ghdtjdwn/heungmap/pull/23)은 `548584e`로 `main`에 병합됐습니다.
+방문객 PR #17은 통합 코드에 수정 사항이 포함돼 별도 병합 없이 닫혔습니다. 배포는 하지 않았고,
+원격 CI 체크 결과도 없으므로 아래 검증은 로컬 실행 결과입니다. 병합 전 전달 기록은
+[다음 세션 인계](NEXT_SESSION_COMMAND.md)를 참조합니다.
 
 ## 사용 흐름
 
