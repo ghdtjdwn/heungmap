@@ -136,6 +136,11 @@ updated_at
   `cultural_facility`, `shopping`, `restroom`, `transit`, `other` 중 하나다.
 - `distance_m`는 좌표로 실제 계산했을 때만 제공하고 계산 방식·기준점은 evidence로 추적한다.
 - 주변 장소마다 최소 한 개의 source가 필요하다.
+- 방문객 상세는 TourAPI `locationBasedList2`를 기본으로 사용하고 Kakao Local의 `PK6` 주차장과 `AD5`
+  숙박 결과를 보강한다. 같은 유형·이름이면서 주소가 같거나 좌표가 가까운 결과만 한 장소로 합치고
+  모든 source를 유지한다.
+- 장소 검색 결과만으로 운영시간·요금·주차 면수·잔여 공간·객실 가능 여부를 추정하지 않는다.
+  한 보조 source가 실패하면 확인된 결과는 유지하고 `meta.warnings`에 누락 범위를 표시한다.
 
 ## Prediction
 

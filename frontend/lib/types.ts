@@ -148,6 +148,7 @@ export type SourceRef = {
   provider_name: string;
   dataset_name: string;
   source_record_id?: string;
+  source_url?: string;
   retrieved_at: string;
   limitation?: string;
 };

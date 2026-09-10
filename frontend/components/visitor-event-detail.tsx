@@ -30,6 +30,8 @@ type Resource<T> =
   | { status: "ready"; data: T }
   | { status: "error"; message: string; notFound?: boolean };
 
+type NearbyPlace = NearbyPlaceListResponse["items"][number];
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" }).format(new Date(`${value}T00:00:00`));
 }
@@ -40,6 +42,31 @@ function errorMessage(result: PromiseRejectedResult, fallback: string): string {
 
 function isNotFound(result: PromiseRejectedResult): boolean {
   return result.reason instanceof ApiError && result.reason.problem?.code === "EVENT_NOT_FOUND";
+}
+
+function NearbyGroup({
+  heading,
+  places,
+  emptyTitle,
+  emptyDescription,
+}: {
+  heading: string;
+  places: NearbyPlace[];
+  emptyTitle: string;
+  emptyDescription: string;
+}) {
+  return <section className="visitor-nearby-group" aria-label={`${heading} 정보`}>
+    <div className="visitor-nearby-group-heading"><h3>{heading}</h3><span>{places.length}곳</span></div>
+    {places.length > 0 ? <ul className="visitor-nearby-list">{places.map((place) => {
+      const display = PLACE_LABELS[place.place_type] ?? PLACE_LABELS.other;
+      const sourceUrl = place.sources.find((source) => source.source_url)?.source_url;
+      const providers = [...new Set(place.sources.map((source) => source.provider_name))].join(", ");
+      return <li key={place.place_id}>
+        <span className="visitor-place-icon">{display.icon}</span>
+        <div><strong>{place.name}</strong><span>{display.label}{place.distance_m != null ? ` · ${place.distance_m.toLocaleString("ko-KR")}m` : " · 거리 미제공"}</span>{place.address && <small>{place.address}</small>}<small>출처: {providers}</small>{sourceUrl && <a className="text-button visitor-place-link" href={sourceUrl} target="_blank" rel="noreferrer">카카오맵에서 확인 ↗</a>}</div>
+      </li>;
+    })}</ul> : <div className="visitor-nearby-empty"><strong>{emptyTitle}</strong><p>{emptyDescription}</p></div>}
+  </section>;
 }
 
 export function VisitorEventDetail({ eventId }: { eventId: string }) {
@@ -100,6 +127,9 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
     ? [...nearby.data.items].sort((a, b) => (a.distance_m ?? Number.MAX_SAFE_INTEGER) - (b.distance_m ?? Number.MAX_SAFE_INTEGER))
     : [];
   const predictionData = prediction.status === "ready" ? prediction.data : undefined;
+  const parkingPlaces = sortedNearby.filter((place) => place.place_type === "parking");
+  const lodgingPlaces = sortedNearby.filter((place) => place.place_type === "lodging");
+  const otherPlaces = sortedNearby.filter((place) => !["parking", "lodging"].includes(place.place_type));
 
   return (
     <main className="page-shell visitor-detail-shell">
@@ -147,10 +177,14 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
           <div className="panel-title"><div><span className="eyebrow">TOURAPI NEARBY</span><h2 id="visitor-nearby-heading">주변 정보</h2></div>{nearby.status === "ready" && <span className="source-state available">반경 {nearby.data.radius_m.toLocaleString("ko-KR")}m</span>}</div>
           {nearby.status === "loading" && <div className="unavailable-box" role="status">주변 관광정보를 불러오는 중…</div>}
           {nearby.status === "error" && <div className="unavailable-box"><strong>주변 정보 조회 실패</strong><p>{nearby.message}</p><p>행사 기본 정보와 수요 지표는 계속 확인할 수 있습니다.</p><button type="button" className="text-button" onClick={retry}>다시 시도</button></div>}
-          {nearby.status === "ready" && (sortedNearby.length > 0 ? <ul className="visitor-nearby-list">{sortedNearby.map((place) => {
-            const display = PLACE_LABELS[place.place_type] ?? PLACE_LABELS.other;
-            return <li key={place.place_id}><span className="visitor-place-icon">{display.icon}</span><div><strong>{place.name}</strong><span>{display.label}{place.distance_m != null ? ` · ${place.distance_m.toLocaleString("ko-KR")}m` : " · 거리 미제공"}</span>{place.address && <small>{place.address}</small>}</div></li>;
-          })}</ul> : <div className="unavailable-box"><strong>표시할 주변 장소가 없습니다</strong><p>검색 반경 안에서 TourAPI 장소를 찾지 못했습니다.</p></div>)}
+          {nearby.status === "ready" && <>
+            {nearby.data.meta.warnings?.map((warning) => <p className="visitor-nearby-warning" role="status" key={warning}>{warning}</p>)}
+            <div className="visitor-nearby-groups">
+              <NearbyGroup heading="주차장" places={parkingPlaces} emptyTitle="확인된 주차장이 없습니다" emptyDescription="주차 가능 여부·운영시간·요금·잔여 면수는 행사 공식 안내 또는 시설 운영처에서 확인해 주세요." />
+              <NearbyGroup heading="숙박" places={lodgingPlaces} emptyTitle="확인된 숙박시설이 없습니다" emptyDescription="객실 가능 여부와 가격은 제공하지 않습니다. 예약 전 숙박시설에서 직접 확인해 주세요." />
+              {otherPlaces.length > 0 && <NearbyGroup heading="그 밖의 주변 장소" places={otherPlaces} emptyTitle="표시할 주변 장소가 없습니다" emptyDescription="검색 반경 안에서 확인된 관광정보가 없습니다." />}
+            </div>
+          </>}
         </section>
       </div>
 

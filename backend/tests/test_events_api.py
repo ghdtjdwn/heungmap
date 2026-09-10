@@ -15,6 +15,7 @@ from app.schemas import (
     Venue,
 )
 from app.services.tourapi import TourApiClient, TourApiUnavailable
+from app.services.kakao_places import KakaoPlacesUnavailable
 
 
 client = TestClient(app)
@@ -215,6 +216,92 @@ def test_nearby_omits_missing_distance(monkeypatch) -> None:
     response = client.get("/api/v1/events/evt_tourapi_123/nearby")
     assert response.status_code == 200
     assert "distance_m" not in response.json()["items"][0]
+
+
+def test_nearby_merges_kakao_parking_and_lodging_with_tourapi(monkeypatch) -> None:
+    class FakeTourApi:
+        configured = True
+
+        async def get_festival_by_id(self, _content_id):
+            return event(detail=True)
+
+        async def nearby_places(self, _coordinates, _radius_m):
+            return [
+                NearbyPlace(
+                    place_id="place_tourapi_lodging_1",
+                    place_type="lodging",
+                    name="테스트 호텔",
+                    address="서울 마포구 테스트로 1",
+                    distance_m=370,
+                    sources=[source("src_tourapi_lodging_1")],
+                ),
+                NearbyPlace(
+                    place_id="place_tourapi_1",
+                    place_type="tourist_attraction",
+                    name="TourAPI 관광지",
+                    distance_m=600,
+                    sources=[source("src_tourapi_place_1")],
+                ),
+            ]
+
+    class FakeKakaoPlaces:
+        configured = True
+
+        async def nearby_places(self, coordinates, radius_m):
+            assert coordinates.longitude == 126.9
+            assert radius_m == 3000
+            kakao_source = SourceRef(
+                source_id="src_kakao_place_1",
+                source_type="other_public",
+                provider_name="카카오",
+                dataset_name="Kakao Local 카테고리 검색 PK6",
+                retrieved_at=datetime.now().astimezone(),
+            )
+            return [
+                NearbyPlace(place_id="place_kakao_parking_1", place_type="parking", name="테스트 주차장", distance_m=120, sources=[kakao_source]),
+                NearbyPlace(place_id="place_kakao_lodging_1", place_type="lodging", name="테스트 호텔", address="서울 마포구 테스트로 1", distance_m=350, sources=[kakao_source.model_copy(update={"source_id": "src_kakao_place_2"})]),
+            ]
+
+    monkeypatch.setattr(main_module, "tourapi", FakeTourApi())
+    monkeypatch.setattr(main_module, "kakao_places", FakeKakaoPlaces())
+    response = client.get("/api/v1/events/evt_tourapi_123/nearby")
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["place_type"] for item in data["items"]] == ["parking", "lodging", "tourist_attraction"]
+    assert data["items"][0]["sources"][0]["provider_name"] == "카카오"
+    assert len(data["items"][1]["sources"]) == 2
+    assert data["items"][1]["distance_m"] == 350
+    assert "warnings" not in data["meta"]
+
+
+def test_nearby_keeps_tourapi_results_when_kakao_fails(monkeypatch) -> None:
+    class FakeTourApi:
+        configured = True
+
+        async def get_festival_by_id(self, _content_id):
+            return event(detail=True)
+
+        async def nearby_places(self, _coordinates, _radius_m):
+            return [NearbyPlace(
+                place_id="place_tourapi_1",
+                place_type="lodging",
+                name="TourAPI 숙박시설",
+                distance_m=450,
+                sources=[source("src_tourapi_place_1")],
+            )]
+
+    class FailingKakaoPlaces:
+        configured = True
+
+        async def nearby_places(self, _coordinates, _radius_m):
+            raise KakaoPlacesUnavailable("temporary failure")
+
+    monkeypatch.setattr(main_module, "tourapi", FakeTourApi())
+    monkeypatch.setattr(main_module, "kakao_places", FailingKakaoPlaces())
+    response = client.get("/api/v1/events/evt_tourapi_123/nearby")
+    assert response.status_code == 200
+    assert response.json()["items"][0]["name"] == "TourAPI 숙박시설"
+    assert "TourAPI 결과만 제공합니다" in response.json()["meta"]["warnings"][0]
 
 
 def test_detail_intro_timeout_is_not_reported_as_missing_event(monkeypatch) -> None:
