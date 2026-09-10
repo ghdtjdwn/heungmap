@@ -16,7 +16,7 @@ application 스택을 확정합니다. 학습 model과 LLM은 데이터·품질 
 | 지도 | Kakao Map JavaScript SDK | 국내 위치·주차·숙소 표현 |
 | 설명 생성 | 공급자 중립 내부 계약 + Ollama `qwen3.5:9b` 기본 adapter | 로컬 structured output, timeout·idempotency·검증·fallback 제공; OpenAI는 선택 adapter |
 | 공통 계약 | OpenAPI 3.1.0·JSON Schema 2020-12 | Python·TypeScript 사이 단일 API schema |
-| 초기 저장 | SQLite 또는 저장 없음 | cache·draft가 필요할 때만 SQLite 추가 |
+| 초기 저장 | SQLite + 계정별 localStorage | 계정·세션·분석·공개 행사는 서버, 기획 초안은 브라우저 |
 | 서버 | Ubuntu·Nginx·systemd | 단일 개인 서버, 같은 origin으로 frontend·API 제공 |
 | 협업 | GitHub | branch와 pull request 기반 검토 |
 
@@ -47,8 +47,8 @@ heungmap/
 └─ frontend/            # Next.js App Router·TypeScript
 ```
 
-코드 디렉터리는 해당 단계가 시작될 때 생성합니다. 현재 저장소에는 문서·공통 계약과 데이터 경로만
-있습니다.
+현재 backend·frontend·수집 및 모델 평가 script와 테스트가 구현되어 있습니다. 통합 실행과
+인증·저장 경계는 [통합 안내](SERVICE_INTEGRATION.md), 전달 상태는 [세션 인계](NEXT_SESSION_COMMAND.md)를 따릅니다.
 
 ## 로컬 환경 기준
 

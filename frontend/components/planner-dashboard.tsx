@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AppHeader } from "./app-header";
+import { MyPublications } from "./my-publications";
 import { optionLabel } from "@/lib/options";
-import { readDrafts, removeDraft, sampleDraft, saveDraft } from "@/lib/drafts";
+import { importLegacyDrafts, readDrafts, removeDraft, sampleDraft, saveDraft } from "@/lib/drafts";
 import type { DraftRecord } from "@/lib/types";
 
 function formatDate(value: string) {
@@ -21,6 +22,12 @@ export function PlannerDashboard() {
   const router = useRouter();
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
   const [ready, setReady] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
+  function importPrevious() {
+    if (!window.confirm("로그인 기능 도입 전에 이 브라우저에 저장한 초안을 현재 계정으로 복사할까요? 원본은 유지됩니다.")) return;
+    try { setImportMessage(importLegacyDrafts() + "개 초안을 가져왔습니다."); setDrafts(readDrafts()); }
+    catch { setImportMessage("이전 초안을 읽거나 저장하지 못했습니다."); }
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -60,6 +67,9 @@ export function PlannerDashboard() {
         <article className="metric-card"><span>분석 완료</span><strong>{analyzed}</strong><small>규칙 진단 포함</small></article>
         <article className="metric-card warning"><span>수요 모델</span><strong>Mock</strong><small>학습 모델 연결 전</small></article>
       </section>
+      <button className="text-button" onClick={importPrevious}>로그인 전 초안 가져오기</button>
+      {importMessage && <p role="status">{importMessage}</p>}
+      <MyPublications />
 
       {!ready ? (
         <section className="panel loading-panel" aria-live="polite">저장한 기획을 확인하고 있습니다.</section>

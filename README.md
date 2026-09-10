@@ -1,10 +1,17 @@
 # 흥할지도 (HeungMap)
 
+현재 통합 구현은 소개 페이지, 모의 로그인·역할 기억, 기획자 서비스, 방문객 목록·지도·달력과
+기획 행사 공개·철회를 포함합니다. 최신 실행 흐름과 Google 연결 설정은
+[통합 서비스 안내](docs/SERVICE_INTEGRATION.md)를 따릅니다. 아래 초기 계획·평가 기록보다 D25가 우선합니다.
+
+2026-09-08 전달 상태: [통합 PR #23](https://github.com/ghdtjdwn/heungmap/pull/23) 생성·push 완료,
+미병합입니다. 세션 종료 시점과 다음 확인 순서는 [세션 인계](docs/NEXT_SESSION_COMMAND.md)에 있습니다.
+
 한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
 
-현재 저장소에는 제품·데이터·기술 명세와 공통 API 계약, Next.js 기획자 화면, FastAPI 분석 API,
-재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 로그인과 서버 배포는 제외했으며, 실제 데이터
+현재 저장소에는 소개·모의 로그인·역할 선택 화면, Next.js 기획자·방문객 서비스, FastAPI 분석·인증·
+행사 공개 API, 재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 실제 Google 연결과 서버 배포는 제외했으며, 실제 데이터
 게이트는 514건·76.37% 결합으로 통과했습니다. 다만 실제 LightGBM의 시간 분할 MAE가 baseline보다
 16.23% 나빠, 자체 수요 모델은 화면·계약 검증용 mock 상대지수로 유지합니다.
 자세한 실제 판정은 [데이터 게이트·모델 평가 보고서](docs/DATA_GATE_REPORT.md)에 있습니다.
@@ -91,7 +98,7 @@ EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해 정보구조�
 | API | FastAPI·Pydantic | Python data·model과 OpenAPI 계약 연결 |
 | Web | Next.js App Router·TypeScript | 캘린더·지도·단계형 form과 URL 상태 구현 |
 | Map | Kakao Map JavaScript SDK | 위치·주차·숙박 표현 검증 |
-| 실행 | macOS·Windows 로컬 실행 | 로그인과 서버 배포 없이 두 팀원이 재현 가능한 개발 환경 유지 |
+| 실행 | 모의 로그인 기반 로컬 실행 | macOS 검증 완료, Windows 공동 재현·실제 Google 연결·배포는 별도 확인 |
 
 API key, 원본·가공 dataset, 학습 artifact와 개인 설정은 Git에 포함하지 않습니다. 재현 절차와 schema만
 문서화하고 실제 데이터는 ignored `data/` 경로에서 다룹니다.
@@ -116,7 +123,7 @@ npm install
 npm run dev
 ```
 
-브라우저에서 <http://localhost:3000/planner>를 엽니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
+브라우저에서 <http://localhost:3000>를 열고 로그인 버튼으로 역할을 선택합니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
 검색에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
 `qwen3.5:9b`를 사용하므로 별도 API key나 사용료가 없습니다. Ollama 설치 후 `ollama pull qwen3.5:9b`를
 한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, mock 수요 점수와 규칙
@@ -167,5 +174,6 @@ fixture로 고정하며 실제 credential·지도 smoke와 로컬 Ollama 평가�
   방문수요 증가율이며 특정 축제 관람객 수가 아닙니다.
 - 데이터 게이트는 통과했지만 2025–2026 시간 분할에서 LightGBM이 baseline보다 나빠
   실제 model과 SHAP은 제품에 연결하지 않았습니다. label·prediction 표현은 공동 검토 대기입니다.
-- 로그인과 서버 배포는 현재 구현 범위에 포함하지 않습니다.
-- 기획자 초안은 로그인 전 단계에서 브라우저 `localStorage`에만 보관되며 다른 기기와 동기화되지 않습니다.
+- 모의 로그인은 구현되어 있으며 실제 Google 계정 연결·운영 배포는 아직 수행하지 않았습니다.
+- 기획자 초안은 계정별 브라우저 `localStorage`에 보관되며 다른 기기와 동기화되지 않습니다.
+  계정·역할·분석 snapshot·공개 행사는 로컬 서버의 SQLite에 저장합니다.

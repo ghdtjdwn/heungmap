@@ -1,7 +1,8 @@
 # 개인 서버 배포 계획
 
-> 현재 구현 범위에서는 로그인과 서버 배포를 제외했습니다. 아래 내용은 선택했던 후보 구조의 참고
-> 기록이며 현재 완료 조건이나 실행 작업이 아닙니다. 최신 범위 결정은 `DECISION_LOG.md`의 D20을 따릅니다.
+> D25에 따라 모의 로그인·서버 세션·SQLite 저장과 Google OAuth 경로는 구현했습니다.
+> 실제 Google 프로젝트 연결·실계정 검증과 서버 배포는 아직 제외합니다. 설정은
+> [통합 안내](SERVICE_INTEGRATION.md)를 따릅니다. 아래 운영 구조는 미실행 계획입니다.
 
 ## 판단
 
@@ -49,8 +50,9 @@ Next.js 공식 self-hosting 안내도 application server 앞의 reverse proxy �
 | model | CPU 규칙 baseline, 검증된 소형 LightGBM | 지표와 자원 측정 없이 복잡한 model 추가 금지 |
 | LLM | 외부 API, timeout·fallback | provider와 비용을 검증한 뒤 활성화 |
 
-SQLite에는 cache·draft·분석 metadata처럼 다시 만들거나 backup할 수 있는 최소 데이터만 둔다. 원본 API
-응답, 학습 dataset와 model artifact는 Git에 넣지 않으며 server에서도 보관 위치·권한·삭제 정책을 정한다.
+현재 SQLite에는 계정·역할·세션·OAuth 거래·분석 snapshot·공개 행사가 저장된다. 초안은 계정별 브라우저에
+남는다. 배포 전에는 SQLite 접근 권한·백업·복구·보관 정책을 확인한다. 원본 API 응답, 학습 dataset와
+model artifact는 Git에 넣지 않는다.
 
 ## 서버 사전점검
 

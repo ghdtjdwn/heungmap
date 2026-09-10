@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Path as PathParameter, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,14 +14,27 @@ from dotenv import load_dotenv
 
 from app.schemas import (
     AddressSearchResponse,
+    AvailablePrediction,
+    EventDetail,
+    EventListResponse,
+    EventSort,
+    EventType,
     HealthResponse,
+    NearbyPlaceListResponse,
     PlannerAnalysisRequest,
     PlannerAnalysisResponse,
     PlannerRecommendationRequest,
     PlannerRecommendationResponse,
     Problem,
     ResponseMeta,
+    UnavailablePrediction,
     VenueSearchResponse,
+)
+from app.services.events import (
+    build_event_detail,
+    build_event_list,
+    build_event_nearby,
+    build_event_prediction,
 )
 from app.services.kakao_address import KakaoAddressClient, KakaoAddressUnavailable
 from app.services.llm import (
@@ -33,6 +46,8 @@ from app.services.llm import (
 )
 from app.services.planner import build_analysis, request_fingerprint
 from app.services.tourapi import TourApiClient, TourApiUnavailable
+from app.auth import router as auth_router, mode as auth_mode, same_origin, require_user
+from app.publications import router as publications_router, remember_analysis, published_prediction
 
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
@@ -42,6 +57,9 @@ app = FastAPI(
     version="0.1.0",
     description="흥할지도 기획자·방문객 공통 API",
 )
+auth_mode()
+app.include_router(auth_router)
+app.include_router(publications_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -95,6 +113,14 @@ def upstream_problem_code(reason: str) -> tuple[int, str, bool]:
     }.get(reason, (503, "UPSTREAM_UNAVAILABLE", True))
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    code = {401: "UNAUTHENTICATED", 403: "FORBIDDEN", 404: "NOT_FOUND", 409: "CONFLICT",
+            422: "VALIDATION_ERROR", 503: "UPSTREAM_UNAVAILABLE"}.get(exc.status_code, "REQUEST_FAILED")
+    return problem_response(request, status=exc.status_code, code=code, title="요청을 확인해 주세요",
+                            detail=str(exc.detail), retryable=exc.status_code >= 500)
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     field_errors = []
@@ -115,6 +141,197 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.get("/api/v1/health", response_model=HealthResponse, operation_id="getHealth", tags=["system"])
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", service="heungmap-api", contract_version="0.1.0", checked_at=datetime.now().astimezone())
+
+
+EVENT_ERROR_RESPONSES = {
+    404: {
+        "description": "행사 ID를 찾을 수 없음",
+        "content": {"application/problem+json": {"schema": Problem.model_json_schema(ref_template="#/components/schemas/{model}")}},
+    },
+    422: {
+        "description": "입력값 검증 실패",
+        "content": {"application/problem+json": {"schema": Problem.model_json_schema(ref_template="#/components/schemas/{model}")}},
+    },
+    503: {
+        "description": "TourAPI 미설정 또는 일시 오류",
+        "content": {"application/problem+json": {"schema": Problem.model_json_schema(ref_template="#/components/schemas/{model}")}},
+    },
+}
+
+
+def event_not_found_response(request: Request) -> JSONResponse:
+    return problem_response(
+        request,
+        status=404,
+        code="EVENT_NOT_FOUND",
+        title="행사를 찾을 수 없습니다",
+        detail="존재하지 않거나 더 이상 제공되지 않는 행사입니다.",
+        retryable=False,
+    )
+
+
+def tourapi_problem_response(request: Request, exc: TourApiUnavailable, title: str) -> JSONResponse:
+    reason = "not_configured" if not tourapi.configured else exc.reason
+    status, code, retryable = upstream_problem_code(reason)
+    return problem_response(
+        request,
+        status=status,
+        code=code,
+        title=title,
+        detail=str(exc),
+        retryable=retryable,
+    )
+
+
+@app.get(
+    "/api/v1/events",
+    response_model=EventListResponse,
+    response_model_exclude_none=True,
+    operation_id="listEvents",
+    tags=["events"],
+    responses={status: response for status, response in EVENT_ERROR_RESPONSES.items() if status in {422, 503}},
+)
+async def list_events(
+    request: Request,
+    query: str | None = Query(default=None, min_length=1, max_length=100),
+    start_date: date | None = None,
+    end_date: date | None = None,
+    area_code: str | None = Query(default=None, min_length=1, max_length=20),
+    sigungu_code: str | None = Query(default=None, min_length=1, max_length=20),
+    event_types: list[EventType] | None = Query(default=None),
+    sort: EventSort | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> EventListResponse | JSONResponse:
+    unsupported_location_filters = {
+        "latitude", "longitude", "south", "west", "north", "east"
+    }.intersection(request.query_params.keys())
+    if unsupported_location_filters:
+        return problem_response(
+            request,
+            status=422,
+            code="VALIDATION_ERROR",
+            title="지원하지 않는 행사 검색 조건입니다",
+            detail="현재 MVP 행사 검색은 좌표와 지도 경계 조건을 지원하지 않습니다.",
+            retryable=False,
+            field_errors=[
+                {"field": field, "message": "현재 MVP에서 지원하지 않는 검색 조건입니다."}
+                for field in sorted(unsupported_location_filters)
+            ],
+        )
+    if start_date and end_date and start_date > end_date:
+        return problem_response(
+            request,
+            status=422,
+            code="VALIDATION_ERROR",
+            title="날짜 범위를 확인해 주세요",
+            detail="시작일은 종료일보다 늦을 수 없습니다.",
+            retryable=False,
+            field_errors=[{"field": "start_date", "message": "종료일보다 늦을 수 없습니다."}],
+        )
+    try:
+        return await build_event_list(
+            tourapi=tourapi,
+            query=query,
+            start_date=start_date,
+            end_date=end_date,
+            area_code=area_code,
+            sigungu_code=sigungu_code,
+            event_types=event_types,
+            sort=sort,
+            page=page,
+            page_size=page_size,
+        )
+    except TourApiUnavailable as exc:
+        return tourapi_problem_response(request, exc, "행사 목록을 불러올 수 없습니다")
+
+
+@app.get(
+    "/api/v1/events/{event_id}",
+    response_model=EventDetail,
+    operation_id="getEvent",
+    tags=["events"],
+    responses={status: response for status, response in EVENT_ERROR_RESPONSES.items() if status in {404, 503}},
+)
+async def get_event(
+    request: Request,
+    event_id: str = PathParameter(pattern=r"^evt_[a-z0-9_\-]+$", min_length=5, max_length=128),
+) -> EventDetail | JSONResponse:
+    try:
+        event = await build_event_detail(event_id, tourapi)
+    except TourApiUnavailable as exc:
+        return tourapi_problem_response(request, exc, "행사 상세를 불러올 수 없습니다")
+    if event is None:
+        return event_not_found_response(request)
+    return event
+
+
+@app.get(
+    "/api/v1/events/{event_id}/nearby",
+    response_model=NearbyPlaceListResponse,
+    response_model_exclude_none=True,
+    operation_id="listNearbyPlaces",
+    tags=["events"],
+    responses=EVENT_ERROR_RESPONSES,
+)
+async def list_nearby_places(
+    request: Request,
+    event_id: str = PathParameter(pattern=r"^evt_[a-z0-9_\-]+$", min_length=5, max_length=128),
+    radius_m: int = Query(default=3000, ge=100, le=20000),
+) -> NearbyPlaceListResponse | JSONResponse:
+    try:
+        event = await build_event_detail(event_id, tourapi)
+    except TourApiUnavailable as exc:
+        return tourapi_problem_response(request, exc, "행사 정보를 불러올 수 없습니다")
+    if event is None:
+        return event_not_found_response(request)
+    if event.venue is None or event.venue.coordinates is None:
+        return problem_response(
+            request,
+            status=422,
+            code="VALIDATION_ERROR",
+            title="장소 좌표를 확인해 주세요",
+            detail="장소 좌표가 없어 주변 정보를 조회할 수 없습니다.",
+            retryable=False,
+        )
+    try:
+        return await build_event_nearby(event, tourapi, radius_m)
+    except TourApiUnavailable as exc:
+        return tourapi_problem_response(request, exc, "주변 관광정보를 불러올 수 없습니다")
+
+
+@app.get(
+    "/api/v1/events/{event_id}/prediction",
+    response_model=AvailablePrediction | UnavailablePrediction,
+    operation_id="getEventPrediction",
+    tags=["events"],
+    responses={404: EVENT_ERROR_RESPONSES[404]},
+)
+async def get_event_prediction(
+    request: Request,
+    event_id: str = PathParameter(pattern=r"^evt_[a-z0-9_\-]+$", min_length=5, max_length=128),
+) -> AvailablePrediction | UnavailablePrediction | JSONResponse:
+    try:
+        event = await build_event_detail(event_id, tourapi)
+    except TourApiUnavailable as exc:
+        now = datetime.now().astimezone()
+        return UnavailablePrediction(
+            status="unavailable",
+            event_id=event_id,
+            reason_code="upstream_unavailable",
+            message=str(exc),
+            as_of=now,
+            sources=[],
+            limitations=["행사 원본 정보를 확인하지 못해 수요 지표를 계산할 수 없습니다."],
+            retryable=True,
+            is_mock=True,
+        )
+    if event is None:
+        return event_not_found_response(request)
+    if event_id.startswith("evt_planner_"):
+        result = published_prediction(event_id)
+        return JSONResponse(result) if result else event_not_found_response(request)
+    return await build_event_prediction(event, tourapi)
 
 
 @app.get(
@@ -225,7 +442,9 @@ async def search_addresses(
 )
 async def create_planner_analysis(request: Request, payload: PlannerAnalysisRequest) -> PlannerAnalysisResponse | JSONResponse:
     fingerprint = request_fingerprint(payload)
-    request_id = str(payload.client_request_id)
+    same_origin(request)
+    actor = require_user(request)
+    request_id = (actor["id"] if actor else "anonymous") + ":" + str(payload.client_request_id)
     lock = analysis_locks.setdefault(request_id, asyncio.Lock())
     async with lock:
         cached = analysis_cache.get(request_id)
@@ -242,6 +461,8 @@ async def create_planner_analysis(request: Request, payload: PlannerAnalysisRequ
                 retryable=False,
             )
         response = await build_analysis(payload, tourapi)
+        if actor:
+            remember_analysis(actor["id"], response)
         if len(analysis_cache) >= 500:
             oldest_id = next(iter(analysis_cache))
             analysis_cache.pop(oldest_id)
@@ -282,8 +503,10 @@ async def create_planner_recommendation(
     request: Request,
     payload: PlannerRecommendationRequest,
 ) -> PlannerRecommendationResponse | JSONResponse:
+    same_origin(request)
+    actor = require_user(request)
     fingerprint = request_fingerprint(payload)
-    request_id = str(payload.client_request_id)
+    request_id = actor["id"] + ":" + str(payload.client_request_id)
     lock = recommendation_locks.setdefault(request_id, asyncio.Lock())
     async with lock:
         cached = recommendation_cache.get(request_id)

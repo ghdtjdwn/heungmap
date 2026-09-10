@@ -228,14 +228,13 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 | `start_date`, `end_date` | 행사 기간과 겹치는 결과. 둘 다 없으면 backend 기본 기간 사용 |
 | `area_code`, `sigungu_code` | 정규화된 지역 code |
 | `event_types` | OR 조건 |
-| `sort` | `relevance`, `start_date`, `distance`, `demand` |
-| `latitude`, `longitude` | `distance` 정렬 기준점. 둘을 함께 제공 |
-| `south`, `west`, `north`, `east` | 지도 bounds. 네 값을 모두 제공 |
+| `sort` | 현재 MVP는 `start_date`만 지원 |
 | `page`, `page_size` | 1부터 시작. `page_size` 기본 20, 최대 100 |
 
 - 사용자 화면의 `view`, `selected_event_id`는 URL에는 보존하지만 backend search 조건은 아니다.
-- `distance` 정렬에 좌표가 없으면 validation error를 반환한다.
-- `demand` 정렬은 비교 가능한 prediction이 있는 행사 안에서만 사용하고 없는 행사의 배치 규칙을 고정한다.
+- 시작일이 종료일보다 늦으면 validation error를 반환한다.
+- 아직 구현하지 않은 `relevance`, `distance`, `demand` 정렬과 좌표·지도 bounds 검색 조건은 계약에서
+  제외하며 전달되면 validation error를 반환한다.
 - 같은 요청은 같은 정렬 기준과 tie-breaker `event_id`를 사용해 안정적인 순서를 만든다.
 
 ## PlannerAnalysisRequest
@@ -253,6 +252,11 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 
 ## HTTP API v1
 
+D25 확장: /auth/session, /auth/mock, /auth/role, /auth/logout, /auth/google 및
+/auth/google/callback에서 모의/Google 인증과 역할을 처리합니다. /planner/publications의 GET/POST와
+/planner/publications/{event_id}의 DELETE가 본인 행사 공개를 관리합니다. 정확한 schema는
+contracts/openapi.yaml을 따릅니다. 기존의 로그인·공개 저장 제외 문구는 D25로 대체합니다.
+
 | method·path | 역할 | 주요 응답 |
 | --- | --- | --- |
 | `GET /health` | demo와 운영 상태 확인 | 외부 의존성과 분리한 process 상태 |
@@ -265,8 +269,8 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 | `POST /planner/analyses` | 기획자 입력 snapshot 분석 | `PlannerAnalysisResponse` |
 | `POST /planner/recommendations` | Planning Context 기반 실제 LLM 추천 | `PlannerRecommendationResponse` |
 
-현재는 로그인, draft 영구 저장·공개, 즐겨찾기, 알림과 실제 예매를 정의하지 않는다. 필요성이 확정되기
-전에 인증과 DB를 공통 의존성으로 만들지 않기 위해서다.
+D25에서는 인증·역할·서버 분석 저장과 행사 공개를 공통 계약에 추가했다. 기획 초안 자체는 계정별
+브라우저 저장소에 남으며 기기 간 동기화·즐겨찾기·알림·실제 예매는 정의하지 않는다.
 
 `POST /planner/analyses`는 Tier 0에서 동기식 규칙 분석으로 시작한다. 응답에는 정규화한 요청 snapshot,
 `PredictionResult`, 주변 장소의 available·unavailable 상태, 사용한 evidence와 규칙 추천이 포함된다.

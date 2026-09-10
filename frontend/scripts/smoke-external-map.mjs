@@ -3,6 +3,11 @@ import { chromium } from "@playwright/test";
 const browser = await chromium.launch({ channel: "chrome", headless: true });
 const page = await browser.newPage();
 try {
+  const session = await (await page.request.get("http://localhost:3000/api/v1/auth/session")).json();
+  if (session.mode !== "mock") throw new Error("이 smoke는 개발용 mock 로그인에서만 실행합니다.");
+  await page.goto("http://localhost:3000");
+  await page.getByRole("button", { name: "로그인", exact: true }).click();
+  await page.getByRole("button", { name: /기획자로 시작/ }).click();
   await page.route("**/api/v1/planner/recommendations", (route) => route.fulfill({
     status: 503,
     contentType: "application/problem+json",

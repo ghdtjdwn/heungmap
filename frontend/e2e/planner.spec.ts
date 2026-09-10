@@ -1,4 +1,5 @@
 import { expect, Page, test } from "@playwright/test";
+import { mockSession } from "./session-fixture";
 
 function analysisResponse(body: { event_draft: Record<string, unknown> }) {
   const event = body.event_draft;
@@ -43,6 +44,7 @@ function recommendationResponse(alternatives: number) {
 }
 
 async function mockApis(page: Page, failures: Set<string> = new Set()) {
+  await mockSession(page, "planner");
   await page.route("**/api/v1/planner/analyses", async (route) => {
     if (failures.has("model")) return route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ detail: "모델을 사용할 수 없습니다.", retryable: false }) });
     const body = route.request().postDataJSON();
@@ -68,7 +70,7 @@ async function analyzeSample(page: Page, sample = "large") {
   await expect(page).toHaveURL(/\/planner\/result\?draft=/);
 }
 
-test.beforeEach(async ({ page }) => { await mockApis(page); await page.goto("/planner"); await page.evaluate(() => localStorage.clear()); });
+test.beforeEach(async ({ page }) => { await mockSession(page, "planner"); await mockApis(page); });
 
 test("대형·소규모 sample 분석과 Ollama 구조화 결과", async ({ page }) => {
   for (const sample of ["large", "independent"]) {
@@ -77,6 +79,16 @@ test("대형·소규모 sample 분석과 Ollama 구조화 결과", async ({ page
     await expect(page.getByText("실제 행사 관람객 수가 아닙니다.")).toBeVisible();
     await expect(page.getByText("지도 위치 미정")).toBeVisible();
   }
+});
+
+test("완료 뒤 자동 저장이 분석과 보고서를 덮어쓰지 않는다", async ({ page }) => {
+  await page.clock.install();
+  await analyzeSample(page);
+  await expect(page.getByText("LLM REPORT")).toBeVisible();
+  await page.clock.fastForward(1000);
+  await page.reload();
+  await expect(page.getByText("LLM REPORT")).toBeVisible();
+  await expect(page.getByText("분석 v1")).toBeVisible();
 });
 
 test("TourAPI 장소와 Kakao 주소 선택, 미입력 fallback", async ({ page }) => {

@@ -333,6 +333,109 @@ class ResponseMeta(ContractModel):
     warnings: list[str] | None = None
 
 
+EventStatus = Literal["scheduled", "ongoing", "ended", "cancelled", "unknown"]
+EventSort = Literal["start_date"]
+DemandLevel = Literal["low", "medium", "high", "very_high", "unknown"]
+
+
+class ImageRef(ContractModel):
+    url: HttpUrl
+    alt: str = Field(min_length=1, max_length=300)
+    source_id: str | None = Field(default=None, max_length=128)
+
+
+class DataQuality(ContractModel):
+    completeness: Literal["low", "medium", "high"]
+    warnings: list[str]
+    is_mock: bool
+
+
+class AvailablePredictionSummary(ContractModel):
+    status: Literal["available"]
+    prediction_id: str = Field(min_length=1, max_length=128)
+    prediction_type: Literal["official_attendance", "ticket_demand", "regional_visit_demand", "relative_demand_score"]
+    as_of: datetime
+    demand_score: float | None = Field(default=None, ge=0, le=100)
+    congestion_level: DemandLevel | None = None
+    ticket_demand_level: DemandLevel | None = None
+    confidence: Literal["low", "medium", "high"]
+    is_mock: bool
+
+
+class UnavailablePredictionSummary(ContractModel):
+    status: Literal["unavailable"]
+    reason_code: Literal[
+        "insufficient_data",
+        "unsupported_event_type",
+        "missing_required_input",
+        "model_unavailable",
+        "upstream_unavailable",
+    ]
+    message: str = Field(min_length=1, max_length=500)
+    as_of: datetime
+    retryable: bool
+    is_mock: bool
+
+
+PredictionSummary = Annotated[AvailablePredictionSummary | UnavailablePredictionSummary, Field(discriminator="status")]
+
+
+class EventSummary(ContractModel):
+    event_id: str = Field(pattern=r"^evt_[a-z0-9_\-]+$", min_length=5, max_length=128)
+    origin: Literal["tourapi", "planner"]
+    visibility: Literal["public", "draft"]
+    title: str = Field(min_length=1, max_length=200)
+    event_type: EventType
+    event_status: EventStatus
+    start_date: date
+    end_date: date
+    start_time: str | None = None
+    end_time: str | None = None
+    region: RegionRef
+    venue: Venue | None = None
+    thumbnail: ImageRef | None = None
+    price_summary: str | None = Field(default=None, max_length=200)
+    prediction_summary: PredictionSummary | None = None
+    sources: list[SourceRef] = Field(min_length=1)
+    data_quality: DataQuality
+    updated_at: datetime
+
+
+class EventDetail(EventSummary):
+    description: str | None = Field(default=None, max_length=10000)
+    homepage_url: HttpUrl | None = None
+    images: list[ImageRef] | None = None
+    program_summary: str | None = Field(default=None, max_length=3000)
+
+
+class SearchFilter(ContractModel):
+    query: str | None = Field(default=None, max_length=100)
+    start_date: date | None = None
+    end_date: date | None = None
+    area_code: str | None = None
+    sigungu_code: str | None = None
+    event_types: list[EventType] | None = None
+    sort: EventSort
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+
+
+class EventListResponse(ContractModel):
+    items: list[EventSummary]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total_count: int | None = Field(default=None, ge=0)
+    applied_filters: SearchFilter
+    meta: ResponseMeta
+
+
+class NearbyPlaceListResponse(ContractModel):
+    event_id: str
+    items: list[NearbyPlace]
+    radius_m: int = Field(ge=100, le=20000)
+    meta: ResponseMeta
+
+
 class VenueSearchItem(ContractModel):
     venue: Venue
     category: str | None = Field(default=None, max_length=100)
