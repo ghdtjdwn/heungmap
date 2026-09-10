@@ -4,8 +4,8 @@
 기획 행사 공개·철회를 포함합니다. 최신 실행 흐름과 Google 연결 설정은
 [통합 서비스 안내](docs/SERVICE_INTEGRATION.md)를 따릅니다. 아래 초기 계획·평가 기록보다 D25가 우선합니다.
 
-2026-09-08 전달 상태: [통합 PR #23](https://github.com/ghdtjdwn/heungmap/pull/23) 생성·push 완료,
-미병합입니다. 세션 종료 시점과 다음 확인 순서는 [세션 인계](docs/NEXT_SESSION_COMMAND.md)에 있습니다.
+[통합 PR #23](https://github.com/ghdtjdwn/heungmap/pull/23)은 2026-09-10 `main`에 병합됐습니다.
+병합 전 전달 당시의 검증과 제한 사항은 [세션 인계](docs/NEXT_SESSION_COMMAND.md)에 있습니다.
 
 한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
