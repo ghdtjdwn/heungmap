@@ -23,6 +23,11 @@
 | 기상청 API | 축제 기간 날씨 | 모델 단계에서 선택적으로 추가 |
 | 공연·출연진 공개 지표 | 프로그램 관심도 후보 | 출처와 이용 조건이 명확할 때만 사용 |
 
+KorService2 `searchFestival2`의 현재 지역 필터는 `lDongRegnCd`·`lDongSignguCd`를 사용합니다.
+서비스의 공통 `area_code`는 기존 TourAPI 광역 코드로 유지하고 backend adapter에서 법정동 시도 코드와
+서로 변환합니다. 법정동 시도 2자리와 시군구 3자리가 모두 있으면 결합한 5자리 코드를
+`legal_dong_code`에 보존합니다. `searchKeyword2`의 지역 필터는 실제 동작이 확인된 `areaCode`를 유지합니다.
+
 API key는 `.env`에 저장하고 원본 응답은 ignored `data/raw/` 경로에서 관리합니다. TourAPI 안내는
 <https://api.visitkorea.or.kr>, 관광 데이터랩 안내는 <https://datalab.visitkorea.or.kr>에서 확인합니다.
 전체 후보와 흥할지도 활용 판단은 [OpenAPI 카탈로그](OPENAPI_CATALOG.md)에 정리합니다.

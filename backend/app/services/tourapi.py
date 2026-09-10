@@ -27,6 +27,55 @@ from app.services.cache import TtlCache
 
 BASE_URL = "https://apis.data.go.kr/B551011/KorService2"
 
+# HeungMap's shared contract and both user journeys already use the original
+# TourAPI area codes. KorService2's festival operation now filters with legal-
+# dong codes, so keep the conversion at this adapter boundary.
+TOUR_AREA_TO_LEGAL_REGION = {
+    "1": "11",   # 서울
+    "2": "28",   # 인천
+    "3": "30",   # 대전
+    "4": "27",   # 대구
+    "5": "29",   # 광주
+    "6": "26",   # 부산
+    "7": "31",   # 울산
+    "8": "36",   # 세종
+    "31": "41",  # 경기
+    "32": "51",  # 강원
+    "33": "43",  # 충북
+    "34": "44",  # 충남
+    "35": "47",  # 경북
+    "36": "48",  # 경남
+    "37": "52",  # 전북
+    "38": "46",  # 전남
+    "39": "50",  # 제주
+}
+LEGAL_REGION_TO_TOUR_AREA = {
+    legal_code: area_code
+    for area_code, legal_code in TOUR_AREA_TO_LEGAL_REGION.items()
+}
+
+
+def _festival_region_params(
+    area_code: str | None,
+    sigungu_code: str | None,
+) -> dict[str, str]:
+    params: dict[str, str] = {}
+    if area_code:
+        params["lDongRegnCd"] = TOUR_AREA_TO_LEGAL_REGION.get(area_code, area_code)
+    if sigungu_code:
+        params["lDongSignguCd"] = sigungu_code
+    return params
+
+
+def _legal_dong_code(region_code: str, sigungu_code: str) -> str | None:
+    if len(region_code) == 5:
+        return region_code
+    if len(sigungu_code) == 5:
+        return sigungu_code
+    if len(region_code) == 2 and len(sigungu_code) == 3:
+        return f"{region_code}{sigungu_code}"
+    return None
+
 
 class TourApiUnavailable(RuntimeError):
     def __init__(self, message: str, *, reason: str = "upstream") -> None:
@@ -176,6 +225,26 @@ class TourApiClient:
             )
         return results[:limit]
 
+    async def _festival_items(
+        self,
+        base_params: dict[str, str | int],
+    ) -> list[dict[str, Any]]:
+        fetch_page_size = 100
+        items: list[dict[str, Any]] = []
+        for page_number in range(1, 101):
+            page_items = await self._get_items(
+                "searchFestival2",
+                {
+                    **base_params,
+                    "pageNo": page_number,
+                    "numOfRows": fetch_page_size,
+                },
+            )
+            items.extend(page_items)
+            if len(page_items) < fetch_page_size:
+                return items
+        raise TourApiUnavailable("TourAPI 축제 목록의 페이지 범위가 비정상적으로 큽니다.")
+
     async def competing_festival_count(
         self,
         *,
@@ -183,16 +252,12 @@ class TourApiClient:
         start_date: date,
         end_date: date,
     ) -> tuple[int, SourceRef]:
-        items = await self._get_items(
-            "searchFestival2",
+        items = await self._festival_items(
             {
                 "eventStartDate": start_date.strftime("%Y%m%d"),
                 "eventEndDate": end_date.strftime("%Y%m%d"),
-                "areaCode": region.area_code,
-                "sigunguCode": region.sigungu_code or "",
+                **_festival_region_params(region.area_code, region.sigungu_code),
                 "arrange": "A",
-                "pageNo": 1,
-                "numOfRows": 100,
             },
         )
         now = datetime.now().astimezone()
@@ -224,8 +289,19 @@ class TourApiClient:
             return None
         end = self._parse_yyyymmdd(item.get("eventenddate")) or start
         raw_area_code = self._text(item.get("areacode"))
-        area_code = raw_area_code or "0"
-        sigungu_code = self._text(item.get("sigungucode")) or None
+        legal_area_code = self._text(item.get("lDongRegnCd") or item.get("ldongregncd"))
+        legal_sigungu_code = self._text(item.get("lDongSignguCd") or item.get("ldongsigngucd"))
+        area_code = (
+            raw_area_code
+            or LEGAL_REGION_TO_TOUR_AREA.get(legal_area_code, legal_area_code)
+            or "0"
+        )
+        sigungu_code = (
+            self._text(item.get("sigungucode"))
+            or legal_sigungu_code
+            or None
+        )
+        legal_dong_code = _legal_dong_code(legal_area_code, legal_sigungu_code)
         addr1 = self._text(item.get("addr1"))
         addr2 = self._text(item.get("addr2"))
         address = " ".join(part for part in (addr1, addr2) if part) or None
@@ -269,7 +345,12 @@ class TourApiClient:
             event_status=status,
             start_date=start,
             end_date=end,
-            region=RegionRef(area_code=area_code, sigungu_code=sigungu_code, display_name=display_name),
+            region=RegionRef(
+                area_code=area_code,
+                sigungu_code=sigungu_code,
+                legal_dong_code=legal_dong_code,
+                display_name=display_name,
+            ),
             venue=Venue(name=title, address=address, coordinates=coordinates) if (address or coordinates) else None,
             thumbnail=thumbnail,
             sources=[source],
@@ -277,7 +358,7 @@ class TourApiClient:
                 completeness="medium" if (coordinates and address) else "low",
                 warnings=[
                     *([] if coordinates else ["좌표 정보가 제공되지 않았습니다."]),
-                    *([] if raw_area_code else ["TourAPI가 지역 코드를 제공하지 않아 주소 기반으로 지역명을 표시합니다."]),
+                    *([] if (raw_area_code or legal_area_code) else ["TourAPI가 지역 코드를 제공하지 않아 주소 기반으로 지역명을 표시합니다."]),
                 ],
                 is_mock=False,
             ),
@@ -300,32 +381,12 @@ class TourApiClient:
             "eventEndDate": range_end.strftime("%Y%m%d"),
             "arrange": "A",
         }
-        if area_code:
-            base_params["areaCode"] = area_code
-        if sigungu_code:
-            base_params["sigunguCode"] = sigungu_code
+        base_params.update(_festival_region_params(area_code, sigungu_code))
 
         # TourAPI does not provide a title query for searchFestival2. Fetch each
         # upstream page first so local title filtering and stable sorting happen
         # before the HTTP API applies its own page/page_size window.
-        fetch_page_size = 100
-        items: list[dict[str, Any]] = []
-        upstream_page = 1
-        while True:
-            page_items = await self._get_items(
-                "searchFestival2",
-                {
-                    **base_params,
-                    "pageNo": upstream_page,
-                    "numOfRows": fetch_page_size,
-                },
-            )
-            items.extend(page_items)
-            if len(page_items) < fetch_page_size:
-                break
-            upstream_page += 1
-            if upstream_page > 100:
-                raise TourApiUnavailable("TourAPI 축제 목록의 페이지 범위가 비정상적으로 큽니다.")
+        items = await self._festival_items(base_params)
 
         now = datetime.now().astimezone()
         summaries: list[EventSummary] = []

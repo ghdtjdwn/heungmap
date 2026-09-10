@@ -231,12 +231,14 @@ available·unavailable 결과 모두 `is_mock`을 포함한다. 개발 fixture�
 | --- | --- |
 | `query` | 행사명·지역 표시명 검색 |
 | `start_date`, `end_date` | 행사 기간과 겹치는 결과. 둘 다 없으면 backend 기본 기간 사용 |
-| `area_code`, `sigungu_code` | 정규화된 지역 code |
+| `area_code`, `sigungu_code` | 정규화된 지역 code. `area_code`는 기존 TourAPI 광역 코드, 현재 `searchFestival2`의 시군구 값은 법정동 시군구 코드 |
 | `event_types` | OR 조건 |
 | `sort` | 현재 MVP는 `start_date`만 지원 |
 | `page`, `page_size` | 1부터 시작. `page_size` 기본 20, 최대 100 |
 
 - 사용자 화면의 `view`, `selected_event_id`는 URL에는 보존하지만 backend search 조건은 아니다.
+- backend는 KorService2 법정동 지역 필드를 adapter 경계에서 변환하며, public filter와 기획자 초안의
+  기존 `area_code` 의미를 바꾸지 않는다. 결합 가능한 5자리 법정동 코드는 `RegionRef.legal_dong_code`에 보존한다.
 - 시작일이 종료일보다 늦으면 validation error를 반환한다.
 - 아직 구현하지 않은 `relevance`, `distance`, `demand` 정렬과 좌표·지도 bounds 검색 조건은 계약에서
   제외하며 전달되면 validation error를 반환한다.
