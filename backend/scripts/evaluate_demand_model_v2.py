@@ -75,6 +75,19 @@ CANDIDATES = (
         categorical_features=("metro_code", "region_code_feature"),
         numeric_features=CALENDAR_NUMERIC_FEATURES,
     ),
+    CandidateSpec(
+        name="lightgbm_l1_calendar_category",
+        description=(
+            "L1 달력 모델에 searchFestival2 중·소분류를 추가한 행사 유형 후보"
+        ),
+        objective="regression_l1",
+        categorical_features=(
+            "metro_code",
+            "category_secondary_feature",
+            "category_tertiary_feature",
+        ),
+        numeric_features=CALENDAR_NUMERIC_FEATURES,
+    ),
 )
 
 
@@ -94,6 +107,14 @@ def engineer_features(frame: pd.DataFrame) -> pd.DataFrame:
     prepared["starts_on_weekend"] = (start.dt.dayofweek >= 5).astype(int)
     prepared["ends_on_weekend"] = (end.dt.dayofweek >= 5).astype(int)
     prepared["region_code_feature"] = prepared["region_code"].astype(str)
+    for source, target in (
+        ("category_secondary", "category_secondary_feature"),
+        ("category_tertiary", "category_tertiary_feature"),
+    ):
+        if source in prepared:
+            prepared[target] = prepared[source].fillna("unknown").astype(str)
+        else:
+            prepared[target] = "unknown"
     return prepared
 
 

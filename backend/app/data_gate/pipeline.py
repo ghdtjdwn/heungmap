@@ -75,6 +75,15 @@ def normalize_festivals(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             region_code = legal_region or TOUR_AREA_TO_ADMIN.get(area, area)
         if not (content_id and title and len(start) == 8 and len(end) == 8 and region_code):
             continue
+        category_primary = str(
+            row.get("lclsSystm1") or row.get("cat1") or ""
+        ).strip()
+        category_secondary = str(
+            row.get("lclsSystm2") or row.get("cat2") or ""
+        ).strip()
+        category_tertiary = str(
+            row.get("lclsSystm3") or row.get("cat3") or ""
+        ).strip()
         result.append({
             "event_id": content_id,
             "title": title,
@@ -86,6 +95,9 @@ def normalize_festivals(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
             "address": str(row.get("addr1") or "").strip() or None,
             "latitude": row.get("mapy"),
             "longitude": row.get("mapx"),
+            "category_primary": category_primary or None,
+            "category_secondary": category_secondary or None,
+            "category_tertiary": category_tertiary or None,
             "retrieved_at": row.get("_retrieved_at"),
         })
     return result
@@ -161,8 +173,20 @@ def build_quality_report(festival_rows: list[dict[str, Any]], visitor_rows: list
     regions = sorted({row["region_code"] for row in festivals})
     join_rate = len(joined) / len(festivals) if festivals else 0.0
     gate_passed = len(festivals) >= 50 and len(joined) >= 50 and join_rate >= 0.7
+    festival_feature_availability: dict[str, dict[str, Any]] = {}
+    for field in ("category_primary", "category_secondary", "category_tertiary"):
+        values = [str(row[field]) for row in festivals if row.get(field)]
+        counts = Counter(values)
+        availability_rate = len(values) / len(festivals) if festivals else 0.0
+        dominant_value_rate = max(counts.values()) / len(values) if values else 0.0
+        festival_feature_availability[field] = {
+            "available_rows": len(values),
+            "availability_rate": round(availability_rate, 6),
+            "distinct_nonempty_values": len(counts),
+            "dominant_value_rate": round(dominant_value_rate, 6),
+        }
     report = {
-        "report_version": "1.0",
+        "report_version": "1.1",
         "generated_at": datetime.now().astimezone().isoformat(),
         "festival_rows_raw": len(festival_rows),
         "festival_rows_valid": len(festivals),
@@ -174,6 +198,7 @@ def build_quality_report(festival_rows: list[dict[str, Any]], visitor_rows: list
         "missing_coordinate_rate": round(missing_coordinates / len(festivals), 6) if festivals else 0.0,
         "year_range": [years[0], years[-1]] if years else [],
         "region_codes": regions,
+        "festival_feature_availability": festival_feature_availability,
         "label_candidates": [
             {"name": "event_window_daily_mean", "unit": "regional visitor-days/day", "risk": "특정 축제 관람객 수가 아님"},
             {"name": "uplift_absolute", "unit": "regional visitor-days/day vs prior 28-day median", "risk": "동시 행사·계절 변화 포함"},

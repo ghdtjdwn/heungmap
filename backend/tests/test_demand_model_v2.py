@@ -46,6 +46,8 @@ def test_engineer_features_uses_only_event_schedule() -> None:
     assert engineered.loc[0, "weekend_days"] == 0
     assert engineered.loc[0, "weekend_ratio"] == 0
     assert engineered.loc[0, "region_code_feature"] == "11140"
+    assert engineered.loc[0, "category_secondary_feature"] == "unknown"
+    assert engineered.loc[0, "category_tertiary_feature"] == "unknown"
     assert engineered["day_of_year_sin"].between(-1, 1).all()
     assert engineered["day_of_year_cos"].between(-1, 1).all()
 
