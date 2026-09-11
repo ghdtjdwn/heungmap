@@ -193,15 +193,103 @@ def improvement_rate(reference_mae: float, candidate_mae: float) -> float:
     return (reference_mae - candidate_mae) / reference_mae
 
 
+def segment_error_summary(
+    error_frame: pd.DataFrame,
+    segment: str,
+) -> list[dict[str, Any]]:
+    summaries: list[dict[str, Any]] = []
+    for value, group in error_frame.groupby(segment, observed=True, sort=True):
+        reference_metrics = metrics(group["actual"], group["reference_prediction"])
+        candidate_metrics = metrics(group["actual"], group["candidate_prediction"])
+        summaries.append(
+            {
+                "segment": str(value),
+                "rows": len(group),
+                "actual_mean": round(float(group["actual"].mean()), 6),
+                "reference_mae": reference_metrics["mae"],
+                "candidate_mae": candidate_metrics["mae"],
+                "candidate_mae_improvement_rate": round(
+                    improvement_rate(reference_metrics["mae"], candidate_metrics["mae"]),
+                    6,
+                ),
+                "candidate_mean_error": round(
+                    float(
+                        (group["candidate_prediction"] - group["actual"]).mean()
+                    ),
+                    6,
+                ),
+            }
+        )
+    return summaries
+
+
+def build_error_analysis(
+    test: pd.DataFrame,
+    reference_prediction: pd.Series | np.ndarray,
+    candidate_prediction_values: pd.Series | np.ndarray,
+) -> dict[str, Any]:
+    error_frame = test[
+        ["event_id", "start_timestamp", "month", "metro_code", "region_code", LABEL]
+    ].copy()
+    error_frame = error_frame.reset_index(drop=True).rename(columns={LABEL: "actual"})
+    error_frame["reference_prediction"] = np.asarray(reference_prediction)
+    error_frame["candidate_prediction"] = np.asarray(candidate_prediction_values)
+    error_frame["candidate_absolute_error"] = (
+        error_frame["candidate_prediction"] - error_frame["actual"]
+    ).abs()
+    error_frame["label_band"] = pd.cut(
+        error_frame["actual"],
+        bins=[-np.inf, -0.05, 0.05, np.inf],
+        labels=["decrease_below_-5pct", "within_plus_minus_5pct", "increase_above_5pct"],
+    )
+
+    worst_rows: list[dict[str, Any]] = []
+    for row in error_frame.nlargest(10, "candidate_absolute_error").itertuples():
+        worst_rows.append(
+            {
+                "event_id": str(row.event_id),
+                "start_date": row.start_timestamp.date().isoformat(),
+                "metro_code": str(row.metro_code),
+                "region_code": str(row.region_code),
+                "actual_uplift_rate": round(float(row.actual), 6),
+                "reference_prediction": round(float(row.reference_prediction), 6),
+                "candidate_prediction": round(float(row.candidate_prediction), 6),
+                "candidate_absolute_error": round(
+                    float(row.candidate_absolute_error), 6
+                ),
+            }
+        )
+
+    return {
+        "interpretation": (
+            "실제 축제 관람객 오차가 아니라 지역 방문수요 uplift_rate의 최종 시간 구간 오차"
+        ),
+        "candidate_mean_error": round(
+            float(
+                (error_frame["candidate_prediction"] - error_frame["actual"]).mean()
+            ),
+            6,
+        ),
+        "by_start_month": segment_error_summary(error_frame, "month"),
+        "by_metro_code": segment_error_summary(error_frame, "metro_code"),
+        "by_actual_label_band": segment_error_summary(error_frame, "label_band"),
+        "largest_candidate_absolute_errors": worst_rows,
+    }
+
+
 def evaluate_split(
     train: pd.DataFrame,
     test: pd.DataFrame,
     spec: CandidateSpec,
+    include_error_analysis: bool = False,
 ) -> dict[str, Any]:
-    reference_metrics = metrics(test[LABEL], region_median_baseline(train, test))
-    regularized_metrics = metrics(test[LABEL], regularized_region_mean_baseline(train, test))
-    candidate_metrics = metrics(test[LABEL], candidate_prediction(spec, train, test))
-    return {
+    reference_prediction = region_median_baseline(train, test)
+    regularized_prediction = regularized_region_mean_baseline(train, test)
+    candidate_prediction_values = candidate_prediction(spec, train, test)
+    reference_metrics = metrics(test[LABEL], reference_prediction)
+    regularized_metrics = metrics(test[LABEL], regularized_prediction)
+    candidate_metrics = metrics(test[LABEL], candidate_prediction_values)
+    result = {
         "train_rows": len(train),
         "test_rows": len(test),
         "train_end": train["start_timestamp"].max().date().isoformat(),
@@ -214,6 +302,13 @@ def evaluate_split(
             improvement_rate(reference_metrics["mae"], candidate_metrics["mae"]), 6
         ),
     }
+    if include_error_analysis:
+        result["error_analysis"] = build_error_analysis(
+            test,
+            reference_prediction,
+            candidate_prediction_values,
+        )
+    return result
 
 
 def rolling_candidate_results(
@@ -281,7 +376,12 @@ def evaluate(frame: pd.DataFrame) -> dict[str, Any]:
         CANDIDATES,
         key=lambda spec: validation[spec.name]["candidate_mean_mae"],
     )
-    final_time = evaluate_split(outer_train, final_test, selected_spec)
+    final_time = evaluate_split(
+        outer_train,
+        final_test,
+        selected_spec,
+        include_error_analysis=True,
+    )
     unseen_region = unseen_region_results(prepared, selected_spec)
     rolling_selected = validation[selected_spec.name]
     adoption_checks = {

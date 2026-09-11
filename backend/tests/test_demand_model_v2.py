@@ -7,6 +7,7 @@ import pytest
 
 from scripts.evaluate_demand_model_v2 import (
     LABEL,
+    build_error_analysis,
     chronological_split,
     engineer_features,
     regularized_region_mean_baseline,
@@ -83,3 +84,20 @@ def test_regularized_region_mean_shrinks_small_regions() -> None:
 def test_regularized_region_mean_rejects_negative_prior() -> None:
     with pytest.raises(ValueError, match="prior_weight"):
         regularized_region_mean_baseline(frame(), frame(1), prior_weight=-1)
+
+
+def test_error_analysis_reports_period_region_label_and_worst_rows() -> None:
+    test = frame(3)
+    reference = pd.Series([0.0, 0.0, 0.0])
+    candidate = pd.Series([0.0, 0.02, 0.5])
+
+    analysis = build_error_analysis(test, reference, candidate)
+
+    assert analysis["interpretation"].startswith("실제 축제 관람객 오차가 아니라")
+    assert sum(item["rows"] for item in analysis["by_start_month"]) == 3
+    assert sum(item["rows"] for item in analysis["by_metro_code"]) == 3
+    assert sum(item["rows"] for item in analysis["by_actual_label_band"]) == 3
+    assert analysis["largest_candidate_absolute_errors"][0]["event_id"] == "event-2"
+    assert analysis["largest_candidate_absolute_errors"][0][
+        "candidate_absolute_error"
+    ] == pytest.approx(0.48)
