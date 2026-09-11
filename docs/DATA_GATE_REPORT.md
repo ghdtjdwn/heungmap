@@ -111,3 +111,76 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model.py
 - [x] 공통 `Event`, `Prediction`, `SourceRef`, `Problem` 재사용
 - [ ] label 이름·단위·UI 문구 두 팀원 승인 — **공동 검토 대기**
 - [ ] 기획자·방문객 화면의 동일 prediction 계약 확인 — **공동 검토 대기**
+
+## 2026-09-11 v2 재평가
+
+### 최신 API snapshot
+
+동일한 수집 명령을 다시 실행하자 외부 API 갱신으로 원본 행 수가 달라졌습니다. 원본과 결과 artifact는
+Git에서 제외하고 아래 집계와 실행 절차만 기록합니다.
+
+| 항목 | 2026-09-06 | 2026-09-11 |
+| --- | ---: | ---: |
+| `searchFestival2` 원본 행 | 688 | 654 |
+| 중복 제거 유효 축제 | 673 | 639 |
+| 지역 방문자 원본 행 | 464,092 | 468,934 |
+| 일별 기초지자체 행 | 154,706 | 156,320 |
+| 결합 학습표 | 514 | 493 |
+| 결합률 | 76.37% | 77.15% |
+
+최신 snapshot도 데이터 게이트 기준인 50건·70%를 통과합니다. 행 수 차이는 외부 데이터가 갱신된
+결과이며 이전 수치를 덮어쓰지 않습니다.
+
+### 다년 확대 시도
+
+지역 방문자 API에서 2022년 12월~2024년 자료 599,940행을 추가 수집했습니다. 그러나 현재
+`searchFestival2`가 2023년 축제 2건, 2024년 축제 4건만 반환해 중복 제거 후 실제 학습표는 493건에서
+495건으로 2건만 늘었습니다. 방문자 자료만으로는 행사 feature와 label 행을 만들 수 없으므로 이 표를
+제품 모델 개선 근거로 사용하지 않습니다.
+
+과거 축제 snapshot을 공식 출처와 조회시각을 보존한 형태로 확보하기 전에는 다년 표본 확대를 완료한
+것으로 주장하지 않습니다.
+
+### 평가 방법 개선
+
+`backend/scripts/evaluate_demand_model_v2.py`를 추가했습니다.
+
+1. 마지막 20% 시간 구간은 최종 평가 전까지 후보 선택에서 제외합니다.
+2. 앞선 80%를 5개 날짜 block으로 나눠 expanding rolling origin 3개 fold를 만듭니다.
+3. v1 L2 LightGBM, MAE용 L1 LightGBM과 기초지자체 범주를 포함한 L1 후보를 비교합니다.
+4. L1 후보에는 행사 일정에서 계산 가능한 연중 순환 날짜, 주말 일수·비율과 시작·종료 주말 여부만
+   추가합니다.
+5. 별도로 표본이 적은 지역 평균을 전체 평균 쪽으로 수축한 설명 가능한 baseline을 함께 보고합니다.
+6. rolling 평균 MAE로 선택한 한 후보만 마지막 시간 구간과 미관측 지역 5-fold에서 평가합니다.
+
+행사 기간 방문자, label 파생값, 사후 검색·소비와 먼 미래 기획 시점에 알 수 없는 직전 28일 실제
+방문자는 계속 제외했습니다. 동시 행사 수는 최신 TourAPI snapshot으로 과거 공개 시점의 가용성을
+증명할 수 없어 이번 feature에서 제외했습니다.
+
+### 실제 결과
+
+| 평가 | 지역 중앙값 baseline | 정규화 지역 평균 baseline | 선택 L1 달력 LightGBM |
+| --- | ---: | ---: | ---: |
+| 훈련 구간 rolling 평균 MAE | 0.123001 | fold별 참고값 기록 | 0.115853 |
+| rolling MAE 개선률 | 기준 | — | 5.81% |
+| 최종 시간 분할 MAE | 0.077315 | **0.071073** | 0.085256 |
+| 최종 시간 분할 RMSE | 0.104856 | **0.093801** | 0.115045 |
+| 최종 MAE 개선률 | 기준 | 8.07% | **-10.27%** |
+| 미관측 지역 5-fold 평균 MAE | 0.105840 | 해당 없음 | 0.100143 |
+| 미관측 지역 MAE 개선률 | 기준 | — | 5.38% |
+
+rolling 검증이 선택한 후보는 `lightgbm_l1_calendar`였지만 10% 개선 기준을 넘지 못했고 마지막 시간
+구간에서 악화됐습니다. 정규화 지역 평균은 기존 baseline보다 나았지만 개선률이 10%에 못 미치는
+설명 가능한 baseline 후보일 뿐, 학습 모델 채택 근거가 아닙니다.
+
+판정은 계속 **LightGBM 제품 채택 NO-GO**입니다. 제품은 mock 상대지수와 규칙 fallback을 유지하고
+SHAP 및 model artifact 생성을 시작하지 않습니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model_v2.py \
+  --input data/processed/training-table-v1.csv \
+  --output data/processed/model-evaluation-v2.json
+```
+
+평가 명령은 채택 기준 미통과 시 의도적으로 종료 코드 `2`를 반환합니다. JSON의
+`model_adopted=false`, `rejection_reasons`와 fold별 metric이 실제 결과입니다.
