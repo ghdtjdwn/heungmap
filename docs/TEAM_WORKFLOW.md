@@ -17,14 +17,18 @@
 | --- | --- | --- |
 | 기획자 기능 담당 | 홍성주 | 기획 조건 입력부터 수요 결과·근거·보완점까지 전체 흐름 |
 | 사용자 기능 담당 | 박지성 | 행사 탐색부터 캘린더·지도·상세·주변 정보까지 전체 흐름 |
-| 공유 데이터·예측 계약 관리자 | TBD — 위 두 명 중 1명 | 공통 schema, feature, model, score·prediction 정의와 변경 관리 |
-| 통합 검토자 | TBD — 계약 관리자가 아닌 팀원 | 상대 영역 PR 검토와 두 흐름 통합 확인 |
+| 공유 데이터·예측 계약 관리자 | 박지성 | 공통 schema, feature, model, score·prediction 정의와 변경안 관리 |
+| 통합 검토자 | 홍성주 | 상대 영역 PR 검토와 두 흐름 통합 확인 |
 
 데이터·예측 계약 관리자와 통합 검토자는 별도 인원이 아니라 두 명이 함께 맡는 교차 책임이다. 한 사람이
 공통 계약을 관리하면 다른 사람이 변경을 검토해 두 사용자 화면의 지표가 달라지는 일을 막는다.
 모델 담당 범위와 입력·출력 후보는 [`MODEL_PLAN.md`](MODEL_PLAN.md)를 기준으로 역할을 정한다.
 공통 field와 endpoint의 실제 계약은 [`SHARED_SPEC.md`](SHARED_SPEC.md)와
 [`../contracts/openapi.yaml`](../contracts/openapi.yaml)을 따른다.
+
+AI 작업 재개 단계에서는 박지성이 Windows에서 데이터·수요 모델 실험을 맡고, 홍성주가 Apple Silicon
+MacBook에서 기획자 LLM 추천·보고서 품질을 맡는다. 두 작업은 같은 Prediction을 기준으로 병렬 진행하며
+세부 파일 경계, 검증과 PR 순서는 [`AI_WORK_SPLIT.md`](AI_WORK_SPLIT.md)를 따른다.
 
 ## 기획자 기능 담당
 
