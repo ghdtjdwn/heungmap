@@ -27,9 +27,15 @@ def test_tourapi_legal_region_parts_join_to_visitor_sigungu_code() -> None:
             "eventenddate": "20250502",
             "lDongRegnCd": "11",
             "lDongSignguCd": "215",
+            "lclsSystm1": "EV",
+            "lclsSystm2": "EV01",
+            "lclsSystm3": "EV0101",
         }
     ])
     assert rows[0]["region_code"] == "11215"
+    assert rows[0]["category_primary"] == "EV"
+    assert rows[0]["category_secondary"] == "EV01"
+    assert rows[0]["category_tertiary"] == "EV0101"
 
 
 def test_pipeline_joins_region_and_dates_without_claiming_attendance() -> None:
