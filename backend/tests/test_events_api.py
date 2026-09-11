@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -14,7 +15,11 @@ from app.schemas import (
     SourceRef,
     Venue,
 )
-from app.services.tourapi import TourApiClient, TourApiUnavailable
+from app.services.tourapi import (
+    TOUR_AREA_TO_LEGAL_REGION,
+    TourApiClient,
+    TourApiUnavailable,
+)
 from app.services.kakao_places import KakaoPlacesUnavailable
 
 
@@ -133,6 +138,76 @@ def test_event_list_filters_and_sorts_before_pagination(monkeypatch) -> None:
     assert sorted_page.status_code == 200
     assert sorted_page.json()["items"][0]["event_id"] == "evt_tourapi_999"
     assert sorted_page.json()["total_count"] == 101
+
+
+def test_festival_search_uses_legal_region_filter_and_normalizes_response(monkeypatch) -> None:
+    tourapi = TourApiClient(service_key="test-key")
+    captured_params = {}
+
+    async def fake_get_items(operation, params):
+        assert operation == "searchFestival2"
+        captured_params.update(params)
+        return [{
+            "contentid": "legal-region-event",
+            "title": "법정동 코드 축제",
+            "eventstartdate": "20261001",
+            "eventenddate": "20261003",
+            "lDongRegnCd": "11",
+            "lDongSignguCd": "680",
+            "addr1": "서울특별시 강남구",
+        }]
+
+    monkeypatch.setattr(tourapi, "_get_items", fake_get_items)
+    results = asyncio.run(tourapi.search_festivals(
+        area_code="1",
+        sigungu_code="680",
+        start_date=date(2026, 10, 1),
+        end_date=date(2026, 10, 31),
+    ))
+
+    assert captured_params["lDongRegnCd"] == "11"
+    assert captured_params["lDongSignguCd"] == "680"
+    assert "areaCode" not in captured_params
+    assert "sigunguCode" not in captured_params
+    assert results[0].region.area_code == "1"
+    assert results[0].region.sigungu_code == "680"
+    assert results[0].region.legal_dong_code == "11680"
+    assert not any("지역 코드를 제공하지 않아" in warning for warning in results[0].data_quality.warnings)
+
+
+def test_planner_competing_festival_count_uses_same_region_conversion(monkeypatch) -> None:
+    tourapi = TourApiClient(service_key="test-key")
+    captured_params = []
+
+    async def fake_get_items(operation, params):
+        assert operation == "searchFestival2"
+        captured_params.append(params)
+        if params["pageNo"] == 1:
+            return [{"contentid": str(index)} for index in range(100)]
+        return [{"contentid": "one-more"}, {"contentid": "two-more"}]
+
+    monkeypatch.setattr(tourapi, "_get_items", fake_get_items)
+    count, _source = asyncio.run(tourapi.competing_festival_count(
+        region=RegionRef(area_code="2", sigungu_code="710", display_name="인천 강화군"),
+        start_date=date(2026, 10, 1),
+        end_date=date(2026, 10, 31),
+    ))
+
+    assert count == 102
+    assert [params["pageNo"] for params in captured_params] == [1, 2]
+    assert all(params["lDongRegnCd"] == "28" for params in captured_params)
+    assert all(params["lDongSignguCd"] == "710" for params in captured_params)
+    assert all("areaCode" not in params for params in captured_params)
+    assert all("sigunguCode" not in params for params in captured_params)
+
+
+def test_all_shared_area_codes_have_a_legal_region_mapping() -> None:
+    assert TOUR_AREA_TO_LEGAL_REGION == {
+        "1": "11", "2": "28", "3": "30", "4": "27", "5": "29",
+        "6": "26", "7": "31", "8": "36", "31": "41", "32": "51",
+        "33": "43", "34": "44", "35": "47", "36": "48", "37": "52",
+        "38": "46", "39": "50",
+    }
 
 
 def test_missing_event_returns_problem_json(monkeypatch) -> None:
