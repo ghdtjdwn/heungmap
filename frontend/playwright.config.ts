@@ -12,7 +12,7 @@ export default defineConfig({
   webServer: externalBaseURL ? undefined : [{
     command: (process.platform === "win32" ? "..\\.venv\\Scripts\\python.exe" : "../.venv/bin/python") + " -m uvicorn app.main:app --app-dir ../backend --host 127.0.0.1 --port 8100",
     env: { HEUNGMAP_ENV: "development", HEUNGMAP_AUTH_MODE: "mock", HEUNGMAP_PUBLIC_ORIGIN: baseURL,
-      HEUNGMAP_DB_PATH: "../data/e2e.sqlite3", TOURAPI_SERVICE_KEY: "", KAKAO_REST_API_KEY: "", LLM_PROVIDER: "disabled" },
+      HEUNGMAP_DB_PATH: "../data/e2e.sqlite3", HEUNGMAP_DEMAND_MODE: "mock", TOURAPI_SERVICE_KEY: "", KAKAO_REST_API_KEY: "", LLM_PROVIDER: "disabled" },
     url: "http://127.0.0.1:8100/api/v1/health", reuseExistingServer: false, timeout: 30_000,
   }, {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3100",

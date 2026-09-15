@@ -16,6 +16,20 @@ tags:
   - name: locations
   - name: planner
 paths:
+  /prediction/regions:
+    get:
+      tags: [events]
+      summary: 수요 예측에 사용할 수 있는 시군구 목록
+      operationId: listPredictionRegions
+      responses:
+        "200":
+          description: 학습 자료가 있는 지역 목록. 모델 자료가 없으면 빈 목록.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegionRef"
   /auth/session:
     get:
       tags:
@@ -1500,13 +1514,25 @@ components:
           enum: [people, percentage, percent_change]
         p10:
           type: number
-          minimum: 0
         p50:
           type: number
-          minimum: 0
         p90:
           type: number
-          minimum: 0
+      allOf:
+        - if:
+            properties:
+              unit:
+                const: percent_change
+          then:
+            properties:
+              p10: { minimum: -100 }
+              p50: { minimum: -100 }
+              p90: { minimum: -100 }
+          else:
+            properties:
+              p10: { minimum: 0 }
+              p50: { minimum: 0 }
+              p90: { minimum: 0 }
     PredictionScoreMetric:
       type: object
       required: [metric_name, unit, value]

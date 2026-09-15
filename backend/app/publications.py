@@ -74,11 +74,14 @@ def publish(body: PublishRequest, request: Request):
     )
     prediction = analysis.prediction.model_copy(deep=True)
     if isinstance(prediction, AvailablePrediction):
-        # Preserve the same prediction ID and score without disclosing private inputs.
+        # Preserve the same prediction ID and metric without disclosing private inputs.
         prediction.factors = []
         prediction.evidence = []
-        prediction.sources = [source, *[s for s in prediction.sources if s.source_type == "heungmap_model"]]
-        prediction.indicators.ticket_demand_level = "unknown"
+        prediction.sources = [source, *[s for s in prediction.sources if s.source_type in {"heungmap_model", "kto_datalab", "tourapi"}]]
+        for component in prediction.components or []:
+            component.evidence_refs = []
+        if prediction.indicators is not None:
+            prediction.indicators.ticket_demand_level = "unknown"
         prediction.limitations = [*prediction.limitations, "비공개 기획 입력의 세부 영향 요인은 공개하지 않습니다."]
     with database() as db:
         db.execute("BEGIN IMMEDIATE")

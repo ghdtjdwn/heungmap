@@ -65,7 +65,7 @@ export function PlannerDashboard() {
       <section className="status-grid" aria-label="기획 진행 현황">
         <article className="metric-card"><span>작성 중</span><strong>{drafts.length - analyzed}</strong><small>이 브라우저의 초안</small></article>
         <article className="metric-card"><span>분석 완료</span><strong>{analyzed}</strong><small>규칙 진단 포함</small></article>
-        <article className="metric-card warning"><span>수요 모델</span><strong>Mock</strong><small>학습 모델 연결 전</small></article>
+        <article className="metric-card warning"><span>수요 모델</span><strong>지역 수요</strong><small>예측 가능 여부는 분석 결과에서 확인</small></article>
       </section>
       <button className="text-button" onClick={importPrevious}>로그인 전 초안 가져오기</button>
       {importMessage && <p role="status">{importMessage}</p>}

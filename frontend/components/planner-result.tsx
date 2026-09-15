@@ -7,13 +7,14 @@ import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "./app-header";
 import { PublicationPanel } from "./publication-panel";
 import { KakaoMapPreview } from "./kakao-map-preview";
-import { analyzePlanner, ApiError } from "@/lib/api";
+import { analyzePlanner, ApiError, getPredictionRegions } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, findDraft } from "@/lib/drafts";
 import { optionLabel, regionFromCode, REGIONS } from "@/lib/options";
 import { buildPlanningContext } from "@/lib/planning-context";
 import { buildRecommendationPrompt, buildRuleFallbackRecommendation, validateStructuredRecommendation } from "@/lib/recommendation";
 import { buildReport, reportAsMarkdown } from "@/lib/report";
-import type { DraftRecord, EventDraft, PlannerAnalysisRequest, PlannerAnalysisResponse, SourceRef } from "@/lib/types";
+import { predictionLabel, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
+import type { DraftRecord, EventDraft, PlannerAnalysisRequest, PlannerAnalysisResponse, RegionRef, SourceRef } from "@/lib/types";
 
 type Tab = "overview" | "report" | "compare" | "evidence";
 
@@ -41,7 +42,7 @@ function downloadFile(name: string, content: string, type: string) {
 }
 
 function scoreOf(analysis: PlannerAnalysisResponse | undefined): number | undefined {
-  return analysis?.prediction.status === "available" ? analysis.prediction.primary_metric.value : undefined;
+  return analysis ? predictionValue(analysis.prediction) : undefined;
 }
 
 function amount(value: number | undefined, unit: string): string {
@@ -57,12 +58,21 @@ export function PlannerResult() {
   const [scenarioLoading, setScenarioLoading] = useState(false);
   const [scenarioError, setScenarioError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [predictionRegions, setPredictionRegions] = useState<RegionRef[]>([]);
+  const [scenarioRegion, setScenarioRegion] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    getPredictionRegions().then(regions => { if (active) setPredictionRegions(regions); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const id = new URLSearchParams(window.location.search).get("draft");
       const record = id ? findDraft(id) : undefined;
       setDraft(record ?? null);
+      if (record) setScenarioRegion(record.event.region?.legal_dong_code ?? "");
       if (record) setScenario({
         attendance: record.event.target_attendance,
         budget: record.event.budget_max_krw,
@@ -91,6 +101,13 @@ export function PlannerResult() {
   const prediction = analysis.prediction;
   const score = scoreOf(analysis);
   const comparisonScore = scoreOf(comparison ?? undefined);
+  const regional = prediction.status === "available" && prediction.primary_metric.metric_name === "regional_visit_demand";
+  const regionalPeople = regional && prediction.primary_metric.unit === "people";
+  const scoreDisplay = score === undefined ? undefined : regionalPeople ? Math.round(score).toLocaleString("ko-KR") : score;
+  const comparable = prediction.status === "available" && comparison?.prediction.status === "available"
+    && prediction.primary_metric.unit === comparison.prediction.primary_metric.unit
+    && prediction.prediction_type === comparison.prediction.prediction_type
+    && prediction.model_version === comparison.prediction.model_version;
   const recommendationMode = structuredRecommendation?.generation_mode ?? "rule_fallback";
   const recommendationMeta = currentDraft.recommendation_meta;
   const sortedRecommendations = [...(structuredRecommendation?.priorities ?? [])].sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority] - { high: 0, medium: 1, low: 2 }[b.priority]));
@@ -118,8 +135,12 @@ export function PlannerResult() {
       target_attendance: scenario.attendance,
       budget_max_krw: scenario.budget,
       indoor_outdoor: scenario.environment,
-      ...(scenario.date ? { schedule_selection_mode: "fixed", start_date: scenario.date, end_date: scenario.date } : {}),
-      ...(scenario.regionCode ? { region_selection_mode: "fixed", region: regionFromCode(scenario.regionCode) } : {}),
+      ...(scenario.date ? { schedule_selection_mode: "fixed", start_date: scenario.date,
+        end_date: currentDraft.event.start_date && currentDraft.event.end_date
+          ? new Date(Date.parse(scenario.date) + Date.parse(currentDraft.event.end_date) - Date.parse(currentDraft.event.start_date)).toISOString().slice(0, 10)
+          : scenario.date } : {}),
+      ...(scenario.regionCode ? { region_selection_mode: "fixed", region: predictionRegions.find(region => region.legal_dong_code === scenarioRegion)
+        ?? (scenario.regionCode === currentDraft.event.region?.area_code ? currentDraft.event.region : regionFromCode(scenario.regionCode)) } : {}),
       venue: currentDraft.event.venue ? { ...currentDraft.event.venue, capacity: scenario.venueCapacity } : scenario.venueCapacity ? { name: "비교용 후보 장소", capacity: scenario.venueCapacity } : undefined,
     };
     const request: PlannerAnalysisRequest = {
@@ -153,7 +174,7 @@ export function PlannerResult() {
   }
 
   async function copySummary() {
-    const summary = `${currentDraft.event.working_title || "이름 없는 기획"}\n${currentDraft.event.region?.display_name || "지역 미정"} · 목표 ${amount(currentDraft.event.target_attendance, "명")} · 최대예산 ${amount(currentDraft.event.budget_max_krw, "원")}\n상대 수요점수 ${score ?? "미정"}/100 (학습 모델 연결 전 mock)\n우선 확인: ${sortedRecommendations.slice(0, 3).map((item) => item.title).join(", ")}`;
+    const summary = `${currentDraft.event.working_title || "이름 없는 기획"}\n${currentDraft.event.region?.display_name || "지역 미정"} · 목표 ${amount(currentDraft.event.target_attendance, "명")} · 최대예산 ${amount(currentDraft.event.budget_max_krw, "원")}\n${predictionSummary(prediction)}\n${predictionNotice(prediction)}\n우선 확인: ${sortedRecommendations.slice(0, 3).map((item) => item.title).join(", ")}`;
     try {
       await navigator.clipboard.writeText(summary);
       setCopyStatus("복사됨");
@@ -177,14 +198,14 @@ export function PlannerResult() {
 
       <section className="result-hero">
         <div>
-          <div className="hero-badges"><span className="status-pill analyzed">분석 v{draft.version}</span><span className="mock-badge">MODEL MOCK</span><span className="status-pill analyzed">{recommendationMode === "llm" ? "LLM REPORT" : "RULE FALLBACK"}</span></div>
+          <div className="hero-badges"><span className="status-pill analyzed">분석 v{draft.version}</span><span className="mock-badge">{prediction.is_mock ? "MODEL MOCK" : prediction.status === "available" ? "AI 지역 수요 예측" : "수요 예측 불가"}</span><span className="status-pill analyzed">{recommendationMode === "llm" ? "LLM REPORT" : "RULE FALLBACK"}</span></div>
           <h1>{draft.event.working_title || "이름 없는 기획"}</h1>
           <p>{optionLabel(draft.event.event_type)} · {draft.event.region?.display_name || "지역 미정"} · {draft.event.target_attendance === undefined ? "목표 미정" : `목표 ${draft.event.target_attendance.toLocaleString("ko-KR")}명`}</p>
         </div>
-        {score !== undefined && <div className="score-card"><span>상대 수요 점수</span><strong>{score}</strong><small>/ 100 · 실제 예측 아님</small></div>}
+        {score !== undefined && <div className="score-card"><span>{predictionLabel(prediction)}</span><strong>{scoreDisplay}{regional ? regionalPeople ? "" : "%" : ""}</strong><small>{regional ? regionalPeople ? "방문자-일 · 중앙 예측값" : "평상시 대비 · 중앙 예측값" : "/ 100 · 실제 예측 아님"}</small></div>}
       </section>
 
-      <div className="mock-alert"><strong>현재 점수는 학습된 자체 AI 모델의 결과가 아닙니다.</strong><span>모델 입출력 연결을 확인하기 위한 규칙 기반 mock 상대지수이며 실제 행사 관람객 수가 아닙니다.</span></div>
+      <div className="mock-alert"><strong>{prediction.is_mock ? "현재 점수는 학습된 자체 AI 모델의 결과가 아닙니다." : prediction.status === "available" ? regionalPeople ? "행사기간 지역 방문자-일을 예측했습니다." : "평상시 대비 지역 방문수요를 예측했습니다." : "현재 조건에서는 수요 예측을 제공할 수 없습니다."}</strong><span>{predictionNotice(prediction)}</span></div>
 
       <nav className="result-tabs no-print" aria-label="분석 결과 메뉴">
         {(["overview", "report", "compare", "evidence"] as Tab[]).map((value) => <button className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{({ overview: "한눈에 보기", report: "기획 보고서", compare: "대안 비교", evidence: "근거·출처" })[value]}</button>)}
@@ -198,11 +219,16 @@ export function PlannerResult() {
           {structuredRecommendation && <section className="result-panel full-span"><div className="panel-title"><div><span className="eyebrow">PLANNING SUMMARY</span><h2>{recommendationMode === "llm" ? "LLM 기획 요약" : "규칙 기반 기획 요약"}</h2></div></div><p>{structuredRecommendation.executive_summary}</p></section>}
           <section className="result-grid">
             <article className="result-panel demand-panel">
-              <div className="panel-title"><div><span className="eyebrow">DEMAND</span><h2>수요 진단</h2></div><span className="confidence">신뢰도 {prediction.status === "available" ? "낮음" : "확인 불가"}</span></div>
+              <div className="panel-title"><div><span className="eyebrow">DEMAND</span><h2>수요 진단</h2></div><span className="confidence">신뢰도 {prediction.status === "available" ? ({ low: "낮음", medium: "보통", high: "높음" })[prediction.confidence] : "확인 불가"}</span></div>
               {prediction.status === "available" ? <>
-                <div className="score-scale"><span style={{ width: `${prediction.primary_metric.value}%` }} /><i style={{ left: `${prediction.primary_metric.value}%` }} /></div>
-                <div className="scale-labels"><span>낮음</span><span>중간</span><span>높음</span></div>
+                {prediction.primary_metric.metric_name === "relative_demand_score" ? <>
+                  <div className="score-scale"><span style={{ width: `${prediction.primary_metric.value}%` }} /><i style={{ left: `${prediction.primary_metric.value}%` }} /></div>
+                  <div className="scale-labels"><span>낮음</span><span>중간</span><span>높음</span></div>
+                </> : <><p>{predictionSummary(prediction)}</p><p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>{prediction.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}</>}
+                {prediction.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
+                <p>기준 시각 {new Date(prediction.as_of).toLocaleString("ko-KR")} · {prediction.method === "machine_learning" ? "학습 모델" : "규칙 기반"}</p>
                 <ul className="factor-list">{prediction.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>
+                <details><summary>예측 해석 한계 확인</summary><ul>{prediction.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></details>
               </> : <p>{prediction.message}</p>}
             </article>
             <article className="result-panel">
@@ -233,20 +259,21 @@ export function PlannerResult() {
         <div className="result-content compare-layout">
           <section className="result-panel scenario-form">
             <div className="panel-title"><div><span className="eyebrow">WHAT-IF</span><h2>조건을 바꿔 비교</h2></div></div>
-            <p>원본 기획은 바뀌지 않습니다. 변경한 조건으로 새 mock 분석을 실행합니다.</p>
+            <p>원본 기획은 바뀌지 않습니다. 변경한 조건으로 새 분석을 실행합니다. 지역 방문수요 모델은 일정·지역과 과거 방문 패턴을 사용하므로 예산·목표 인원 변경을 수요 증가로 계산하지 않습니다.</p>
             <label><span>목표 인원</span><div className="input-with-suffix"><input type="number" min="1" value={scenario.attendance ?? ""} onChange={(e) => setScenario({ ...scenario, attendance: Number(e.target.value) || undefined })} /><b>명</b></div></label>
             <label><span>최대 예산</span><div className="input-with-suffix"><input type="number" min="0" value={scenario.budget ?? ""} onChange={(e) => setScenario({ ...scenario, budget: e.target.value === "" ? undefined : Number(e.target.value) })} /><b>원</b></div></label>
             <label><span>공간 유형</span><select value={scenario.environment} onChange={(e) => setScenario({ ...scenario, environment: e.target.value as EventDraft["indoor_outdoor"] })}><option value="undecided">미정</option><option value="indoor">실내</option><option value="outdoor">실외</option><option value="mixed">혼합</option></select></label>
             <label><span>행사 날짜</span><input type="date" value={scenario.date} onChange={(e) => setScenario({ ...scenario, date: e.target.value })} /></label>
-            <label><span>개최 지역</span><select value={scenario.regionCode} onChange={(e) => setScenario({ ...scenario, regionCode: e.target.value })}><option value="">원본 유지</option>{REGIONS.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
+            <label><span>개최 지역</span><select value={scenario.regionCode} onChange={(e) => { setScenario({ ...scenario, regionCode: e.target.value }); setScenarioRegion(""); }}><option value="">원본 유지</option>{REGIONS.map(([code, label]) => <option value={code} key={code}>{label}</option>)}</select></label>
+            <label><span>비교할 시군구</span><select value={scenarioRegion} onChange={e => setScenarioRegion(e.target.value)}><option value="">시군구 선택 / 같은 지역이면 원본 유지</option>{predictionRegions.filter(region => region.area_code === scenario.regionCode).map(region => <option key={region.legal_dong_code} value={region.legal_dong_code}>{region.display_name}</option>)}</select></label>
             <label><span>장소 수용인원</span><div className="input-with-suffix"><input type="number" min="1" value={scenario.venueCapacity ?? ""} onChange={(e) => setScenario({ ...scenario, venueCapacity: Number(e.target.value) || undefined })} /><b>명</b></div></label>
             <div className="quick-scenarios"><button onClick={() => setScenario({ ...scenario, attendance: Math.max(1, Math.round((draft.event.target_attendance || 100) * 0.8)) })}>규모 20% 축소</button><button onClick={() => setScenario({ ...scenario, budget: Math.round((draft.event.budget_max_krw || 0) * 1.2) })}>예산 20% 확대</button><button onClick={() => setScenario({ ...scenario, environment: "indoor" })}>실내로 변경</button></div>
             {scenarioError && <div className="form-error" role="alert">{scenarioError}</div>}
             <button className="button primary" onClick={runScenario} disabled={scenarioLoading}>{scenarioLoading ? "비교 중…" : "변경안 분석"}</button>
           </section>
           <section className="comparison-cards">
-            <article className="compare-card baseline"><span>현재안</span><strong>{score ?? "–"}</strong><small>mock 상대점수</small><dl><div><dt>목표</dt><dd>{amount(draft.event.target_attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(draft.event.budget_max_krw, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{draft.event.start_date || draft.event.date_candidates?.[0]?.start_date || "미정"} · {draft.event.region?.display_name || draft.event.region_candidates?.[0]?.display_name || "미정"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(draft.event.indoor_outdoor)} · {amount(draft.event.venue?.capacity, "명")}</dd></div></dl></article>
-            <article className={`compare-card ${comparison ? "alternative" : "placeholder"}`}><span>변경안</span><strong>{comparisonScore ?? "?"}</strong><small>{comparison ? `현재안 대비 ${comparisonScore !== undefined && score !== undefined ? `${comparisonScore - score >= 0 ? "+" : ""}${(comparisonScore - score).toFixed(1)}` : "–"}` : "조건을 바꾸고 분석하세요"}</small><dl><div><dt>목표</dt><dd>{amount(scenario.attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(scenario.budget, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{scenario.date || "원본"} · {regionFromCode(scenario.regionCode)?.display_name || "원본"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(scenario.environment)} · {amount(scenario.venueCapacity, "명")}</dd></div></dl></article>
+            <article className="compare-card baseline"><span>현재안</span><strong>{scoreDisplay ?? "–"}{regional && !regionalPeople ? "%" : ""}</strong><small>{predictionLabel(prediction)}</small><dl><div><dt>목표</dt><dd>{amount(draft.event.target_attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(draft.event.budget_max_krw, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{draft.event.start_date || draft.event.date_candidates?.[0]?.start_date || "미정"} · {draft.event.region?.display_name || draft.event.region_candidates?.[0]?.display_name || "미정"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(draft.event.indoor_outdoor)} · {amount(draft.event.venue?.capacity, "명")}</dd></div></dl></article>
+            <article className={`compare-card ${comparison ? "alternative" : "placeholder"}`}><span>변경안</span><strong>{comparisonScore === undefined ? "?" : regionalPeople ? Math.round(comparisonScore).toLocaleString("ko-KR") : comparisonScore}{comparison?.prediction.status === "available" && comparison.prediction.primary_metric.unit === "percent_change" ? "%" : ""}</strong><small>{comparison ? comparable && comparisonScore !== undefined && score !== undefined ? `현재안 대비 ${comparisonScore - score >= 0 ? "+" : ""}${regionalPeople ? Math.round(comparisonScore - score).toLocaleString("ko-KR") : (comparisonScore - score).toFixed(1)}${regionalPeople ? " 방문자-일" : regional ? "%p" : "점"}` : "같은 종류·단위·모델의 예측이 있어야 비교할 수 있습니다." : "조건을 바꾸고 분석하세요"}</small>{comparison?.prediction.status === "unavailable" && <p>{comparison.prediction.message}</p>}<dl><div><dt>목표</dt><dd>{amount(scenario.attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(scenario.budget, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{scenario.date || "원본"} · {regionFromCode(scenario.regionCode)?.display_name || "원본"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(scenario.environment)} · {amount(scenario.venueCapacity, "명")}</dd></div></dl></article>
           </section>
           {comparison && <section className="result-panel full-span"><div className="panel-title"><h2>변경안 확인 항목</h2></div><div className="recommendation-list compact">{comparison.rule_recommendations.map((item) => <article key={item.recommendation_id}><span className={`priority ${item.priority}`}>{item.priority}</span><div><h3>{item.title}</h3><p>{item.action}</p></div></article>)}</div></section>}
         </div>

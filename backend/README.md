@@ -1,7 +1,10 @@
 # 기획자 backend
 
 FastAPI가 공통 계약 `0.1.0`의 health, 기획자 분석과 LLM 추천 endpoint를 제공한다. 분석은 입력 근거,
-실제 TourAPI 조회 가능 상태, 규칙 추천과 명시적으로 표시한 mock 상대 수요 점수를 반환한다.
+실제 TourAPI 조회 가능 상태, 규칙 추천과 검증된 D-30 지역 방문자-일 수요 모델 결과를 반환한다.
+기본 `HEUNGMAP_DEMAND_MODE=auto`에서 모델·입력이 부족하면 예측 불가 사유를 표시한다.
+시군구 목록은 `GET /api/v1/prediction/regions`에서 제공한다. 모델 의존성 설치·학습·지원 범위·
+checksum 검증은 [모델 실행·평가](../docs/MODEL_EVALUATION.md)를 따른다. mock 점수는 테스트 설정에서만 사용한다.
 
 ```bash
 python3 -m venv .venv

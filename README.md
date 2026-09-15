@@ -11,10 +11,12 @@
 기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
 
 현재 저장소에는 소개·모의 로그인·역할 선택 화면, Next.js 기획자·방문객 서비스, FastAPI 분석·인증·
-행사 공개 API, 재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 실제 Google 연결과 서버 배포는 제외했으며, 실제 데이터
-게이트는 514건·76.37% 결합으로 통과했습니다. 다만 실제 LightGBM의 시간 분할 MAE가 baseline보다
-16.23% 나빠, 자체 수요 모델은 화면·계약 검증용 mock 상대지수로 유지합니다.
-자세한 실제 판정은 [데이터 게이트·모델 평가 보고서](docs/DATA_GATE_REPORT.md)에 있습니다.
+행사 공개 API, 재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 2026-09-15에는 D-30 지역 일별
+수요 기준선과 LightGBM을 결합한 실제 모델을 학습해 두 서비스에 연결했습니다. 가장 최근 3,510개
+지역·일 홀드아웃에서 WAPE3.81%, 중앙 절대비율오차3.35%, ±20% 이내97.81%를 관측했습니다.
+내일 바로 사용할 실행법·성능·지원 범위는 [모델 실행·평가](docs/MODEL_EVALUATION.md)를 따릅니다.
+실제 Google 연결과 서버 배포는 제외했습니다. 과거 데이터 게이트 이력은
+[기존 보고서](docs/DATA_GATE_REPORT.md)에 보존합니다.
 
 ## 해결하려는 문제
 
@@ -126,7 +128,7 @@ npm run dev
 브라우저에서 <http://localhost:3000>를 열고 로그인 버튼으로 역할을 선택합니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
 검색과 방문객 주변 주차장·숙박시설 보강에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
 `qwen3.5:9b`를 사용하므로 별도 API key나 사용료가 없습니다. Ollama 설치 후 `ollama pull qwen3.5:9b`를
-한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, mock 수요 점수와 규칙
+한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, 수요 예측 결과와 규칙
 보고서는 계속 동작합니다. 선택적으로 OpenAI를 사용할 때만 `.env.example`의 provider와 key를 바꿉니다.
 
 검증 명령은 다음과 같습니다.
@@ -135,7 +137,7 @@ npm run dev
 PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
 PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py \
   --output data/processed/llm-eval.json
-PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model.py
+PYTHONPATH=backend .venv/bin/python backend/scripts/verify_demand_model.py
 cd frontend
 npm run typecheck
 npm run lint
@@ -172,8 +174,9 @@ fixture로 고정하며 실제 credential·지도 smoke와 로컬 Ollama 평가�
 
 - 축제 원본 688건과 지역 방문자 464,092행을 실제 수집해 중복 제거 후 514건·76.37%로 결합했습니다. label 후보는 지역
   방문수요 증가율이며 특정 축제 관람객 수가 아닙니다.
-- 데이터 게이트는 통과했지만 2025–2026 시간 분할에서 LightGBM이 baseline보다 나빠
-  실제 model과 SHAP은 제품에 연결하지 않았습니다. label·prediction 표현은 공동 검토 대기입니다.
+- 기존 행사기간 증감률 모델을 대체하는 D-30 지역 방문자-일 모델을 로컬에 연결했습니다. 최종 평가는
+  2026년8월3,510개 지역·일이며 당시 공표 snapshot이 없는 후향 평가입니다. 특정 행사 관람객·인과 효과·티켓 수요를 예측하지 않습니다.
+  운영·제출 적합성과 공통 계약 변경은 공동 검토 대상으로 남습니다.
 - 모의 로그인은 구현되어 있으며 실제 Google 계정 연결·운영 배포는 아직 수행하지 않았습니다.
 - 기획자 초안은 계정별 브라우저 `localStorage`에 보관되며 다른 기기와 동기화되지 않습니다.
   계정·역할·분석 snapshot·공개 행사는 로컬 서버의 SQLite에 저장합니다.

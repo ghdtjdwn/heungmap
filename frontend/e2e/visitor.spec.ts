@@ -118,8 +118,28 @@ test("방문객 행사 상세에서 주변 정보와 mock 수요 지표를 확�
   await expect(page.getByText("하늘공원")).toBeVisible();
   await expect(page.getByText("관광지 · 거리 미제공")).toBeVisible();
   await expect(page.getByRole("heading", { name: "수요 지표" })).toBeVisible();
-  await expect(page.getByText("실제 관람객 수가 아니라 상대적 수요 지수(mock)입니다.")).toBeVisible();
+  await expect(page.getByText("모델 입출력 연결을 확인하기 위한 규칙 기반 mock 상대지수이며 실제 행사 관람객 수가 아닙니다.")).toBeVisible();
   await expect(page.getByText("한국관광공사", { exact: true }).last()).toBeVisible();
+});
+
+test("responsive 방문객에게 지역 수요 감소 범위를 점수로 바꾸지 않고 표시한다", async ({ page }) => {
+  await page.route("**/api/v1/events/evt_tourapi_123/prediction", route => route.fulfill({ json: {
+    status: "available", prediction_id: "pred_regional_e2e", event_id: event.event_id,
+    prediction_type: "regional_visit_demand", as_of: now, target_start_date: event.start_date, target_end_date: event.end_date,
+    target_region: event.region, primary_metric: { metric_name: "regional_visit_demand", unit: "percent_change", p10: -20, p50: -5, p90: 10 },
+    components: [{ component_type: "regional_baseline", value: 100, unit: "index_points", scope_description: "행사 직전 28일 지역 방문자 중앙값을 100으로 정의한 기준입니다.", evidence_refs: [] }],
+    confidence: "low", data_sufficiency: "limited", method: "machine_learning", model_version: "regional-e2e-v1",
+    factors: [], evidence: [], sources: event.sources, limitations: ["지역 방문수요이며 특정 행사 관람객 수가 아닙니다."],
+    out_of_distribution: true, fallback_used: false, created_at: now, is_mock: false,
+  } }));
+  await page.goto("/visitor/evt_tourapi_123");
+  await expect(page.locator(".visitor-score")).toContainText("-5%");
+  await expect(page.getByText(/예측 범위 -20.0~10.0%/)).toBeVisible();
+  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".visitor-score")).not.toContainText("100");
+  await expect(page.getByText("학습 범위를 벗어난 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("하늘공원")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test("21번째 이후 행사까지 URL 페이지 상태로 탐색한다", async ({ page }) => {

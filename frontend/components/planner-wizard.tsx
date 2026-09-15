@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { AppHeader } from "./app-header";
-import { analyzePlanner, ApiError, generatePlannerRecommendation, searchAddresses, searchVenues } from "@/lib/api";
+import { analyzePlanner, ApiError, generatePlannerRecommendation, getPredictionRegions, searchAddresses, searchVenues } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, emptyDraft, findDraft, sampleDraft, saveDraft } from "@/lib/drafts";
 import {
   AUDIENCES, EVENT_TYPES, MARKETING_CHANNELS, PLANNER_TYPES, PLANNING_STAGES,
@@ -60,10 +60,22 @@ export function PlannerWizard() {
   const [addressSearchMessage, setAddressSearchMessage] = useState("");
   const [searchingVenue, setSearchingVenue] = useState(false);
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const [predictionRegions, setPredictionRegions] = useState<RegionRef[]>([]);
+  const [regionMessage, setRegionMessage] = useState("예측 가능한 시군구를 확인하고 있습니다.");
   const hydrated = useRef(false);
   const llmAbort = useRef<AbortController | null>(null);
   const saveTimer = useRef<number | null>(null);
   const analyzing = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    getPredictionRegions().then(regions => {
+      if (!active) return;
+      setPredictionRegions(regions);
+      setRegionMessage(regions.length ? "시군구를 선택하면 해당 지역의 방문수요 예측을 요청합니다." : "현재 수요 예측을 지원하는 지역 자료가 없습니다. 기획 분석은 계속할 수 있습니다.");
+    }).catch(() => { if (active) setRegionMessage("예측 가능 지역을 불러오지 못했습니다. 기획 분석은 계속할 수 있습니다."); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -525,6 +537,12 @@ export function PlannerWizard() {
                   }}>{Object.entries(regionLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>
                 </Field>
                 {event.region_selection_mode === "fixed" && <Field label="확정 지역" required><RegionSelect value={event.region?.area_code ?? ""} onChange={(value) => setRegion("fixed", value)} /></Field>}
+                {event.region_selection_mode === "fixed" && event.region && <Field label="수요 예측 지역" hint="시군구 선택">
+                  <select value={event.region.legal_dong_code ?? ""} onChange={e => updateEvent("region", predictionRegions.find(region => region.legal_dong_code === e.target.value) ?? regionFromCode(event.region!.area_code))}>
+                    <option value="">시군구 미정</option>
+                    {predictionRegions.filter(region => region.area_code === event.region?.area_code).map(region => <option key={region.legal_dong_code} value={region.legal_dong_code}>{region.display_name}</option>)}
+                  </select><small>{regionMessage}</small>
+                </Field>}
                 {event.region_selection_mode === "candidates" && (event.region_candidates ?? []).map((candidate, index) => <Field label={`지역 후보 ${index + 1}`} required key={index}><RegionSelect value={candidate.area_code} onChange={(value) => setRegion("candidate", value, index)} /></Field>)}
               </FormBlock>
               <FormBlock title="운영 시간과 일정 제약" description="추천이 실제 준비 일정과 기상 위험을 놓치지 않게 합니다.">
@@ -621,7 +639,7 @@ export function PlannerWizard() {
                 <Field label="기타 고려사항" hint="선택" full><textarea rows={4} maxLength={3000} value={event.other_notes ?? ""} onChange={(e) => updateEvent("other_notes", e.target.value)} /></Field>
               </FormBlock>
               <ReviewSummary event={event} details={details} />
-              <div className="model-notice"><span>MODEL MOCK</span><div><strong>이번 분석의 수요 점수는 실제 AI 모델 결과가 아닙니다.</strong><p>입력·API 계약과 결과 화면 검증용 규칙 점수입니다. 실제 관람객 수를 표시하지 않습니다.</p><p>설정된 경우 기획 Context는 실제 LLM에 전달되며, 사용할 수 없으면 규칙 보고서로 자동 전환됩니다.</p></div></div>
+              <div className="model-notice"><span>지역 수요 예측</span><div><strong>확정한 일정과 시군구를 기준으로 지역 방문수요를 분석합니다.</strong><p>현재부터 30일 안에 시작하는 1~30일 행사와 검증된 지역 자료가 필요합니다. 자료나 모델이 준비되지 않았으면 예측 불가 사유를 표시합니다. 특정 행사 관람객 수는 예측하지 않습니다.</p><p>설정된 경우 기획 Context는 실제 LLM에 전달되며, 사용할 수 없으면 규칙 보고서로 자동 전환됩니다.</p></div></div>
             </div>
           )}
 

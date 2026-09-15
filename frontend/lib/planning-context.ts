@@ -4,6 +4,7 @@ import type {
   PlannerAnalysisResponse,
   PlanningContext,
 } from "./types";
+import { predictionNotice } from "./prediction";
 
 function input(value: unknown, unit?: string, limitation?: string): ContextValue {
   return {
@@ -68,9 +69,11 @@ export function buildPlanningContext(
   const nearby = analysis.nearby_places.status === "available"
     ? analysis.nearby_places.items.map((place) => ({ name: place.name, type: place.place_type, distance_m: place.distance_m }))
     : { status: "unavailable", reason: analysis.nearby_places.message };
-  const predictionValue = analysis.prediction.status === "available"
-    ? analysis.prediction.primary_metric.value
-    : null;
+  const result = analysis.prediction;
+  const modelValue = (value: unknown): ContextValue => ({
+    ...prediction(value, predictionNotice(result)),
+    confidence: result.status === "available" ? result.confidence : "low",
+  });
 
   return {
     context_version: "1.0",
@@ -169,7 +172,15 @@ export function buildPlanningContext(
       past_event_summary: input(details.past_event_summary),
     },
     prediction_result: {
-      relative_demand_score: prediction(predictionValue, "학습 모델 연결 전 mock 상대지수이며 실제 관람객 수가 아닙니다."),
+      prediction_type: modelValue(result.status === "available" ? result.prediction_type : null),
+      primary_metric: modelValue(result.status === "available" ? result.primary_metric : null),
+      target_region: modelValue(result.status === "available" ? result.target_region : null),
+      components: modelValue(result.status === "available" ? result.components ?? [] : []),
+      limitations: modelValue(result.limitations),
+      is_mock: modelValue(result.is_mock),
+      out_of_distribution: modelValue(result.status === "available" ? result.out_of_distribution : null),
+      as_of: modelValue(result.as_of),
+      target_period: modelValue(result.status === "available" ? { start_date: result.target_start_date, end_date: result.target_end_date } : null),
       status: prediction(analysis.prediction.status),
       model_version: prediction(analysis.prediction.status === "available" ? analysis.prediction.model_version : null),
       factors: prediction(analysis.prediction.status === "available" ? analysis.prediction.factors : []),
@@ -187,7 +198,7 @@ export function buildPlanningContext(
     generation: {
       mode: "context_only",
       llm_used: false,
-      model_mock: true,
+      model_mock: result.is_mock,
       limitation: "이 객체는 LLM 입력용 Context입니다. 추천 생성 방식은 별도 응답 metadata에서 확인합니다.",
     },
   };

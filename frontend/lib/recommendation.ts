@@ -35,7 +35,7 @@ export function buildRuleFallbackRecommendation(
     prompt_version: "planner-recommendation-1.0",
     generation_mode: "rule_fallback",
     generated_at: analysis.meta.generated_at,
-    executive_summary: `${event.working_title || "이름 없는 행사"}는 ${optionLabel(event.purpose)} 목적의 ${optionLabel(event.event_type)}이며 주요 이용객은 ${event.target_audience.map(audienceLabel).join(", ") || "미정"}입니다. 현재 추천은 학습 모델과 LLM을 사용하지 않는 규칙 fallback입니다.`,
+    executive_summary: `${event.working_title || "이름 없는 행사"}는 ${optionLabel(event.purpose)} 목적의 ${optionLabel(event.event_type)}이며 주요 이용객은 ${event.target_audience.map(audienceLabel).join(", ") || "미정"}입니다. 현재 추천 문장은 LLM을 사용하지 않는 규칙 fallback입니다. 수요 예측의 사용 가능 여부와 계산 방식은 별도로 표시합니다.`,
     priorities: analysis.rule_recommendations.map((item) => ({
       id: item.recommendation_id,
       priority: item.priority,
@@ -58,7 +58,7 @@ export function buildRuleFallbackRecommendation(
       id: `alternative_${index + 1}`,
       title: `대안 ${index + 1}`,
       changes: [change],
-      verify: ["What-if를 실행해 같은 mock 기준으로 비교", "현장·기관·견적 근거를 확인"],
+      verify: ["What-if를 실행해 같은 예측 종류·단위·모델 버전으로 비교", "현장·기관·견적 근거를 확인"],
     })),
     roadmap: [
       { phase: "지금", actions: analysis.rule_recommendations.filter((item) => item.priority === "high").map((item) => item.action).slice(0, 3) },
@@ -68,7 +68,7 @@ export function buildRuleFallbackRecommendation(
     missing_information: context.missing_information,
     limitations: [
       "외부 LLM을 호출하지 않았으며 규칙 template으로 생성했습니다.",
-      "자체 수요점수는 학습 모델 연결 전 mock 상대지수입니다.",
+      ...analysis.prediction.limitations,
       "장소·비용·법률·안전 적합성은 담당자와 전문가가 확인해야 합니다.",
     ],
   };

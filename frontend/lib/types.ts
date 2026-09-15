@@ -13,6 +13,7 @@ export type RegionMode = "fixed" | "candidates" | "recommend" | "unknown";
 export type RegionRef = {
   area_code: string;
   sigungu_code?: string;
+  legal_dong_code?: string;
   display_name: string;
 };
 
@@ -196,12 +197,14 @@ export type Prediction = {
   status: "available";
   prediction_id: string;
   event_id: string;
-  prediction_type: "relative_demand_score";
+  prediction_type: "relative_demand_score" | "regional_visit_demand";
   as_of: string;
   target_start_date: string;
   target_end_date: string;
   target_region?: RegionRef;
-  primary_metric: { metric_name: "relative_demand_score"; unit: "index_0_100"; value: number };
+  primary_metric: { metric_name: "relative_demand_score"; unit: "index_0_100"; value: number }
+    | { metric_name: "regional_visit_demand"; unit: "people" | "percent_change"; p10: number; p50: number; p90: number };
+  components?: { component_type: "regional_baseline" | "event_uplift"; value: number; unit: "people" | "percentage" | "percent_change" | "index_points"; scope_description: string; evidence_refs: string[] }[];
   indicators?: { demand_score?: number; congestion_level?: string; ticket_demand_level?: string };
   confidence: "low" | "medium" | "high";
   data_sufficiency: "limited" | "sufficient";
@@ -370,7 +373,7 @@ export type PlanningContext = {
   generation: {
     mode: "context_only";
     llm_used: false;
-    model_mock: true;
+    model_mock: boolean;
     limitation: string;
   };
 };

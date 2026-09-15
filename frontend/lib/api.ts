@@ -10,10 +10,15 @@ import type {
   PlannerRecommendationResponse,
   Prediction,
   Problem,
+  RegionRef,
   VenueSearchResponse,
 } from "./types";
 
 const longRunningApiBase = "";
+
+export function getPredictionRegions(): Promise<RegionRef[]> {
+  return searchRequest("/api/v1/prediction/regions");
+}
 
 export class ApiError extends Error {
   constructor(message: string, public problem?: Problem) {
