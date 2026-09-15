@@ -51,4 +51,5 @@ cd frontend && npm run dev
 
 ## GitHub 전달 상태
 
-- 모델 변경: [PR #31](https://github.com/ghdtjdwn/heungmap/pull/31). 로컬 검증을 마치고 병합 절차를 진행합니다.
+- 모델 변경: [PR #31](https://github.com/ghdtjdwn/heungmap/pull/31)이 `9f7778e`로 `main`에 병합됐습니다.
+  배포는 수행하지 않았으며 Git에서 제외된 모델 artifact의 서버 전달은 별도입니다.
