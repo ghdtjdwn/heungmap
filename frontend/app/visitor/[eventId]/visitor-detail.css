@@ -12,7 +12,7 @@
 .visitor-detail-summary dd, .visitor-prediction-meta dd { margin: 0; font-weight: 700; }
 .visitor-detail-description, .visitor-source-panel { max-width: 1180px; margin: 0 auto 18px; padding: 26px; }
 .visitor-detail-description h2, .visitor-source-panel h2 { margin: 0 0 12px; }
-.visitor-detail-description > p:not(.eyebrow) { color: #425d6d; line-height: 1.75; white-space: pre-line; }
+.visitor-detail-description > p:not(.eyebrow) { color: #42564a; line-height: 1.75; white-space: pre-line; }
 .visitor-detail-grid { max-width: 1180px; margin: 0 auto 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .visitor-score { margin: 20px 0 14px; display: flex; align-items: end; gap: 6px; color: var(--teal-dark); }
 .visitor-score strong { font-size: 4rem; line-height: .95; }
