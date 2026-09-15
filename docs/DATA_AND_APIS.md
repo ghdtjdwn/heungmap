@@ -1,5 +1,11 @@
 # 데이터와 API
 
+2026-09-15 운영 모델 입력·label 조립은 `backend/app/demand/data.py`와
+`backend/app/demand/forecasting.py`의 엄격한 경로를 사용합니다. 문체부 축제별 방문객 후보는
+`backend/app/attendance/data.py`로 별도 감사합니다. 현재 집계·D-30 시점·공표 지연 가정은
+[모델 실행·평가](MODEL_EVALUATION.md)에 있습니다.
+아래 초기 feature·게이트 표는 v1 이력입니다.
+
 ## 데이터 조립
 
 여러 API의 응답을 공통 키인 지역과 기간으로 결합해 하나의 학습표를 만듭니다. 결과 표의 한 행은 축제

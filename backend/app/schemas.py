@@ -223,6 +223,29 @@ class PredictionScoreMetric(ContractModel):
     value: float = Field(ge=0, le=100)
 
 
+class PredictionRangeMetric(ContractModel):
+    metric_name: Literal["regional_visit_demand"]
+    unit: Literal["people", "percent_change"]
+    p10: float = Field(allow_inf_nan=False)
+    p50: float = Field(allow_inf_nan=False)
+    p90: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> "PredictionRangeMetric":
+        minimum = -100 if self.unit == "percent_change" else 0
+        if not minimum <= self.p10 <= self.p50 <= self.p90:
+            raise ValueError("예측 범위와 단위의 하한을 확인해 주세요.")
+        return self
+
+
+class PredictionComponent(ContractModel):
+    component_type: Literal["regional_baseline", "event_uplift"]
+    value: float = Field(allow_inf_nan=False)
+    unit: Literal["people", "percentage", "percent_change", "index_points"]
+    scope_description: str = Field(min_length=1, max_length=500)
+    evidence_refs: list[str]
+
+
 class PredictionIndicators(ContractModel):
     demand_score: float | None = Field(default=None, ge=0, le=100)
     congestion_level: Literal["low", "medium", "high", "very_high", "unknown"] | None = None
@@ -233,12 +256,13 @@ class AvailablePrediction(ContractModel):
     status: Literal["available"]
     prediction_id: str
     event_id: str
-    prediction_type: Literal["relative_demand_score"]
+    prediction_type: Literal["relative_demand_score", "regional_visit_demand"]
     as_of: datetime
     target_start_date: date
     target_end_date: date
     target_region: RegionRef | None = None
-    primary_metric: PredictionScoreMetric
+    primary_metric: PredictionScoreMetric | PredictionRangeMetric
+    components: list[PredictionComponent] | None = None
     indicators: PredictionIndicators | None = None
     confidence: Literal["low", "medium", "high"]
     data_sufficiency: Literal["limited", "sufficient"]
@@ -252,6 +276,19 @@ class AvailablePrediction(ContractModel):
     fallback_used: bool
     created_at: datetime
     is_mock: bool
+
+    @model_validator(mode="after")
+    def validate_metric_scope(self) -> "AvailablePrediction":
+        if self.primary_metric.metric_name != self.prediction_type:
+            raise ValueError("예측 종류와 지표가 일치해야 합니다.")
+        if self.target_end_date < self.target_start_date:
+            raise ValueError("예측 종료일은 시작일보다 빠를 수 없습니다.")
+        if self.prediction_type == "regional_visit_demand":
+            if not self.target_region or not any(
+                component.component_type == "regional_baseline" for component in self.components or []
+            ):
+                raise ValueError("지역 방문수요에는 대상 지역과 평상시 기준이 필요합니다.")
+        return self
 
 
 class UnavailablePrediction(ContractModel):

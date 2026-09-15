@@ -72,6 +72,70 @@ async function analyzeSample(page: Page, sample = "large") {
 
 test.beforeEach(async ({ page }) => { await mockSession(page, "planner"); await mockApis(page); });
 
+test("지역 방문수요 감소 범위와 실제 모델 Context를 유지한다", async ({ page }) => {
+  await page.route("**/api/v1/prediction/regions", route => route.fulfill({ json: [{ area_code: "1", legal_dong_code: "11440", display_name: "서울 마포구" }] }));
+  await page.route("**/api/v1/planner/analyses", async route => {
+    const response = analysisResponse(route.request().postDataJSON());
+    const prediction = { ...response.prediction, prediction_type: "regional_visit_demand",
+      target_region: { area_code: "1", legal_dong_code: "11440", display_name: "서울 마포구" },
+      primary_metric: { metric_name: "regional_visit_demand", unit: "percent_change", p10: -20, p50: -5, p90: 10 },
+      components: [{ component_type: "regional_baseline", value: 100, unit: "index_points", scope_description: "행사 직전 28일 지역 방문자 중앙값을 100으로 정의한 기준입니다.", evidence_refs: [] }],
+      indicators: { congestion_level: "unknown", ticket_demand_level: "unknown" },
+      method: "machine_learning", model_version: "regional-e2e-v1", is_mock: false, fallback_used: false,
+      limitations: ["지역 방문수요이며 특정 행사 관람객 수가 아닙니다."],
+    };
+    await route.fulfill({ json: { ...response, prediction } });
+  });
+  let capturedContext: Record<string, unknown> | undefined;
+  await page.route("**/api/v1/planner/recommendations", async route => {
+    capturedContext = route.request().postDataJSON().planning_context;
+    await route.fulfill({ status: 503, json: { detail: "테스트에서 LLM 사용 안 함" } });
+  });
+  await reachStep(page, 3);
+  await page.getByLabel("일정 상태").selectOption("fixed");
+  await page.getByLabel("시작일", { exact: true }).fill("2026-09-22");
+  await page.getByLabel("종료일", { exact: true }).fill("2026-09-23");
+  await page.getByLabel("확정 지역").selectOption("1");
+  await page.getByLabel("수요 예측 지역").selectOption("11440");
+  for (let i = 3; i < 6; i++) await page.getByRole("button", { name: "다음" }).click();
+  await page.getByRole("button", { name: "분석·보고서 생성" }).click();
+  await expect(page).toHaveURL(/\/planner\/result\?draft=/);
+  await expect(page.getByText("AI 지역 수요 예측", { exact: true })).toBeVisible();
+  await expect(page.locator(".score-card")).toContainText("-5%");
+  await expect(page.getByText(/예측 범위 -20.0~10.0%/)).toBeVisible();
+  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("학습 범위를 벗어난 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
+  await page.getByText("예측 해석 한계 확인", { exact: true }).click();
+  await expect(page.locator(".demand-panel details")).toContainText("지역 방문수요이며 특정 행사 관람객 수가 아닙니다.");
+  expect(capturedContext?.generation).toMatchObject({ model_mock: false });
+  expect(capturedContext?.prediction_result).toMatchObject({
+    primary_metric: { value: { unit: "percent_change", p50: -5, p10: -20, p90: 10 } },
+    out_of_distribution: { value: true },
+  });
+  await page.getByRole("button", { name: "기획 보고서", exact: true }).click();
+  await expect(page.getByText(/지역 방문수요 -5.0%/)).toBeVisible();
+  await page.getByRole("button", { name: "대안 비교", exact: true }).click();
+  await page.getByRole("button", { name: "변경안 분석", exact: true }).click();
+  await expect(page.getByText("현재안 대비 +0.0%p", { exact: true })).toBeVisible();
+});
+
+test("수요 예측 불가를 mock 점수 없이 표시하고 보고서를 유지한다", async ({ page }) => {
+  await page.route("**/api/v1/planner/analyses", async route => {
+    const response = analysisResponse(route.request().postDataJSON());
+    await route.fulfill({ json: { ...response, prediction: {
+      status: "unavailable", event_id: response.prediction.event_id, reason_code: "model_unavailable",
+      message: "검증을 통과한 모델이 아직 없습니다.", as_of: response.prediction.as_of,
+      sources: [], limitations: ["수요 수치를 제공하지 않습니다."], retryable: false, is_mock: false,
+    } } });
+  });
+  await analyzeSample(page);
+  await expect(page.getByText("수요 예측 불가", { exact: true })).toBeVisible();
+  await expect(page.locator(".score-card")).toHaveCount(0);
+  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "기획 보고서", exact: true }).click();
+  await expect(page.locator(".report-document")).toContainText("검증을 통과한 모델이 아직 없습니다.");
+});
+
 test("대형·소규모 sample 분석과 Ollama 구조화 결과", async ({ page }) => {
   for (const sample of ["large", "independent"]) {
     await analyzeSample(page, sample);

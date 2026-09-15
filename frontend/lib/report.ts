@@ -1,5 +1,6 @@
 import { audienceLabel, optionLabel, seatingLabel } from "./options";
 import { buildPlanningContext } from "./planning-context";
+import { predictionNotice, predictionSummary } from "./prediction";
 import type { DraftRecord, PlannerAnalysisResponse, StructuredPlanningRecommendation } from "./types";
 
 export type ReportSection = { title: string; body: string; checks: string[] };
@@ -38,9 +39,9 @@ export function buildReport(
     {
       title: "수요·규모 판단",
       body: analysis.prediction.status === "available"
-        ? `현재 ${analysis.prediction.primary_metric.value}점은 자체 모델 연결 전 mock 상대지수입니다. 목표 ${amount(event.target_attendance, "명")}, 최소 성공 ${amount(details.minimum_success_attendance, "명")}, 최대 동시 체류 ${amount(details.maximum_concurrent_attendance, "명")}을 장소의 공식 수용인원과 별도로 비교해야 합니다.`
+        ? `${predictionSummary(analysis.prediction)}. ${predictionNotice(analysis.prediction)} 목표 ${amount(event.target_attendance, "명")}, 최소 성공 ${amount(details.minimum_success_attendance, "명")}, 최대 동시 체류 ${amount(details.maximum_concurrent_attendance, "명")}을 장소의 공식 수용인원과 별도로 비교해야 합니다.`
         : analysis.prediction.message,
-      checks: ["목표·최소 성공·동시 체류·공식 수용인원을 구분하기", details.break_even_attendance ? `손익분기 ${details.break_even_attendance.toLocaleString("ko-KR")}명과 목표 인원 비교` : "유료 행사라면 손익분기 인원 계산", "실제 모델 연결 후 같은 입력 snapshot으로 다시 분석하기"],
+      checks: ["목표·최소 성공·동시 체류·공식 수용인원을 구분하기", details.break_even_attendance ? `손익분기 ${details.break_even_attendance.toLocaleString("ko-KR")}명과 목표 인원 비교` : "유료 행사라면 손익분기 인원 계산", "지역 방문수요를 행사 관람객이나 장소 점유율로 환산하지 않기"],
     },
     {
       title: "날짜·지역·장소",
@@ -112,7 +113,7 @@ export function reportAsMarkdown(
     `생성 시각: ${generatedAt}`,
     `기획 버전: v${draft.version}`,
     "",
-    "> 수요 점수는 자체 AI 모델 연결 전 mock 상대지수이며 실제 관람객 수가 아닙니다.",
+    `> ${predictionNotice(analysis.prediction)}`,
     recommendation?.generation_mode === "llm"
       ? "> 기획 문장은 설정된 실제 LLM이 구조화 계약에 맞춰 생성했으며 사람의 확인이 필요합니다."
       : "> 실제 LLM을 사용할 수 없어 기획 문장을 규칙 fallback으로 생성했습니다.",

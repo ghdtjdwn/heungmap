@@ -46,7 +46,7 @@ function EventCard({ event, selected, onSelect }: { event: EventSummary; selecte
       <span className="card-topline"><b>{event.event_type === "festival" ? "축제" : event.event_type}</b><small>{event.event_status === "ongoing" ? "진행 중" : event.event_status === "scheduled" ? "예정" : "일정 확인"}</small></span>
       <strong>{event.title}</strong><span>{formatDateRange(event)}</span><span>{event.venue?.address ?? event.region.display_name}</span>
       {!event.venue?.coordinates && <em>좌표 없음 · 목록에서만 확인 가능</em>}
-      {event.prediction_summary?.status === "available" && <em>상대 수요 지수 {event.prediction_summary.demand_score ?? "–"} · {event.prediction_summary.is_mock ? "mock" : "예측"}</em>}
+      {event.prediction_summary?.status === "available" && <em>{event.prediction_summary.prediction_type === "regional_visit_demand" ? "지역 방문수요 예측 · 상세에서 확인" : `상대 수요 지수 ${event.prediction_summary.demand_score ?? "–"} · ${event.prediction_summary.is_mock ? "mock" : "예측"}`}</em>}
     </span>
   </>;
 

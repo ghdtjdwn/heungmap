@@ -1,5 +1,11 @@
 # 로컬 데이터 경로
 
+현재 운영 학습·추론 경로는 `backend/app/demand/forecasting.py`와 `daily_service.py`입니다.
+문체부 축제별 방문객 후보는 `backend/app/attendance`에서 별도 감사합니다. 재현 명령과 평가 분할은
+[모델 실행·평가](../docs/MODEL_EVALUATION.md)를 따릅니다. 채택 모델은
+`processed/daily-forecast-production-v3/`, 미채택 축제별 후보는 `processed/attendance-model-release/`에
+저장되며 모두 Git에서 제외합니다.
+
 `raw/`와 `processed/`의 실제 내용은 Git에서 제외합니다. schema, synthetic fixture와 실행 코드는
 `backend/app/data_gate`와 `backend/tests/fixtures/data_gate`에 있습니다.
 
@@ -25,7 +31,12 @@ PYTHONPATH=backend .venv/bin/python -m app.data_gate.cli build \
   --visitors-jsonl data/raw/visitors-2025-full.jsonl data/raw/visitors-2026-jan-aug.jsonl
 
 .venv/bin/pip install -r backend/requirements-model.txt
-PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model.py
+PYTHONPATH=backend .venv/bin/python backend/scripts/train_daily_forecast.py \
+  --output-dir data/processed/daily-forecast-reproduction \
+  --validation-start 2026-07-01 --test-start 2026-08-01
+
+PYTHONPATH=backend .venv/bin/python backend/scripts/collect_mcst_festivals.py \
+  --output-dir data/raw/mcst-festivals-new
 ```
 
 한국관광 데이터랩에서 공식 CSV를 받은 경우 두 번째 수집 명령 대신

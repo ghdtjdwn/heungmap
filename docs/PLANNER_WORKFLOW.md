@@ -626,7 +626,7 @@ mock prediction과 규칙 항목만 비교하며, 전체 LLM 보고서가 필요
 - [x] prediction mock response 연결
 - [x] Planning Context와 추천 결과 schema v1 작성
 - [x] LLM 없이 동작하는 규칙 진단·template 결과 구현
-- [ ] 실제 prediction API 연결 — 시간 분할 채택 기준 실패로 보류, 규칙 mock 유지
+- [x] 실제 prediction API 연결 — 2026-09-15 지역 방문수요 모델 연결, 범위·한계는 [모델 평가](MODEL_EVALUATION.md) 참고
 - [x] 마지막에 LLM structured recommendation 연결
 - [x] 정상·누락·모순·외부 API 실패·model 실패·LLM 실패 scenario 테스트
 - [ ] 상대 담당자의 공통 contract 검토

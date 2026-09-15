@@ -7,6 +7,7 @@ def isolated_accounts(tmp_path, monkeypatch):
     monkeypatch.setenv("HEUNGMAP_AUTH_MODE", "mock")
     monkeypatch.setenv("HEUNGMAP_ENV", "development")
     monkeypatch.setenv("HEUNGMAP_PUBLIC_ORIGIN", "http://localhost:3000")
+    monkeypatch.setenv("HEUNGMAP_DEMAND_MODE", "mock")
 
 
 @pytest.fixture(autouse=True)

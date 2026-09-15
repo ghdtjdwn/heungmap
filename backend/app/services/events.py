@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from uuid import uuid4
+import os
 
 from app.schemas import (
     AvailablePrediction,
@@ -216,6 +217,13 @@ async def build_event_prediction(
     event: EventDetail,
     tourapi: TourApiClient,
 ) -> AvailablePrediction | UnavailablePrediction:
+    if os.getenv("HEUNGMAP_DEMAND_MODE", "auto") != "mock":
+        from app.demand.daily_service import predict_demand
+
+        return predict_demand(
+            event_id=event.event_id, start_date=event.start_date, end_date=event.end_date,
+            region=event.region, event_type=event.event_type,
+        )
     score = 50.0
     factors: list[PredictionFactor] = []
     prediction_sources = list(event.sources)

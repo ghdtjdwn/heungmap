@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from datetime import date, datetime, timedelta
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ from app.schemas import (
     Recommendation,
     ResponseMeta,
     SourceRef,
+    UnavailablePrediction,
 )
 from app.services.tourapi import TourApiClient, TourApiUnavailable
 
@@ -308,7 +310,28 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
         except TourApiUnavailable:
             nearby = NearbyUnavailable(status="unavailable", reason_code="upstream_unavailable", message="한국관광공사 주변 관광정보를 불러오지 못했습니다.", retryable=True, is_mock=False)
 
-    prediction = build_mock_prediction(draft, evidence, external_sources)
+    if os.getenv("HEUNGMAP_DEMAND_MODE", "auto") == "mock":
+        prediction = build_mock_prediction(draft, evidence, external_sources)
+    elif draft.schedule_selection_mode != "fixed" or draft.region_selection_mode != "fixed" or not draft.region:
+        prediction = UnavailablePrediction(
+            status="unavailable", event_id=draft.event_id, reason_code="missing_required_input",
+            message="지역 방문수요 예측을 위해 일정과 시군구를 확정해 주세요.",
+            as_of=datetime.now().astimezone(), sources=external_sources,
+            limitations=["미정인 일정·지역을 임의로 정해 수요를 예측하지 않습니다."],
+            retryable=False, is_mock=False,
+        )
+    else:
+        from app.demand.daily_service import predict_demand
+
+        prediction = predict_demand(
+            event_id=draft.event_id, start_date=start, end_date=end,
+            region=draft.region, event_type=draft.event_type,
+        )
+    source_ids = {source.source_id for source in prediction.sources}
+    prediction.sources.extend(source for source in external_sources if source.source_id not in source_ids)
+    if isinstance(prediction, AvailablePrediction):
+        evidence_ids = {item.evidence_id for item in evidence}
+        evidence.extend(item for item in prediction.evidence if item.evidence_id not in evidence_ids)
     now = datetime.now().astimezone()
     return PlannerAnalysisResponse(
         analysis_id=f"ana_{uuid4().hex}",

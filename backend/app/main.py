@@ -27,6 +27,7 @@ from app.schemas import (
     PlannerRecommendationResponse,
     Problem,
     ResponseMeta,
+    RegionRef,
     UnavailablePrediction,
     VenueSearchResponse,
 )
@@ -77,6 +78,14 @@ analysis_cache: dict[str, tuple[str, PlannerAnalysisResponse]] = {}
 analysis_locks: dict[str, asyncio.Lock] = {}
 recommendation_cache: dict[str, tuple[str, PlannerRecommendationResponse]] = {}
 recommendation_locks: dict[str, asyncio.Lock] = {}
+
+
+@app.get("/api/v1/prediction/regions", response_model=list[RegionRef], response_model_exclude_none=True,
+         operation_id="listPredictionRegions", tags=["events"])
+def list_prediction_regions() -> list[RegionRef]:
+    from app.demand.daily_service import prediction_regions
+
+    return prediction_regions()
 
 
 def problem_response(

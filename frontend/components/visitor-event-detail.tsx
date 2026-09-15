@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/app-header";
 import { KakaoMapPreview } from "@/components/kakao-map-preview";
 import { ApiError, getEvent, getEventNearby, getEventPrediction } from "@/lib/api";
 import type { EventDetail, NearbyPlaceListResponse, Prediction } from "@/lib/types";
+import { predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
 
 const PLACE_LABELS: Record<string, { icon: string; label: string }> = {
   parking: { icon: "P", label: "주차" },
@@ -130,6 +131,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
   const parkingPlaces = sortedNearby.filter((place) => place.place_type === "parking");
   const lodgingPlaces = sortedNearby.filter((place) => place.place_type === "lodging");
   const otherPlaces = sortedNearby.filter((place) => !["parking", "lodging"].includes(place.place_type));
+  const sources = [...new Map([...detail.sources, ...(predictionData?.sources ?? [])].map(source => [source.source_id, source])).values()];
 
   return (
     <main className="page-shell visitor-detail-shell">
@@ -165,9 +167,14 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
           {prediction.status === "error" && <div className="unavailable-box"><strong>수요 지표 조회 실패</strong><p>{prediction.message}</p><button type="button" className="text-button" onClick={retry}>다시 시도</button></div>}
           {predictionData?.status === "unavailable" && <div className="unavailable-box"><strong>현재 예측을 제공할 수 없습니다</strong><p>{predictionData.message}</p>{predictionData.limitations.map((item) => <small key={item}>{item}</small>)}</div>}
           {predictionData?.status === "available" && <>
-            <div className="visitor-score"><strong>{predictionData.primary_metric.value}</strong><span>/ 100</span></div>
-            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "MODEL MOCK" : "예측 지표"}</strong><span>실제 관람객 수가 아니라 상대적 수요 지수{predictionData.is_mock ? "(mock)" : ""}입니다.</span></div>
+            <div className="visitor-score"><strong>{predictionData.primary_metric.unit === "people" ? Math.round(predictionValue(predictionData) ?? 0).toLocaleString("ko-KR") : predictionValue(predictionData)}</strong><span>{predictionData.primary_metric.unit === "percent_change" ? "%" : predictionData.primary_metric.unit === "people" ? "방문자-일" : "/ 100"}</span></div>
+            <p>{predictionSummary(predictionData)}</p>
+            {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
+            {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
+            {predictionData.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}
+            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "MODEL MOCK" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
             <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
+            <p>모델 버전 {predictionData.model_version}</p>
             {predictionData.factors.length > 0 && <ul className="factor-list">{predictionData.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>}
             <div className="visitor-limitations"><strong>해석 한계</strong><ul>{predictionData.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div>
           </>}
@@ -193,8 +200,8 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
         <KakaoMapPreview venue={detail.venue} nearby={nearby.status === "ready"
           ? { status: "available", items: nearby.data.items, radius_m: nearby.data.radius_m, is_mock: false }
           : { status: "unavailable", reason_code: "upstream_unavailable", message: "주변 정보를 확인하지 못했습니다.", retryable: true, is_mock: false }} />
-        <p className="eyebrow">PROVENANCE</p><h2>행사 정보 출처</h2>
-        <div className="source-list">{detail.sources.map((source) => <article key={source.source_id}><span className={`source-icon ${source.source_type}`}>{source.source_type === "tourapi" ? "관" : "흥"}</span><div><strong>{source.provider_name}</strong><p>{source.dataset_name}</p><small>조회 {new Date(source.retrieved_at).toLocaleString("ko-KR")}{source.source_record_id ? ` · 원본 ID ${source.source_record_id}` : ""}</small>{source.limitation && <em>{source.limitation}</em>}</div></article>)}</div>
+        <p className="eyebrow">PROVENANCE</p><h2>행사·예측 정보 출처</h2>
+        <div className="source-list">{sources.map((source) => <article key={source.source_id}><span className={`source-icon ${source.source_type}`}>{source.source_type === "tourapi" || source.source_type === "kto_datalab" ? "관" : "흥"}</span><div><strong>{source.provider_name}</strong><p>{source.dataset_name}</p><small>조회 {new Date(source.retrieved_at).toLocaleString("ko-KR")}{source.source_record_id ? ` · 원본 ID ${source.source_record_id}` : ""}</small>{source.limitation && <em>{source.limitation}</em>}</div></article>)}</div>
         {detail.data_quality.warnings.length > 0 && <div className="warning-list"><strong>제공 정보 확인 필요</strong>{detail.data_quality.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div>}
       </section>
     </main>
