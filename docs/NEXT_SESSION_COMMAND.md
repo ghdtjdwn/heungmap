@@ -51,4 +51,4 @@ cd frontend && npm run dev
 
 ## GitHub 전달 상태
 
-- 이번 모델 변경 PR: 종료 작업에서 생성 후 번호와 병합 commit을 기록할 예정입니다.
+- 모델 변경: [PR #31](https://github.com/ghdtjdwn/heungmap/pull/31). 로컬 검증을 마치고 병합 절차를 진행합니다.
