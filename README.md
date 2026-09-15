@@ -154,6 +154,7 @@ fixture로 고정하며 실제 credential·지도 smoke와 로컬 Ollama 평가�
 - [역할 결정 후 바로 시작하는 안내](docs/00_START_HERE.md)
 - [서비스 범위](docs/SERVICE_SPEC.md)
 - [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
+- [UI 브랜드·반응형·접근성 기준](docs/UI_DESIGN_GUIDE.md)
 - [기획자·사용자 공통 데이터와 API 스펙](docs/SHARED_SPEC.md)
 - [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
 - [현재 기획자 기능 구현 상태](docs/PLANNER_IMPLEMENTATION.md)

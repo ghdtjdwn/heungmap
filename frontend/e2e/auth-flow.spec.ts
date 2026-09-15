@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("responsive 소개→로그인→역할 선택→전환→로그아웃→재로그인", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /우리의 다음 흥/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /지역의 흐름을 읽고.*다음 흥을 만듭니다/ })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("welcome.png"), fullPage: true });
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page).toHaveURL(/onboarding/);
