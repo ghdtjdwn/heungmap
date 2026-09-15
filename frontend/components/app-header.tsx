@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { BrandLink } from "./brand-link";
 import { useSession } from "./session-provider";
 
 export function AppHeader({ detail }: { detail?: string }) {
@@ -17,7 +17,7 @@ export function AppHeader({ detail }: { detail?: string }) {
   }
   return (
     <header className="topbar">
-      <Link href="/" className="brand">흥할지도</Link>
+      <BrandLink />
       <span className="mode-chip">{isVisitor ? "방문객 모드" : "기획자 모드"}</span>
       {detail && <span className="header-detail">{detail}</span>}
       <span className="local-note">{session?.user?.provider === "mock" ? "체험 계정" : session?.user?.name} · 초안은 이 브라우저에 저장</span>

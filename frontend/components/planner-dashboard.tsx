@@ -51,44 +51,55 @@ export function PlannerDashboard() {
   const analyzed = drafts.filter((draft) => draft.status === "analyzed").length;
 
   return (
-    <main className="page-shell">
+    <main className="page-shell planner-dashboard-shell">
       <AppHeader />
-      <section className="workspace-heading compact-heading">
-        <div>
-          <p className="eyebrow">PLANNING WORKSPACE</p>
-          <h1>내 행사 기획</h1>
-          <p>조건을 입력하고 수요·장소·운영 위험을 같은 기준으로 점검합니다.</p>
+      <section className="workspace-heading compact-heading planner-dashboard-hero">
+        <div className="planner-hero-copy">
+          <p className="eyebrow">PLANNING WORKSPACE · 나의 기획실</p>
+          <h1>떠오른 아이디어를<br /><em>근거 있는 행사로.</em></h1>
+          <p>조건을 하나씩 정리하고 지역 방문수요·장소·운영 위험을 같은 기준으로 점검하세요.</p>
         </div>
-        <Link href="/planner/new" className="button primary">새 기획 시작</Link>
+        <div className="planner-hero-action">
+          <span>새로운 아이디어가 있나요?</span>
+          <Link href="/planner/new" className="button primary">새 기획 시작 <b aria-hidden="true">↗</b></Link>
+        </div>
       </section>
 
       <section className="status-grid" aria-label="기획 진행 현황">
-        <article className="metric-card"><span>작성 중</span><strong>{drafts.length - analyzed}</strong><small>이 브라우저의 초안</small></article>
-        <article className="metric-card"><span>분석 완료</span><strong>{analyzed}</strong><small>규칙 진단 포함</small></article>
-        <article className="metric-card warning"><span>수요 모델</span><strong>지역 수요</strong><small>예측 가능 여부는 분석 결과에서 확인</small></article>
+        <article className="metric-card"><span><i aria-hidden="true">01</i> 작성 중</span><strong>{drafts.length - analyzed}<small>개</small></strong><p>이 브라우저에 저장된 초안</p></article>
+        <article className="metric-card"><span><i aria-hidden="true">02</i> 분석 완료</span><strong>{analyzed}<small>개</small></strong><p>수요 범위와 기획 보고서 생성</p></article>
+        <article className="metric-card model-card"><span><i aria-hidden="true">03</i> 수요 모델</span><strong>D-30</strong><p>시군구 방문자-일 예측 · 관람객 수 아님</p></article>
       </section>
-      <button className="text-button" onClick={importPrevious}>로그인 전 초안 가져오기</button>
-      {importMessage && <p role="status">{importMessage}</p>}
+
+      <section className="planner-storage-row" aria-label="초안 저장 안내">
+        <div><span aria-hidden="true">⌁</span><p><strong>초안은 현재 브라우저에 자동 저장됩니다.</strong><small>로그인 전에 만든 초안이 있다면 현재 계정으로 복사할 수 있어요.</small></p></div>
+        <button className="text-button" onClick={importPrevious}>이전 초안 가져오기 <span aria-hidden="true">→</span></button>
+      </section>
+      {importMessage && <p className="planner-inline-status" role="status">{importMessage}</p>}
       <MyPublications />
 
       {!ready ? (
         <section className="panel loading-panel" aria-live="polite">저장한 기획을 확인하고 있습니다.</section>
       ) : drafts.length === 0 ? (
-        <section className="panel empty-panel">
-          <div className="empty-icon" aria-hidden="true">＋</div>
-          <h2>아직 저장한 기획이 없습니다</h2>
-          <p>빈 기획으로 시작하거나 대표 시나리오를 불러와 전체 흐름을 확인하세요.</p>
-          <div className="button-row">
-            <Link href="/planner/new" className="button primary">빈 기획 시작</Link>
-            <button className="button secondary" onClick={() => startSample("independent")}>소규모 행사 예시</button>
-            <button className="button secondary" onClick={() => startSample("large")}>대형 축제 예시</button>
+        <section className="panel empty-panel planner-empty-panel">
+          <div className="planner-empty-main">
+            <span className="planner-empty-index">YOUR FIRST PLAN</span>
+            <div className="empty-icon" aria-hidden="true">＋</div>
+            <h2>첫 번째 행사를<br />기획해 볼까요?</h2>
+            <p>아직 모든 조건을 몰라도 괜찮아요. 7단계 질문을 따라가며 아이디어부터 정리할 수 있습니다.</p>
+            <Link href="/planner/new" className="button primary">빈 기획으로 시작 <span aria-hidden="true">↗</span></Link>
+          </div>
+          <div className="planner-starters">
+            <header><span>QUICK START</span><strong>예시로 먼저 둘러보기</strong></header>
+            <button onClick={() => startSample("independent")}><span aria-hidden="true">✦</span><div><strong>소규모 독립 행사</strong><small>적은 예산·작은 팀으로 시작</small></div><b aria-hidden="true">→</b></button>
+            <button onClick={() => startSample("large")}><span aria-hidden="true">⌖</span><div><strong>대형 지역 축제</strong><small>수요·장소·운영 위험 점검</small></div><b aria-hidden="true">→</b></button>
           </div>
         </section>
       ) : (
         <section className="draft-section">
           <div className="section-heading">
-            <h2>저장한 기획</h2>
-            <span>{drafts.length}개</span>
+            <div><p className="eyebrow">SAVED PLANS</p><h2>이어갈 기획</h2></div>
+            <span>{drafts.length}개의 기획</span>
           </div>
           <div className="draft-grid">
             {drafts.map((draft) => (
@@ -99,6 +110,7 @@ export function PlannerDashboard() {
                 </div>
                 <h3>{draft.event.working_title || "이름 없는 기획"}</h3>
                 <p>{optionLabel(draft.event.event_type)} · {draft.event.region?.display_name || "지역 미정"} · {attendanceText(draft.event.target_attendance)}</p>
+                <div className="draft-progress" aria-label={`작성 진행 ${draft.status === "analyzed" ? 7 : draft.current_step + 1}/7`}><span style={{ width: `${((draft.status === "analyzed" ? 7 : draft.current_step + 1) / 7) * 100}%` }} /></div>
                 <small>마지막 저장 {formatDate(draft.updated_at)}</small>
                 <div className="card-actions">
                   <Link className="button secondary" href={`/planner/new?draft=${draft.id}`}>수정하기</Link>
@@ -108,7 +120,7 @@ export function PlannerDashboard() {
             ))}
           </div>
           <div className="sample-strip">
-            <div><strong>빠른 검토</strong><span>가상 데이터로 대표 흐름을 확인합니다.</span></div>
+            <div><strong>예시 기획으로 빠르게 둘러보기</strong><span>가상 입력으로 분석·보고서 흐름을 확인합니다.</span></div>
             <button className="text-button" onClick={() => startSample("independent")}>소규모 예시 추가</button>
             <button className="text-button" onClick={() => startSample("large")}>대형 예시 추가</button>
           </div>

@@ -10,6 +10,7 @@ test("responsive 소개→로그인→역할 선택→전환→로그아웃→�
   await page.screenshot({ path: test.info().outputPath("roles.png"), fullPage: true });
   await page.getByRole("button", { name: /기획자로 시작/ }).click();
   await expect(page).toHaveURL(/\/planner$/);
+  await page.screenshot({ path: test.info().outputPath("planner-dashboard.png"), fullPage: true });
   await page.reload();
   await expect(page.getByRole("button", { name: "사용자 모드로" })).toBeVisible();
   await page.getByRole("button", { name: "사용자 모드로" }).click();
