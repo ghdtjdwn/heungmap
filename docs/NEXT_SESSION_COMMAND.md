@@ -21,9 +21,9 @@
 
 ## 실제 검증
 
-- backend 전체: `118 passed`(기존 deprecation 경고3건).
+- backend 전체: `124 passed`(로컬 API 키를 차단한 격리 환경, 기존 deprecation 경고3건).
 - frontend: TypeScript 검사, ESLint, Next.js production build 통과.
-- Playwright desktop·mobile: `23 passed`.
+- Playwright desktop·mobile: `24 passed`.
 - 실제 채택 artifact와 격리 SQLite에서 체험 로그인 → 기획 분석200 → 공개200 → 방문객 예측 조회를 확인했습니다.
 - 문체부 수집 스크립트로 2026 ZIP을 재수집해 SHA-256이 기존 원본과 일치함을 확인했습니다.
 - 실제 Google 계정, Windows, 원격 CI와 운영 배포는 검증하지 않았습니다.

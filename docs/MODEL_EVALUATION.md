@@ -110,8 +110,8 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
 
 ## 이번 로컬 검증
 
-- backend: `118 passed`
+- backend: `124 passed`(로컬 API 키를 차단한 격리 환경, deprecation 경고 3건)
 - frontend: TypeScript 검사, ESLint, Next.js production build 통과
-- Playwright: desktop·mobile `23 passed`
+- Playwright: desktop·mobile `24 passed`
 - 실제 채택 artifact + 격리된 임시 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서
   동일 prediction ID·모델 버전·방문자-일 범위를 확인했습니다. 실계정·운영 DB·배포는 사용하지 않았습니다.

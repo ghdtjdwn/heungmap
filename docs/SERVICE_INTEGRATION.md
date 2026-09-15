@@ -65,15 +65,15 @@ Google 인증 요청·코드 교환·PKCE·일회용 state·nonce·ID token 서�
 
 ## 검증
 
-현재 통합 코드에서 backend 62개, 전체 브라우저 테스트 19개, frontend typecheck·lint·production build
-통과를 확인했습니다. Google 실계정 왕복, 실제 SDK 타일과 외부 LLM 재호출 성공을 의미하지 않습니다.
+2026-09-15 최신 통합 코드에서 backend 124개, 전체 브라우저 테스트 24개, frontend typecheck·lint·production
+build 통과를 확인했습니다. Google 실계정 왕복, 실제 SDK 타일과 외부 LLM 재호출 성공을 의미하지 않습니다.
 
 - backend/tests: 기존 API 계약·외부 오류와 신규 계정·세션·origin·역할·OAuth 실패·공개 소유권 검증.
 - frontend/e2e: 기존 기획자·방문객 회귀, 실제 로컬 API의 로그인/역할 기억/공개 연결 검증.
-- npm run e2e는 3100(frontend), 8100(backend)에 독립 서버를 시작하고 data/e2e.sqlite3을 사용합니다.
+- `npx playwright test`는 3100(frontend), 8100(backend)에 독립 서버를 시작하고 data/e2e.sqlite3을 사용합니다.
   외부 TourAPI/지도/LLM은 기존 기능 테스트에서 fixture로 검증하며 실제 provider 검증과 구분합니다.
 - mock 세션은 production에서 사용할 수 없지만 development backend와 production frontend build를
   조합한 로컬 시연은 가능합니다.
 
-학습 모델·SHAP·실제 Google 계정 연결·운영 배포는 완료 범위에 포함하지 않습니다. 문서의 광범위한
-입력/feature 후보, 예매·결제·알림·즐겨찾기는 모두 구현 약속이 아닌 추후 후보입니다.
+채택 모델과 영향 요인 표시는 완료 범위에 포함합니다. 실제 Google 계정 연결·운영 배포는 포함하지 않습니다.
+문서의 광범위한 입력/feature 후보, 예매·결제·알림·즐겨찾기는 모두 구현 약속이 아닌 추후 후보입니다.

@@ -3,11 +3,14 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolated_accounts(tmp_path, monkeypatch):
+    from app import main as main_module
+
     monkeypatch.setenv("HEUNGMAP_DB_PATH", str(tmp_path / "test.sqlite3"))
     monkeypatch.setenv("HEUNGMAP_AUTH_MODE", "mock")
     monkeypatch.setenv("HEUNGMAP_ENV", "development")
     monkeypatch.setenv("HEUNGMAP_PUBLIC_ORIGIN", "http://localhost:3000")
     monkeypatch.setenv("HEUNGMAP_DEMAND_MODE", "mock")
+    monkeypatch.setattr(main_module.kakao_places, "rest_api_key", "")
 
 
 @pytest.fixture(autouse=True)
