@@ -53,3 +53,7 @@ cd frontend && npm run dev
 
 - 모델 변경: [PR #31](https://github.com/ghdtjdwn/heungmap/pull/31)이 `9f7778e`로 `main`에 병합됐습니다.
   배포는 수행하지 않았으며 Git에서 제외된 모델 artifact의 서버 전달은 별도입니다.
+- 동료의 [PR #29](https://github.com/ghdtjdwn/heungmap/pull/29)와
+  [PR #30](https://github.com/ghdtjdwn/heungmap/pull/30)은 최신 `main`과 충돌해 열려 있습니다. #29의 역할 문서는
+  현재 역할·결정 번호와 대조해 재작성하고, #30의 v2 실험은 최종 시간 분할이 기준선보다 8.59% 나쁜 NO-GO
+  기록과 재사용할 감사 도구만 분리 검토합니다. 현재 D-30 제품 경로 위에 그대로 병합하지 않습니다.
