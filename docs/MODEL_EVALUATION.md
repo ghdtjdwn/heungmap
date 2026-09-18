@@ -1,21 +1,26 @@
-# 지역 방문수요 D-30 모델 실행·평가 — 2026-09-15
+# 지역 방문수요 D-30 모델 실행·평가 — 2026-09-18 갱신
 
-현재 서비스 기본 모델은 `regional-daily-1.0-3e0451e58b0c`입니다. 행사 시작 30일 전을 기준으로
+현재 서비스 기본 모델은 `regional-daily-1.0-e279d9027dff`(v4, 자료 기준일 2026-08-19)입니다.
+v3(`regional-daily-1.0-3e0451e58b0c`, 기준일 08-15)와 같은 구조·설정으로 새 방문자 자료를 더해 재학습했습니다. 행사 시작 30일 전을 기준으로
 공표 지연 30일을 추가 가정해, 목표일 60일 전까지 확인 가능한 한국관광공사 시군구 방문자 이력만으로
 행사기간의 **지역 전체 방문자-일 합계**를 예측합니다. 특정 축제 관람객·고유 방문자·티켓 수요·혼잡도나
 축제의 인과효과가 아닙니다.
 
-모델·학습표·원본과 checksum manifest는 Git 제외 경로
-`data/processed/daily-forecast-production-v3/`에 있습니다. 서버 배포·커밋·push는 하지 않았습니다.
+모델·학습표·원본과 checksum manifest는 Git 제외 경로 `data/processed/daily-forecast-production-v4/`에 있습니다.
+`HEUNGMAP_DAILY_MODEL_DIR`를 지정하지 않으면 서비스는 `daily-forecast-production-v*` 중 번호가 가장 큰 **채택**
+폴더를 자동으로 씁니다(미채택·손상 폴더는 건너뜀).
 
 ## 바로 확인하기
 
 ```bash
 .venv/bin/pip install -r backend/requirements-model.txt
 
+# 재현: 분할일은 자료 마지막 날로 자동 결정(default_split_dates)
 PYTHONPATH=backend .venv/bin/python backend/scripts/train_daily_forecast.py \
-  --output-dir data/processed/daily-forecast-reproduction \
-  --validation-start 2026-07-01 --test-start 2026-08-01
+  --output-dir data/processed/daily-forecast-reproduction
+
+# 새 방문자 자료 수집(append-only) + 다음 production-v* 폴더에 재학습. 2~3주마다 실행
+PYTHONPATH=backend .venv/bin/python backend/scripts/refresh_daily_forecast.py
 
 PYTHONPATH=backend .venv/bin/pytest -q backend/tests
 # 시연 전 모델 점검: 상태·원본 checksum·홀드아웃 재계산·온라인 예측
@@ -29,7 +34,33 @@ cd frontend && npm run dev
 설정합니다. manifest·평가·모델·이력 checksum 중 하나라도 다르거나 채택 조건이 하나라도 실패하면
 모델을 제공하지 않습니다.
 
+## 재학습 절차 (2026-09-18 고정)
+
+- `refresh_daily_forecast.py`는 이미 받은 원본의 마지막 기준일 다음 날부터 오늘까지를 새 파일
+  `data/raw/visitors-<시작월>-<오늘월>-refresh-<오늘>.jsonl`로 받습니다. 기존 원본은 수정하지 않고, 겹쳐 받지 않아
+  수정된 값과 기존 값의 충돌을 만들지 않습니다. 새 날짜가 없으면 종료 코드 3으로 끝납니다.
+- 분할은 `default_split_dates(data_end)`로 고정했습니다. 시험 구간은 data_end가 속한 달 1일부터(그 달 관측이 15일
+  미만이면 앞 달), 후보 선택은 시험 직전 두 달의 전진 검증창입니다. v3의 실제 분할(07-01/08-01)과 같습니다.
+- 출력은 항상 새 `daily-forecast-production-v<N+1>`이고 이미 있으면 중단합니다. 5개 채택 조건을 모두 통과해야
+  서비스 자동 선택 대상이 됩니다. 미채택이면 폴더는 남기되 서비스는 이전 채택 폴더를 계속 씁니다.
+- 최종 p10/p50/p90 모델은 시험 구간 이전 자료로 학습합니다. 따라서 재학습의 주된 효과는 **예측에 쓰는 최근 이력의
+  연장**(예측 가능 기간 연장)이고, 모델이 더 많은 기간을 학습하는 것은 시험 구간이 다음 달로 넘어갈 때입니다.
+
+### v4 재학습 결과 (2026-09-18)
+
+| 방법 (2026-08-01~08-19 시간 홀드아웃 4,446행) | WAPE | 중앙 절대비율오차 | RMSLE | ±20% 이내 |
+| --- | ---: | ---: | ---: | ---: |
+| 계절·성장 기준선 | 4.260% | 3.500% | 0.07536 | 97.39% |
+| v4 LightGBM 결합 | **3.939%** | **3.325%** | **0.07530** | 97.32% |
+
+- WAPE 7.54% 상대 개선, 80% 구간 포함률 77.64%, 5개 채택 조건 모두 통과. 선택 설정·구간 보정폭은 v3와 동일합니다.
+- 시험 구간의 마지막 4일(08-16~19)은 v3 전향 평가에 쓴 날짜와 같습니다. v4의 후보 선택(6·7월)에는 쓰이지 않았습니다.
+- 자료 기준일 2026-08-19 → **마지막 예측 가능 행사일 2026-10-18**, 2026-10-19부터 노후 상태가 됩니다.
+- 점검: `verify_daily_model.py` ready, 원본 checksum 4/4, 홀드아웃 재계산 일치, 온라인 예측 가능 234/264 시군구.
+
 ## 데이터와 예측 시점
+
+아래 표와 "관측 성능"은 v3(기준일 08-15) 기준 기록입니다.
 
 | 항목 | 관측 결과 |
 | --- | ---: |
@@ -126,7 +157,7 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
 중복되는 방문자-일 단위입니다. 관측 근거 없는 티켓 수요와 혼잡 등급은 `unknown`으로 유지합니다.
 
 지원 범위는 오늘부터 30일 이내 시작하는 1~30일 행사, 완전한 전년·최근 이력이 있는 264개 시군구입니다.
-현재 원본으로 마지막으로 계산 가능한 목표일은 2026-10-14입니다. 이력 누락·60일 초과 노후화·artifact
+v4 원본으로 마지막으로 계산 가능한 목표일은 2026-10-18입니다. 이력 누락·60일 초과 노후화·artifact
 손상·미채택 상태에서는 숫자를 만들지 않고 `unavailable`을 반환합니다.
 
 공표 지연 30일은 과거 공개 snapshot이 없어 둔 보수적 가정이며 실제 API SLA를 증명한 값은 아닙니다.

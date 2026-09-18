@@ -28,6 +28,17 @@ CANDIDATES = (
 )
 
 
+def default_split_dates(data_end) -> tuple[str, str]:
+    """자료 마지막 날로 (validation_start, test_start)를 정한다. 사람이 날짜를 고르지 않게 고정한 규칙이다.
+
+    시험 구간은 data_end가 속한 달 1일부터다. 그 달 관측이 15일 미만이면 시험 표본이 너무 작으므로 앞 달 1일로
+    당긴다. 후보 선택은 시험 직전 두 달의 전진 검증창이므로 validation_start는 시험 1개월 전이다.
+    """
+    end = pd.Timestamp(data_end).normalize()
+    test_start = end.replace(day=1) if end.day >= 15 else (end.replace(day=1) - pd.offsets.MonthBegin(1))
+    return (test_start - pd.offsets.MonthBegin(1)).date().isoformat(), test_start.date().isoformat()
+
+
 class InsufficientForecastHistory(ValueError):
     """예측일에 필요한 정확 날짜 이력이 없을 때 사용한다."""
 

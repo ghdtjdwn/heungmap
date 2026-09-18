@@ -88,3 +88,23 @@ def test_predict_rows_matches_online_prediction(artifact):
     inputs, baselines = zip(*(make_forecast_features(day, histories["11110"]) for day in pd.date_range("2026-10-10", "2026-10-12")))
     _, center, _, _ = daily_service.predict_rows(models, manifest, pd.DataFrame(list(inputs)), baselines)
     assert round(float(center.sum())) == result.primary_metric.p50
+
+
+def test_select_production_directory_prefers_newest_adopted(tmp_path):
+    import json
+
+    def run(number, adopted):
+        path = tmp_path / f"daily-forecast-production-v{number}"
+        path.mkdir()
+        for name in ("manifest.json", "evaluation.json"):
+            (path / name).write_text(json.dumps({"model_adopted": adopted}))
+        return path
+
+    v3 = run(3, True)
+    run(4, False)
+    assert daily_service.select_production_directory(tmp_path) == v3
+    v10 = run(10, True)
+    assert daily_service.select_production_directory(tmp_path) == v10
+    (v10 / "evaluation.json").write_text("{broken")
+    assert daily_service.select_production_directory(tmp_path) == v3
+    assert daily_service.select_production_directory(tmp_path / "none") is None

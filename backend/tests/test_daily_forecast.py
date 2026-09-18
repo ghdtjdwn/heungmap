@@ -23,3 +23,38 @@ def test_daily_metrics_are_exact_for_perfect_prediction():
     result = metrics([10, 20], [10, 20])
     assert result["wape"] == result["rmsle"] == 0
     assert result["within_20_percent"] == 1
+
+
+def test_default_split_dates_follow_v3_rule():
+    from app.demand.forecasting import default_split_dates
+
+    assert default_split_dates("2026-08-15") == ("2026-07-01", "2026-08-01")  # v3 실제 분할
+    assert default_split_dates("2026-08-19") == ("2026-07-01", "2026-08-01")
+    assert default_split_dates("2026-09-10") == ("2026-07-01", "2026-08-01")  # 9월 관측 15일 미만
+    assert default_split_dates("2026-09-20") == ("2026-08-01", "2026-09-01")
+    assert default_split_dates("2027-01-03") == ("2026-11-01", "2026-12-01")
+
+
+def test_next_production_directory_increments_and_never_reuses(tmp_path):
+    import pytest
+    from app.demand.daily_training import next_production_directory
+
+    assert next_production_directory(tmp_path).name == "daily-forecast-production-v1"
+    for name in ("daily-forecast-production-v3", "daily-forecast-production", "daily-forecast-production-v10-copy"):
+        (tmp_path / name).mkdir()
+    assert next_production_directory(tmp_path).name == "daily-forecast-production-v4"
+    with pytest.raises(FileNotFoundError):
+        from app.demand.daily_training import train_daily_model
+        train_daily_model([tmp_path / "missing.jsonl"], tmp_path / "new-run")
+
+
+def test_latest_raw_date_reads_page_items(tmp_path):
+    import json
+    from datetime import date
+    from app.demand.training_inputs import latest_raw_date
+
+    path = tmp_path / "visitors-refresh.jsonl"
+    path.write_text("\n".join(json.dumps({"items": items}) for items in (
+        [{"baseYmd": "20260816"}], [{"baseYmd": "20260819"}, {"baseYmd": "20260817"}], [])) + "\n")
+    assert latest_raw_date([path, tmp_path / "missing.jsonl"]) == date(2026, 8, 19)
+    assert latest_raw_date([tmp_path / "missing.jsonl"]) == date.min

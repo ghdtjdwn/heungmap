@@ -29,8 +29,29 @@ FEATURE_LABELS = {
 }
 
 
+def select_production_directory(root: Path) -> Path | None:
+    """production-v* 중 번호가 가장 큰 채택 artifact. 미채택·손상 폴더는 건너뛴다(무결성은 _load가 다시 검사)."""
+    candidates = []
+    for path in root.glob("daily-forecast-production-v*"):
+        match = re.fullmatch(r"daily-forecast-production-v(\d+)", path.name)
+        if match and path.is_dir():
+            candidates.append((int(match.group(1)), path))
+    for _, path in sorted(candidates, reverse=True):
+        try:
+            manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+            report = json.loads((path / "evaluation.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if manifest.get("model_adopted") is True and report.get("model_adopted") is True:
+            return path
+    return None
+
+
 def _directory() -> Path:
-    return Path(os.environ.get("HEUNGMAP_DAILY_MODEL_DIR", str(DEFAULT_DIRECTORY))).resolve()
+    """환경변수로 고정한 artifact가 우선이고, 없으면 가장 최근 채택 production 폴더를 쓴다."""
+    if configured := os.environ.get("HEUNGMAP_DAILY_MODEL_DIR"):
+        return Path(configured).resolve()
+    return (select_production_directory(DEFAULT_DIRECTORY.parent) or DEFAULT_DIRECTORY).resolve()
 
 
 def _digest(path: Path) -> str:

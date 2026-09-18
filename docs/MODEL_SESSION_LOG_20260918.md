@@ -26,3 +26,14 @@
   마지막 예측 가능 행사일, 노후까지 남은 일수. 경로·비밀값 미노출, 어떤 오류에도 200.
 - `backend/scripts/verify_daily_model.py` 신규(기존 `verify_demand_model.py`는 D29 행사단위 모델용이라 유지)
 - v3 점검: ready, days_until_stale 26, checksum 3/3, 홀드아웃 재계산 300행 일치, 온라인 가능 234/264 시군구
+
+## Step 4. 재학습 절차 고정 + v4
+
+- 명세 정정: 명세의 `validation_start = test_start − 2개월`은 v3 실제 분할(07-01/08-01)과 달라
+  **−1개월**(시험 직전 두 달 전진 검증창)로 구현했습니다.
+- `forecasting.default_split_dates`, `app/demand/daily_training.py`(train_daily_model, next_production_directory),
+  `training_inputs.latest_raw_date`, `scripts/refresh_daily_forecast.py` 신규, `train_daily_forecast.py` 공용 절차 사용
+- 수집은 마지막 원본 기준일 다음 날부터만(겹침 → 값 충돌 방지). 새 날짜 없으면 종료 코드 3.
+- `daily_service._directory()`: 환경변수 없으면 가장 번호가 큰 채택 production-v* 자동 선택
+- v4 `regional-daily-1.0-e279d9027dff`: 채택. 홀드아웃(08-01~19, 4,446행) WAPE 3.939% vs 기준선 4.260%,
+  80% 구간 77.64%. data_end 08-19 → 마지막 예측 가능 행사일 10-18. verify ready, checksum 4/4.
