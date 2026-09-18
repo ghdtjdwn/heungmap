@@ -179,8 +179,10 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
             <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
             <p>모델 버전 {predictionData.model_version}</p>
             {predictionData.factors.length > 0 && <ul className="factor-list">{predictionData.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>}
-            {predictionData.evidence.length > 0 && <ul className="factor-list">{predictionData.evidence.map((item) => <li key={item.evidence_id}><span className="direction neutral">·</span><div><strong>{item.label}</strong><p>{item.display_value}</p>{item.limitation && <small>{item.limitation}</small>}</div></li>)}</ul>}
-            <div className="visitor-limitations"><strong>해석 한계</strong><ul>{predictionData.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            <details className="visitor-prediction-details"><summary>근거와 해석 한계 자세히 보기</summary>
+              {predictionData.evidence.length > 0 && <ul className="factor-list">{predictionData.evidence.map((item) => <li key={item.evidence_id}><span className="direction neutral">·</span><div><strong>{item.label}</strong><p>{item.display_value}</p>{item.limitation && <small>{item.limitation}</small>}</div></li>)}</ul>}
+              <div className="visitor-limitations"><strong>해석 한계</strong><ul>{predictionData.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            </details>
           </>}
         </section>
 

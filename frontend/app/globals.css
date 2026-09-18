@@ -485,3 +485,8 @@ button.role-card { cursor: pointer; transition: transform .2s; }button.role-card
 .heung-diagnosis dd { margin: 0; overflow-wrap: anywhere; }
 .heung-diagnosis small { color: var(--muted); }
 @media (max-width: 520px) { .heung-diagnosis dl div { grid-template-columns: 1fr; gap: 2px; } }
+.calendar-more { display: block; width: 100%; margin: 4px 0 0; padding: 3px 4px; border: 1px dashed var(--teal); border-radius: 5px; background: transparent; color: var(--teal-dark); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; text-align: left; }
+.calendar-more:hover, .calendar-more:focus-visible { background: var(--teal-soft); outline: 2px solid var(--teal); outline-offset: 1px; }
+@media (max-width: 720px) { .calendar-more { font-size: 10px; } }
+.visitor-prediction-details { margin-top: 12px; }
+.visitor-prediction-details > summary { cursor: pointer; padding: 10px 0; color: var(--teal-dark); font-weight: 700; }

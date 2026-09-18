@@ -37,6 +37,6 @@ export function Welcome({ onboarding = false }: { onboarding?: boolean }) {
       <article className="role-card"><span>FOR PLANNERS</span><h2>막연한 아이디어를<br />구체적인 기획으로</h2><p>단계별 기획 입력, 장소 탐색, 조건 비교와 기획 보고서까지. 완성한 행사 정보를 사용자에게 소개하세요.</p></article>
       <article className="role-card visitor-role"><span>FOR VISITORS</span><h2>이번 주말의 즐거움을<br />지도와 달력에서</h2><p>한국관광공사 축제 정보와 기획자가 공개한 행사를 찾아보세요. 일정, 장소, 주변 관광정보를 함께 확인할 수 있어요.</p></article>
     </section>
-    <footer className="welcome-footer"><strong>흥할지도</strong><p>행사·관광정보: 한국관광공사 TourAPI · 지도: Kakao Maps</p><small>수요 지표는 현재 시연용 상대지수이며 실제 관람객 수나 검증된 예측이 아닙니다.</small></footer>
+    <footer className="welcome-footer"><strong>흥할지도</strong><p>행사·관광정보: 한국관광공사 TourAPI · 지도: Kakao Maps</p><small>수요 지표는 한국관광공사 지역별 방문자 데이터로 학습·검증한 시군구 방문자-일 예측이며 특정 축제 관람객 수가 아닙니다.</small></footer>
   </main>;
 }

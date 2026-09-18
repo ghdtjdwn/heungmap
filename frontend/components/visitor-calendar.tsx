@@ -10,6 +10,12 @@ type VisitorCalendarProps = {
   onDate: (date: string) => void;
 };
 
+const DAY_LIMIT = 3;
+
+function durationDays(event: EventSummary): number {
+  return (new Date(`${event.end_date}T00:00:00`).getTime() - new Date(`${event.start_date}T00:00:00`).getTime()) / 86_400_000 + 1;
+}
+
 export function VisitorCalendar({ events, month, selectedDate, onMonth, onDate }: VisitorCalendarProps) {
   const [year, monthNumber] = month.split("-").map(Number);
   const start = new Date(year, monthNumber - 1, 1);
@@ -30,10 +36,19 @@ export function VisitorCalendar({ events, month, selectedDate, onMonth, onDate }
           <button type="button" className="calendar-date-button" aria-label={`${year}년 ${monthNumber}월 ${day}일 선택`} aria-pressed={selected} onClick={() => onDate(date)}>
             <time dateTime={date}>{day}</time>
           </button>
-          {events.filter(e => e.start_date <= date && e.end_date >= date).map(event => <Link key={event.event_id} href={"/visitor/" + event.event_id}>{event.title}</Link>)}
+          {(() => {
+            // 짧은 축제를 먼저, 연중 상시 행사는 뒤로 보내고 칸마다 3개까지만 보여 준다.
+            const dayEvents = events.filter(e => e.start_date <= date && e.end_date >= date)
+              .sort((a, b) => durationDays(a) - durationDays(b) || a.start_date.localeCompare(b.start_date));
+            const hidden = dayEvents.length - DAY_LIMIT;
+            return <>
+              {dayEvents.slice(0, DAY_LIMIT).map(event => <Link key={event.event_id} href={"/visitor/" + event.event_id}>{event.title}</Link>)}
+              {hidden > 0 && <button type="button" className="calendar-more" onClick={() => onDate(date)} aria-label={`${year}년 ${monthNumber}월 ${day}일 행사 ${hidden}개 더 보기`}>+{hidden}개 더</button>}
+            </>;
+          })()}
         </div>;
       })}
     </div>
-    <p>여러 날 열리는 행사는 해당 기간의 각 날짜에 표시합니다. 페이지가 여러 개면 아래에서 나머지 행사를 확인할 수 있습니다.</p>
+    <p>여러 날 열리는 행사는 해당 기간의 각 날짜에 표시하고, 칸마다 기간이 짧은 행사부터 3개까지 보여 줍니다. 날짜를 누르면 그날 행사 전체를 볼 수 있습니다.</p>
   </section>;
 }
