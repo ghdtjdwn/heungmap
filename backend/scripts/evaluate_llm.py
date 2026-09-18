@@ -8,8 +8,13 @@ from datetime import datetime
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
+from dotenv import load_dotenv
+
 from app.schemas import PlannerRecommendationRequest, Recommendation
 from app.services.llm import LlmInvalidResponse, PlannerLlmClient
+
+# 서비스와 같은 LLM 설정(.env)으로 평가한다. 이미 설정된 환경변수가 우선한다.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 SCENARIOS = [

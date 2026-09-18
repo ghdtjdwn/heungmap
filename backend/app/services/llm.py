@@ -227,25 +227,31 @@ def _has_misleading_attendance_claim(content: PlannerRecommendationContent) -> b
 class PlannerLlmClient:
     """Provider adapter isolated behind the planner recommendation boundary."""
 
-    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    def __init__(self, *, transport: httpx.AsyncBaseTransport | None = None, anthropic_client: Any = None) -> None:
         self.provider = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
         self.api_key = os.getenv("LLM_API_KEY", "").strip()
-        default_model = "qwen3.5:9b" if self.provider == "ollama" else "gpt-5-nano"
+        default_model = {"ollama": "qwen3.5:9b", "anthropic": "claude-fable-5-1"}.get(self.provider, "gpt-5-nano")
         self.model = os.getenv("LLM_MODEL", default_model).strip()
         configured_base = os.getenv("LLM_API_BASE_URL", "").strip().rstrip("/")
         default_base = "http://127.0.0.1:11434" if self.provider == "ollama" else "https://api.openai.com/v1"
         self.base_url = configured_base or default_base
+        default_timeout = {"ollama": 180.0, "anthropic": 240.0}.get(self.provider, 45.0)
         try:
-            default_timeout = "180" if self.provider == "ollama" else "45"
-            self.timeout_seconds = min(300.0, max(5.0, float(os.getenv("LLM_TIMEOUT_SECONDS", default_timeout))))
+            self.timeout_seconds = min(300.0, max(5.0, float(os.getenv("LLM_TIMEOUT_SECONDS", str(default_timeout)))))
         except ValueError:
-            self.timeout_seconds = 180.0 if self.provider == "ollama" else 45.0
+            self.timeout_seconds = default_timeout
+        effort = os.getenv("LLM_EFFORT", "high").strip().lower()
+        self.effort = effort if effort in {"low", "medium", "high", "xhigh", "max"} else "high"
         self.transport = transport
+        self.anthropic_client = anthropic_client
 
     @property
     def configured(self) -> bool:
         if self.provider == "ollama":
             return bool(self.model and self.base_url)
+        if self.provider == "anthropic":
+            # SDK는 LLM_API_KEY가 없으면 ANTHROPIC_API_KEY·로그인 profile에서 자격 증명을 찾는다.
+            return bool(self.model and (self.api_key or os.getenv("ANTHROPIC_API_KEY") or self.anthropic_client))
         return self.provider in {"openai", "openai_responses"} and bool(self.api_key and self.model and self.base_url)
 
     async def generate(self, request: PlannerRecommendationRequest) -> PlannerRecommendationResponse:
@@ -261,6 +267,9 @@ class PlannerLlmClient:
             "입력에 있는 Planning Context와 rule_recommendations만 근거로 한국어 실행안을 작성한다. "
             "model_prediction의 종류·단위·상태·is_mock·해석 한계를 따른다. "
             "regional_visit_demand의 percent_change는 평상시 대비 지역 방문수요 증감률이며 음수도 가능하다. "
+            "unit이 people인 regional_visit_demand는 행사기간 시군구 전체 방문자-일 합계이며 같은 사람이 여러 날 오면 중복된다. "
+            "congestion_level은 평소 대비 지역 방문수요 수준이지 현장 혼잡도가 아니다. "
+            "verified_fact인 문체부 보고 전년 방문객은 주최 측 제출 실적이며 올해 예측값이 아니다. "
             "지역 방문수요를 특정 행사 관람객 수, 행사로 인한 추가 방문 효과, 티켓 수요나 혼잡도로 해석하지 않는다. "
             "모델의 p10·p50·p90 수치를 변경하거나 예측 불가 상태에 수요를 만들어내지 않는다. "
             "입력에 없는 수요 수치, 비용, 법률 판단, 장소 수용인원 또는 확인된 사실을 만들지 않는다. "
@@ -277,6 +286,30 @@ class PlannerLlmClient:
             "rule_recommendations": [item.model_dump(mode="json") for item in request.rule_recommendations],
         }
         serialized_input = json.dumps(input_payload, ensure_ascii=False, separators=(",", ":"))
+        if self.provider == "anthropic":
+            from app.services.llm_anthropic import generate_planner_json
+
+            known_ids = sorted(_collect_evidence_ids(request.planning_context)
+                               | {ref for item in request.rule_recommendations for ref in item.evidence_refs})
+            # Claude structured outputs는 최소·최대 개수 제약을 받지 않으므로 계약의 필수 개수를 문장으로 전달한다.
+            rules = (
+                f"alternatives는 정확히 {request.requested_alternatives}개이고 각 changes·verify는 한 개 이상이다. "
+                "priorities·roadmap·limitations는 한 개 이상이고 roadmap의 actions도 한 개 이상이다. "
+                "roadmap phase는 '지금', '준비 중', '행사 전' 중 하나만 쓴다. "
+                f"모든 priority의 evidence_refs에는 다음 ID 중 한 개 이상을 넣고 그 밖의 ID는 쓰지 않는다: {json.dumps(known_ids, ensure_ascii=False)}. "
+                "입력에 없는 아라비아 숫자는 개수·순서·기간을 포함해 어디에도 쓰지 말고 '하나', '첫째', '먼저'처럼 한글로 쓴다."
+            )
+            output_text = await generate_planner_json(
+                instructions=instructions,
+                user_content=f"{rules}\n아래 입력만 사용해 JSON Schema에 맞는 결과를 작성하세요.\n{serialized_input}",
+                model=self.model, effort=self.effort, timeout_seconds=self.timeout_seconds,
+                api_key=self.api_key, client=self.anthropic_client,
+            )
+            try:
+                content = PlannerRecommendationContent.model_validate_json(output_text)
+            except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+                raise LlmInvalidResponse("LLM 응답이 기획 추천 계약을 통과하지 못했습니다.") from exc
+            return self._validated_response(request, input_payload, content)
         if self.provider == "ollama":
             endpoint = f"{self.base_url}/api/chat"
             generation_schema = _ollama_schema(PlannerRecommendationContent.model_json_schema())
@@ -357,7 +390,11 @@ class PlannerLlmClient:
             content = PlannerRecommendationContent.model_validate_json(output_text)
         except (json.JSONDecodeError, TypeError, ValidationError) as exc:
             raise LlmInvalidResponse("LLM 응답이 기획 추천 계약을 통과하지 못했습니다.") from exc
+        return self._validated_response(request, input_payload, content)
 
+    def _validated_response(self, request: PlannerRecommendationRequest, input_payload: dict[str, Any],
+                            content: PlannerRecommendationContent) -> PlannerRecommendationResponse:
+        """모든 공급자에 같은 근거·숫자·고정 제약·관람객 표현 검사를 적용한다."""
         if len(content.alternatives) != request.requested_alternatives:
             raise LlmInvalidResponse("LLM이 요청한 대안 개수와 다른 결과를 반환했습니다.")
         known_evidence = _collect_evidence_ids(request.planning_context)

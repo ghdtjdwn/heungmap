@@ -30,6 +30,9 @@
 
 ## 시연·제출 전 할 일
 
+0. LLM은 Claude(D32). 지금 `.env`는 `claude-sonnet-5`. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
+   `evaluate_llm.py`로 5개 시나리오·응답 시간을 다시 확인합니다. 채팅에 노출된 API 키는 제출 전 Console에서 새로 발급해 교체합니다.
+
 1. 시연 당일 `PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py`가 ready인지 확인.
    샘플 행사는 오늘부터 30일 이내 시작, 신뢰도 높은 시군구(해운대구·제주시·수원시 등)로 고릅니다.
 2. 새 방문자 자료가 공개되면(약 30일 지연) `refresh_daily_forecast.py` → `verify_daily_model.py`. 2~3주 간격.
