@@ -422,3 +422,11 @@ def test_event_prediction_is_low_confidence_mock(monkeypatch) -> None:
     assert data["is_mock"] is True
     assert data["confidence"] == "low"
     assert data["prediction_type"] == "relative_demand_score"
+
+
+def test_tourapi_homepage_text_with_description_does_not_break_event_detail() -> None:
+    parse = TourApiClient._homepage_url
+    assert parse('공식 인스타그램 https://www.instagram.com/jeju_ghost/') == "https://www.instagram.com/jeju_ghost/"
+    assert parse('<a href="https://festival.example.kr" target="_blank">홈페이지</a>') == "https://festival.example.kr"
+    assert parse("홈페이지 없음") is None and parse(None) is None
+    assert parse("(https://example.kr).") == "https://example.kr"
