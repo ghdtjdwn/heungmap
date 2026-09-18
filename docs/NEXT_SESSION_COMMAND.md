@@ -39,6 +39,9 @@
 
 - Claude 보고서 안정화(D36): 실제 예시 4/4, 평가 5/5. `.env`의 `LLM_EFFORT=medium`.
 
+- 재학습 자동 실행(D37): 이 맥에 launchd 등록됨(`scripts/install-model-refresh.sh --uninstall`로 해제).
+  오라클 서버는 `scripts/oracle/push.sh <서버>` 한 번이면 폴더 하나에 설치·등록([ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)).
+
 ## 시연·제출 전 할 일
 
 0. LLM은 Claude(D32·D36). 지금 `.env`는 `claude-sonnet-5`, effort medium. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고

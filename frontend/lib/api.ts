@@ -1,4 +1,4 @@
-import type {
+import type { ModelStatus,
   AddressSearchResponse,
   EventDetail,
   EventListQuery,
@@ -18,6 +18,10 @@ const longRunningApiBase = "";
 
 export function getPredictionRegions(): Promise<RegionRef[]> {
   return searchRequest("/api/v1/prediction/regions");
+}
+
+export function getModelStatus(): Promise<ModelStatus> {
+  return searchRequest("/api/v1/system/model-status");
 }
 
 export class ApiError extends Error {

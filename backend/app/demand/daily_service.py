@@ -133,7 +133,7 @@ def model_status(now: datetime | None = None) -> dict:
         "status": "ready" if remaining >= 0 and created <= now else "stale", "adopted": True, "checked_at": now,
         "model_version": manifest["model_version"], "data_end": data_end, "created_at": created,
         "last_predictable_target_date": data_end + timedelta(days=STALE_AFTER_DAYS), "days_until_stale": remaining,
-        "regions": sum(str(item["code"]) in histories for item in manifest["regions"]),
+        "regions": len(prediction_regions(now)),  # 지금 선택·예측할 수 있는 시군구 수
     }
 
 
