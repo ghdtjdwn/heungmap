@@ -203,11 +203,11 @@ def test_planner_competing_festival_count_uses_same_region_conversion(monkeypatc
 
 def test_all_shared_area_codes_have_a_legal_region_mapping() -> None:
     assert TOUR_AREA_TO_LEGAL_REGION == {
-        "1": "11", "2": "28", "3": "30", "4": "27", "5": "29",
+        "1": "11", "2": "28", "3": "30", "4": "27", "5": "12",
         "6": "26", "7": "31", "8": "36", "31": "41", "32": "51",
         "33": "43", "34": "44", "35": "47", "36": "48", "37": "52",
-        "38": "46", "39": "50",
-    }
+        "38": "12", "39": "50",
+    }  # 광주(5)·전남(38)은 2026-07-01부터 전남광주통합특별시(12)로 조회한다.
 
 
 def test_missing_event_returns_problem_json(monkeypatch) -> None:

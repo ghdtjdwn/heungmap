@@ -48,7 +48,7 @@ def test_daily_artifact_serves_people_range_and_is_deterministic(artifact):
     assert result.components[0].unit == "people" and result.data_sufficiency == "sufficient"
     assert {source.source_type for source in result.sources} == {"heungmap_model", "kto_datalab"}
     assert result.prediction_id == predict().prediction_id
-    assert daily_service.prediction_regions() == [REGION]
+    assert daily_service.prediction_regions(NOW) == [REGION]
 
 
 def test_daily_artifact_corruption_and_unsupported_event_fail_closed(artifact):

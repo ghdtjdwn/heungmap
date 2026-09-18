@@ -26,7 +26,8 @@
 | --- | --- | --- | --- |
 | `regional-daily-1.0-3e0451e58b0c` | production-v3 | 2026-08-15 | 이전 채택. 전향 평가 대상 |
 | `regional-daily-1.0-e279d9027dff` | production-v4 | 2026-08-19 | 채택(새 자료 4일 추가 재학습) |
-| `regional-daily-1.0-e279d9027dff` | **production-v5** | 2026-08-19 | **현재 서비스**. v4와 같은 모델 + 지역별 신뢰도 메타데이터 |
+| `regional-daily-1.0-e279d9027dff` | production-v5 | 2026-08-19 | v4와 같은 모델 + 지역별 신뢰도 메타데이터 |
+| `regional-daily-1.0-ab975d661247` | **production-v6** | 2026-08-19 | **현재 서비스**. 광주·전남 코드 개편 이력 연결(D34), 시험 4,959행 WAPE 3.939% vs 4.256% |
 | `regional-daily-1.1` 실험 | festival-v1.1-experiment | 2026-08-19 | 미채택(TourAPI 축제 입력, 개선 없음) |
 | `festival-attendance-1.0-5b674ca2bec5` | attendance-model-release | — | 미채택(문체부 축제별 관람객, 전년값보다 나쁨) |
 
@@ -97,7 +98,7 @@ WAPE 10.90% 개선, 80% 구간 포함률 75.53%. RMSLE·±20%는 기준선이 �
 - 공표 지연 30일은 과거 공개 snapshot이 없어 둔 가정입니다(2026-09-15·09-18 수집에서 실제 약 30일 확인).
 - 시험 구간 설계는 개발 중 이전 여름 평가를 본 뒤 정했으므로 후향 성능입니다. 완전한 전향 근거는 §8의 4일뿐입니다.
 - 지원 범위: 오늘부터 30일 이내 시작하거나 진행 중인 행사의 남은 날짜 중 최대 30일(자료 기준일+60일까지), 이력이 완전한
-  시군구(현재 온라인 234/264). 일부 구간만 예측하면 대상 기간과 limitation에 표시합니다(D33). 실제 TourAPI 행사 100건 중 88건 예측.
+  시군구(현재 온라인 234/264). 일부 구간만 예측하면 대상 기간과 limitation에 표시합니다(D33). 실제 TourAPI 행사 100건 중 98건 예측(v6, 남은 2건은 인천 신설 구).
 - 자료 기준일 + 60일이 지나면 모든 예측이 `unavailable`이 됩니다(v5: 2026-10-18까지 예측 가능).
 
 ## 11. 운영·재학습
@@ -108,7 +109,7 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py      #
 PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_frozen_daily_model.py --model-dir <이전 폴더>  # 전향 평가
 ```
 
-재학습은 2~3주마다 실행합니다. 새 폴더가 5개 조건을 통과해야 서비스가 자동으로 바꿔 씁니다. 실행 중 상태는
+재학습은 `scripts/model-refresh.sh`를 cron으로 매일 실행해 자동화합니다(D34). 새 폴더가 5개 조건을 통과해야 서비스가 자동으로 바꿔 씁니다. 실행 중 상태는
 `GET /api/v1/system/model-status`로 확인합니다.
 
 ## 12. 발표 표현 지침

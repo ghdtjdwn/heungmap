@@ -10,6 +10,8 @@ from typing import Any
 import httpx
 from pydantic import HttpUrl, TypeAdapter
 
+from app.regions import UNIFIED_REGION, tour_area_for_legal_code
+
 from app.schemas import (
     Coordinates,
     DataQuality,
@@ -54,6 +56,9 @@ LEGAL_REGION_TO_TOUR_AREA = {
     legal_code: area_code
     for area_code, legal_code in TOUR_AREA_TO_LEGAL_REGION.items()
 }
+# 2026-07-01부터 광주·전남 행사는 전남광주통합특별시(12) 코드로 조회된다. 광주·전남 구분은
+# _festival_to_summary가 시군구 코드로 복원하므로 조회는 통합 코드로 하고 지역 필터는 목록에서 다시 거른다.
+TOUR_AREA_TO_LEGAL_REGION.update({"5": UNIFIED_REGION, "38": UNIFIED_REGION})
 
 
 def _festival_region_params(
@@ -299,8 +304,10 @@ class TourApiClient:
         raw_area_code = self._text(item.get("areacode"))
         legal_area_code = self._text(item.get("lDongRegnCd") or item.get("ldongregncd"))
         legal_sigungu_code = self._text(item.get("lDongSignguCd") or item.get("ldongsigngucd"))
+        legal_dong_code = _legal_dong_code(legal_area_code, legal_sigungu_code)
         area_code = (
             raw_area_code
+            or tour_area_for_legal_code(legal_dong_code)
             or LEGAL_REGION_TO_TOUR_AREA.get(legal_area_code, legal_area_code)
             or "0"
         )
@@ -309,7 +316,6 @@ class TourApiClient:
             or legal_sigungu_code
             or None
         )
-        legal_dong_code = _legal_dong_code(legal_area_code, legal_sigungu_code)
         addr1 = self._text(item.get("addr1"))
         addr2 = self._text(item.get("addr2"))
         address = " ".join(part for part in (addr1, addr2) if part) or None

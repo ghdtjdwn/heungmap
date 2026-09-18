@@ -1,12 +1,13 @@
 # 지역 방문수요 D-30 모델 실행·평가 — 2026-09-18 갱신
 
-현재 서비스 기본 모델은 `regional-daily-1.0-e279d9027dff`(v5 폴더, 자료 기준일 2026-08-19)입니다.
+현재 서비스 기본 모델은 `regional-daily-1.0-ab975d661247`(v6 폴더, 자료 기준일 2026-08-19)입니다. v6은 광주·전남
+행정구역 개편(2026-07-01) 전후 이력을 이어 붙여 27개 시군구를 다시 예측할 수 있게 한 버전입니다(D34).
 v3(`regional-daily-1.0-3e0451e58b0c`, 기준일 08-15)와 같은 구조·설정으로 새 방문자 자료를 더해 재학습했습니다. 행사 시작 30일 전을 기준으로
 공표 지연 30일을 추가 가정해, 목표일 60일 전까지 확인 가능한 한국관광공사 시군구 방문자 이력만으로
 행사기간의 **지역 전체 방문자-일 합계**를 예측합니다. 특정 축제 관람객·고유 방문자·티켓 수요·혼잡도나
 축제의 인과효과가 아닙니다.
 
-모델·학습표·원본과 checksum manifest는 Git 제외 경로 `data/processed/daily-forecast-production-v5/`에 있습니다.
+모델·학습표·원본과 checksum manifest는 Git 제외 경로 `data/processed/daily-forecast-production-v6/`에 있습니다.
 `HEUNGMAP_DAILY_MODEL_DIR`를 지정하지 않으면 서비스는 `daily-forecast-production-v*` 중 번호가 가장 큰 **채택**
 폴더를 자동으로 씁니다(미채택·손상 폴더는 건너뜀).
 
@@ -35,6 +36,17 @@ cd frontend && npm run dev
 모델을 제공하지 않습니다.
 
 ## 재학습 절차 (2026-09-18 고정)
+
+**자동화(D34)**: 서버 cron에 한 줄 등록합니다. 매일 실행해도 새 자료가 충분할 때만 재학습합니다.
+
+```bash
+# crontab -e
+30 6 * * * /절대경로/heungmap/scripts/model-refresh.sh >> /절대경로/heungmap/data/processed/model-refresh-cron.log 2>&1
+```
+
+- 판단: 모델 기준일보다 7일 이상 새 자료 또는 노후까지 21일 이하(새 자료 1일 이상) → 현재 모델 전향 평가 → 재학습.
+- 기록: `data/processed/model-refresh-log.jsonl`. 종료 코드 0 정상, 2 재학습했지만 미채택, 4 노후 14일 이내·노후·모델 없음, 1 오류.
+- 2026-09-18 실제 실행: 새 자료 없음(공표 지연) → 재학습 없이 종료 코드 0.
 
 - `refresh_daily_forecast.py`는 이미 받은 원본의 마지막 기준일 다음 날부터 오늘까지를 새 파일
   `data/raw/visitors-<시작월>-<오늘월>-refresh-<오늘>.jsonl`로 받습니다. 기존 원본은 수정하지 않고, 겹쳐 받지 않아

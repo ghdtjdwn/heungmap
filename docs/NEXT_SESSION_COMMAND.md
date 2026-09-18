@@ -32,6 +32,9 @@
 
 - Claude LLM(D32), 방문객 예측 구간 확대(실제 행사 30% → 88% 예측)와 흥행 진단 카드(D33). backend 157 passed, E2E 24 passed.
 
+- 행정구역 개편 이력 연결 v6(실제 행사 98% 예측), 광주·전남 필터 복구, 재학습 자동화 `scripts/model-refresh.sh`, 공개 행사 근거(D34).
+  서버 배포 시 cron 한 줄 등록이 필요합니다(MODEL_EVALUATION "재학습 절차").
+
 ## 시연·제출 전 할 일
 
 0. LLM은 Claude(D32). 지금 `.env`는 `claude-sonnet-5`. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
