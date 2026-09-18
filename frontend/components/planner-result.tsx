@@ -127,6 +127,13 @@ export function PlannerResult() {
     router.push(`/planner/new?draft=${copy.id}`);
   }
 
+  // 변경안도 원본과 같은 기간으로 비교한다. 일정 후보면 첫 번째 후보의 기간을 쓴다.
+  function scenarioEndDate(start: string): string {
+    const original = currentDraft.event.start_date && currentDraft.event.end_date
+      ? { start_date: currentDraft.event.start_date, end_date: currentDraft.event.end_date } : currentDraft.event.date_candidates?.[0];
+    return original ? new Date(Date.parse(start) + Date.parse(original.end_date) - Date.parse(original.start_date)).toISOString().slice(0, 10) : start;
+  }
+
   async function runScenario() {
     setScenarioLoading(true);
     setScenarioError("");
@@ -136,10 +143,7 @@ export function PlannerResult() {
       target_attendance: scenario.attendance,
       budget_max_krw: scenario.budget,
       indoor_outdoor: scenario.environment,
-      ...(scenario.date ? { schedule_selection_mode: "fixed", start_date: scenario.date,
-        end_date: currentDraft.event.start_date && currentDraft.event.end_date
-          ? new Date(Date.parse(scenario.date) + Date.parse(currentDraft.event.end_date) - Date.parse(currentDraft.event.start_date)).toISOString().slice(0, 10)
-          : scenario.date } : {}),
+      ...(scenario.date ? { schedule_selection_mode: "fixed", start_date: scenario.date, end_date: scenarioEndDate(scenario.date) } : {}),
       ...(scenario.regionCode ? { region_selection_mode: "fixed", region: predictionRegions.find(region => region.legal_dong_code === scenarioRegion)
         ?? (scenario.regionCode === currentDraft.event.region?.area_code ? currentDraft.event.region : regionFromCode(scenario.regionCode)) } : {}),
       venue: currentDraft.event.venue ? { ...currentDraft.event.venue, capacity: scenario.venueCapacity } : scenario.venueCapacity ? { name: "비교용 후보 장소", capacity: scenario.venueCapacity } : undefined,
@@ -273,8 +277,8 @@ export function PlannerResult() {
             <button className="button primary" onClick={runScenario} disabled={scenarioLoading}>{scenarioLoading ? "비교 중…" : "변경안 분석"}</button>
           </section>
           <section className="comparison-cards">
-            <article className="compare-card baseline"><span>현재안</span><strong>{scoreDisplay ?? "–"}{regional && !regionalPeople ? "%" : ""}</strong><small>{predictionLabel(prediction)}</small><dl><div><dt>목표</dt><dd>{amount(draft.event.target_attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(draft.event.budget_max_krw, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{draft.event.start_date || draft.event.date_candidates?.[0]?.start_date || "미정"} · {draft.event.region?.display_name || draft.event.region_candidates?.[0]?.display_name || "미정"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(draft.event.indoor_outdoor)} · {amount(draft.event.venue?.capacity, "명")}</dd></div></dl></article>
-            <article className={`compare-card ${comparison ? "alternative" : "placeholder"}`}><span>변경안</span><strong>{comparisonScore === undefined ? "?" : regionalPeople ? Math.round(comparisonScore).toLocaleString("ko-KR") : comparisonScore}{comparison?.prediction.status === "available" && comparison.prediction.primary_metric.unit === "percent_change" ? "%" : ""}</strong><small>{comparison ? comparable && comparisonScore !== undefined && score !== undefined ? `현재안 대비 ${comparisonScore - score >= 0 ? "+" : ""}${regionalPeople ? Math.round(comparisonScore - score).toLocaleString("ko-KR") : (comparisonScore - score).toFixed(1)}${regionalPeople ? " 방문자-일" : regional ? "%p" : "점"}` : "같은 종류·단위·모델의 예측이 있어야 비교할 수 있습니다." : "조건을 바꾸고 분석하세요"}</small>{comparison?.prediction.status === "unavailable" && <p>{comparison.prediction.message}</p>}<dl><div><dt>목표</dt><dd>{amount(scenario.attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(scenario.budget, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{scenario.date || "원본"} · {regionFromCode(scenario.regionCode)?.display_name || "원본"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(scenario.environment)} · {amount(scenario.venueCapacity, "명")}</dd></div></dl></article>
+            <article className="compare-card baseline"><span>현재안</span><strong>{scoreDisplay ?? "–"}{regional && !regionalPeople ? "%" : ""}</strong><small>{predictionLabel(prediction)}</small><dl><div><dt>목표</dt><dd>{amount(draft.event.target_attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(draft.event.budget_max_krw, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{draft.event.start_date ? `${draft.event.start_date}~${draft.event.end_date}` : draft.event.date_candidates?.[0] ? `${draft.event.date_candidates[0].start_date}~${draft.event.date_candidates[0].end_date}(후보)` : "미정"} · {draft.event.region?.display_name || draft.event.region_candidates?.[0]?.display_name || "미정"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(draft.event.indoor_outdoor)} · {amount(draft.event.venue?.capacity, "명")}</dd></div></dl></article>
+            <article className={`compare-card ${comparison ? "alternative" : "placeholder"}`}><span>변경안</span><strong>{comparisonScore === undefined ? "?" : regionalPeople ? Math.round(comparisonScore).toLocaleString("ko-KR") : comparisonScore}{comparison?.prediction.status === "available" && comparison.prediction.primary_metric.unit === "percent_change" ? "%" : ""}</strong><small>{comparison ? comparable && comparisonScore !== undefined && score !== undefined ? `현재안 대비 ${comparisonScore - score >= 0 ? "+" : ""}${regionalPeople ? Math.round(comparisonScore - score).toLocaleString("ko-KR") : (comparisonScore - score).toFixed(1)}${regionalPeople ? " 방문자-일" : regional ? "%p" : "점"}` : "같은 종류·단위·모델의 예측이 있어야 비교할 수 있습니다." : "조건을 바꾸고 분석하세요"}</small>{comparison?.prediction.status === "unavailable" && <p>{comparison.prediction.message}</p>}<dl><div><dt>목표</dt><dd>{amount(scenario.attendance, "명")}</dd></div><div><dt>예산</dt><dd>{amount(scenario.budget, "원")}</dd></div><div><dt>날짜·지역</dt><dd>{scenario.date ? `${scenario.date}~${scenarioEndDate(scenario.date)}` : "원본"} · {predictionRegions.find(region => region.legal_dong_code === scenarioRegion)?.display_name || regionFromCode(scenario.regionCode)?.display_name || "원본"}</dd></div><div><dt>공간·수용</dt><dd>{optionLabel(scenario.environment)} · {amount(scenario.venueCapacity, "명")}</dd></div></dl></article>
           </section>
           {comparison && <section className="result-panel full-span"><div className="panel-title"><h2>변경안 확인 항목</h2></div><div className="recommendation-list compact">{comparison.rule_recommendations.map((item) => <article key={item.recommendation_id}><span className={`priority ${item.priority}`}>{item.priority}</span><div><h3>{item.title}</h3><p>{item.action}</p></div></article>)}</div></section>}
         </div>
