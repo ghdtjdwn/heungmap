@@ -37,6 +37,10 @@
 
 ## 권장 모델 구조
 
+> 2026-09-18: 아래 그림은 초기 계획입니다. 실제 채택 구조는 **계절·성장 기준선 + LightGBM 잔차 보정(최대 40%)**이며
+> 행사 uplift 모델은 만들지 않았습니다(TourAPI 축제 입력 실험은 개선이 없어 미채택). 설명은 LightGBM 내장
+> TreeSHAP(`pred_contrib`) 기여도입니다. 현재 모델은 [MODEL_CARD.md](MODEL_CARD.md)를 봅니다.
+
 ```text
 TourAPI 행사 정보 ─┐
 관광 데이터랩 ─────┼─▶ 지역 평상시 수요 baseline ─┐
