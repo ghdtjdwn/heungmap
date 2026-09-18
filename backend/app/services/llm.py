@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
@@ -74,10 +75,12 @@ def _collect_evidence_ids(value: Any) -> set[str]:
 
 def _numeric_literals(value: Any) -> set[str]:
     serialized = json.dumps(value, ensure_ascii=False, sort_keys=True)
-    return {
+    tokens = {
         token.replace(",", "")
         for token in re.findall(r"(?<![A-Za-z0-9_])\d+(?:[.,]\d+)*(?![A-Za-z0-9_])", serialized)
     }
+    # 입력 날짜 "2026-10-05"의 "05"를 응답이 "10월 5일"로 쓰는 것은 같은 숫자다.
+    return tokens | {token.lstrip("0") or "0" for token in tokens if token.isdigit()}
 
 
 def _numeric_claim_literals(value: Any) -> set[str]:
@@ -211,6 +214,25 @@ def _fixed_constraint_violations(planning_context: dict[str, Any], content: Plan
     return violations
 
 
+CLAUDE_RETRY_BUDGET_SECONDS = 90.0
+
+
+def _claude_content(output_text: str) -> PlannerRecommendationContent:
+    """Claude JSON을 계약으로 검증한다. 근거 ID가 빈 우선순위는 근거 없는 주장이므로 버린다."""
+    try:
+        payload = json.loads(output_text)
+        if isinstance(payload, dict) and isinstance(payload.get("priorities"), list):
+            grounded = [item for item in payload["priorities"] if isinstance(item, dict) and item.get("evidence_refs")]
+            if grounded:
+                payload["priorities"] = grounded
+        return PlannerRecommendationContent.model_validate(payload)
+    except ValidationError as exc:
+        raise LlmInvalidResponse("LLM 응답이 기획 추천 계약을 통과하지 못했습니다.", diagnostics={
+            "contract_errors": [f"{'.'.join(map(str, error['loc']))}: {error['type']}" for error in exc.errors()[:10]]}) from exc
+    except (json.JSONDecodeError, TypeError) as exc:
+        raise LlmInvalidResponse("LLM 응답이 기획 추천 계약을 통과하지 못했습니다.") from exc
+
+
 def _has_misleading_attendance_claim(content: PlannerRecommendationContent) -> bool:
     narrative = re.sub(r"\s+", "", json.dumps(_recommendation_narrative(content), ensure_ascii=False))
     for safe_phrase in (
@@ -297,19 +319,27 @@ class PlannerLlmClient:
                 "priorities·roadmap·limitations는 한 개 이상이고 roadmap의 actions도 한 개 이상이다. "
                 "roadmap phase는 '지금', '준비 중', '행사 전' 중 하나만 쓴다. "
                 f"모든 priority의 evidence_refs에는 다음 ID 중 한 개 이상을 넣고 그 밖의 ID는 쓰지 않는다: {json.dumps(known_ids, ensure_ascii=False)}. "
-                "입력에 없는 아라비아 숫자는 개수·순서·기간을 포함해 어디에도 쓰지 말고 '하나', '첫째', '먼저'처럼 한글로 쓴다."
+                "입력에 없는 아라비아 숫자는 개수·순서·기간을 포함해 어디에도 쓰지 말고 '하나', '첫째', '먼저'처럼 한글로 쓴다. "
+                "'관람객'이라는 말로 인원을 예측·추정하지 않는다('예상 관람객', '실제 관람객' 금지). 입력의 목표 인원은 '목표 인원', "
+                "지역 방문수요는 '지역 방문자-일'로 부른다. executive_summary는 천오백 자 이내, 목록의 각 문장은 삼백 자 이내로 간결하게 쓴다."
             )
-            output_text = await generate_planner_json(
-                instructions=instructions,
-                user_content=f"{rules}\n아래 입력만 사용해 JSON Schema에 맞는 결과를 작성하세요.\n{serialized_input}",
-                model=self.model, effort=self.effort, timeout_seconds=self.timeout_seconds,
-                api_key=self.api_key, client=self.anthropic_client,
-            )
-            try:
-                content = PlannerRecommendationContent.model_validate_json(output_text)
-            except (json.JSONDecodeError, TypeError, ValidationError) as exc:
-                raise LlmInvalidResponse("LLM 응답이 기획 추천 계약을 통과하지 못했습니다.") from exc
-            return self._validated_response(request, input_payload, content)
+            user_content = f"{rules}\n아래 입력만 사용해 JSON Schema에 맞는 결과를 작성하세요.\n{serialized_input}"
+            started = time.monotonic()
+            for attempt in range(2):
+                output_text = await generate_planner_json(
+                    instructions=instructions, user_content=user_content, model=self.model, effort=self.effort,
+                    timeout_seconds=self.timeout_seconds, api_key=self.api_key, client=self.anthropic_client,
+                    known_evidence_ids=known_ids,
+                )
+                try:
+                    return self._validated_response(request, input_payload, _claude_content(output_text))
+                except LlmInvalidResponse as exc:
+                    # 검증에 걸리면 거절 사유를 알려 한 번만 다시 쓰게 한다. 화면 제한 시간 안에 끝날 때만 재시도한다.
+                    if attempt or time.monotonic() - started > CLAUDE_RETRY_BUDGET_SECONDS:
+                        raise
+                    user_content = (f"{user_content}\n\n직전 응답은 다음 검증에서 거절됐습니다: {exc} {json.dumps(exc.diagnostics, ensure_ascii=False)}. "
+                                    "같은 입력으로 이 문제를 고친 전체 결과를 다시 작성하세요.")
+            raise AssertionError("unreachable")
         if self.provider == "ollama":
             endpoint = f"{self.base_url}/api/chat"
             generation_schema = _ollama_schema(PlannerRecommendationContent.model_json_schema())

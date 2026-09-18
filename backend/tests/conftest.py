@@ -20,6 +20,7 @@ def isolated_accounts(tmp_path, monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
+    monkeypatch.delenv("LLM_EFFORT", raising=False)
     monkeypatch.setattr(main_module, "llm", PlannerLlmClient())
 
 

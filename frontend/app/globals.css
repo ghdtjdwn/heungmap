@@ -400,13 +400,13 @@ button.visitor-card-select:hover { background: #f8fbfb; }
   .model-notice { flex-direction: column; }
   .footer-right > span { display: none; }
   .result-toolbar { align-items: flex-start; flex-direction: column; }
-  .result-toolbar > div { width: 100%; justify-content: stretch; }
-  .result-toolbar .button { flex: 1; }
+  .result-toolbar > div { width: 100%; justify-content: stretch; flex-wrap: wrap; }
+  .result-toolbar .button { flex: 1 1 30%; white-space: nowrap; }
   .result-hero { align-items: stretch; flex-direction: column; }
   .score-card { width: 100%; }
   .mock-alert { flex-direction: column; }
-  .result-tabs { overflow-x: auto; justify-content: flex-start; }
-  .result-tabs button { min-width: 112px; }
+  .result-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; }
+  .result-tabs button { min-width: 0; padding: 0 2px; font-size: 13px; word-break: keep-all; }
   .result-grid, .report-layout, .compare-layout, .evidence-layout { grid-template-columns: 1fr; }
   .report-index { display: none; }
   .report-document > header { padding: 28px 22px; }

@@ -37,9 +37,12 @@
 
 - 화면 점검 수정(D35): 예시가 실제 예측을 내도록 수정, 방문객 목록 순서·연도 표시, 달력 3개+더보기, 수요 카드 접기, 랜딩 문구.
 
+- Claude 보고서 안정화(D36): 실제 예시 4/4, 평가 5/5. `.env`의 `LLM_EFFORT=medium`.
+
 ## 시연·제출 전 할 일
 
-0. LLM은 Claude(D32). 지금 `.env`는 `claude-sonnet-5`. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
+0. LLM은 Claude(D32·D36). 지금 `.env`는 `claude-sonnet-5`, effort medium. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
+   실제 예시 두 개를 브라우저에서 분석해 195초 안에 "LLM 기획 요약"이 나오는지 먼저 확인합니다(느리면 `LLM_EFFORT=low`). 이어서
    `evaluate_llm.py`로 5개 시나리오·응답 시간을 다시 확인합니다. 채팅에 노출된 API 키는 제출 전 Console에서 새로 발급해 교체합니다.
 
 1. 시연 당일 `PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py`가 ready인지 확인.
