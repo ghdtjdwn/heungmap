@@ -37,18 +37,25 @@ def claude_schema(value: Any, *, property_map: bool = False) -> Any:
     return result
 
 
-def planner_schema() -> dict[str, Any]:
-    return claude_schema(PlannerRecommendationContent.model_json_schema())
+def planner_schema(known_evidence_ids: list[str] | None = None) -> dict[str, Any]:
+    """known_evidence_ids를 주면 evidence_refs를 그 ID 중에서만 고르게 한다(enum은 structured outputs가 지원)."""
+    schema = claude_schema(PlannerRecommendationContent.model_json_schema())
+    if known_evidence_ids:
+        refs = schema["$defs"]["PlannerRecommendationPriority"]["properties"]["evidence_refs"]
+        refs["items"] = {"type": "string", "enum": list(known_evidence_ids)}
+    return schema
 
 
 async def generate_planner_json(*, instructions: str, user_content: str, model: str, effort: str,
-                                timeout_seconds: float, api_key: str | None = None, client: Any = None) -> str:
+                                timeout_seconds: float, api_key: str | None = None, client: Any = None,
+                                known_evidence_ids: list[str] | None = None) -> str:
     """Claude 응답의 JSON 문자열을 돌려준다. 검증은 호출하는 쪽(PlannerLlmClient)이 공통으로 한다."""
-    client = client or anthropic.AsyncAnthropic(api_key=api_key or None, timeout=timeout_seconds, max_retries=2)
+    # 프론트는 195초에 요청을 끊으므로 재시도는 한 번만 한다(연결 오류·429·5xx만 재시도).
+    client = client or anthropic.AsyncAnthropic(api_key=api_key or None, timeout=timeout_seconds, max_retries=1)
     arguments: dict[str, Any] = {
         "model": model, "max_tokens": MAX_TOKENS, "system": instructions,
         "messages": [{"role": "user", "content": user_content}],
-        "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": planner_schema()}},
+        "output_config": {"effort": effort, "format": {"type": "json_schema", "schema": planner_schema(known_evidence_ids)}},
     }
     if model in FALLBACK_MODELS:
         arguments.update(betas=[FALLBACK_BETA], fallbacks="default")

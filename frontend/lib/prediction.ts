@@ -30,6 +30,14 @@ export function predictionNotice(prediction: Prediction): string {
     : "행사기간 시군구 전체의 방문자-일 예측이며 특정 행사 관람객 수, 고유 방문자, 행사로 인한 추가 효과나 혼잡도는 아닙니다.";
 }
 
+type Component = NonNullable<Extract<Prediction, { status: "available" }>["components"]>[number];
+
+export function componentText(component: Component): string {
+  const unit = component.unit === "people" ? " 방문자-일" : component.unit === "percent_change" || component.unit === "percentage" ? "%" : "";
+  const value = component.unit === "people" ? Math.round(component.value).toLocaleString("ko-KR") : String(component.value);
+  return `${component.scope_description}: ${value}${unit}`;
+}
+
 const DEMAND_LEVEL_LABELS: Record<string, string> = { low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음" };
 
 export function demandLevelText(prediction: Prediction): string | undefined {

@@ -455,3 +455,48 @@ def test_claude_is_not_configured_without_any_credential(monkeypatch) -> None:
     assert PlannerLlmClient().configured is False
     monkeypatch.setenv("LLM_API_KEY", "sk-ant-test")
     assert PlannerLlmClient().configured is True and PlannerLlmClient().model == "claude-fable-5-1"
+
+
+class SequenceClaude(FakeClaude):
+    """호출마다 다른 응답을 돌려주는 대역."""
+
+    def __init__(self, texts):
+        self.calls = []
+        responses = iter(texts)
+
+        async def create(**kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=next(responses))])
+
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
+
+
+def test_claude_drops_ungrounded_priorities_and_limits_evidence_ids(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+
+    content = generated_content()
+    content["priorities"].append({**content["priorities"][0], "id": "p_empty", "evidence_refs": []})
+    fake = FakeClaude(json.dumps(content, ensure_ascii=False))
+    result = asyncio.run(claude_llm(monkeypatch, fake).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert all(item.evidence_refs for item in result.recommendation.priorities) and len(fake.calls) == 1
+    refs = fake.calls[0]["output_config"]["format"]["schema"]["$defs"]["PlannerRecommendationPriority"]["properties"]["evidence_refs"]
+    assert refs["items"]["enum"] and "ev_fabricated" not in refs["items"]["enum"]
+
+
+def test_claude_retries_once_with_the_rejection_reason(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+    from app.services.llm import LlmInvalidResponse
+
+    bad = json.dumps(generated_content("ev_fabricated"), ensure_ascii=False)
+    good = json.dumps(generated_content(), ensure_ascii=False)
+    fake = SequenceClaude([bad, good])
+    result = asyncio.run(claude_llm(monkeypatch, fake).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert result.recommendation.generation_mode == "llm" and len(fake.calls) == 2
+    assert "직전 응답은 다음 검증에서 거절됐습니다" in fake.calls[1]["messages"][0]["content"]
+    twice_bad = SequenceClaude([bad, bad, good])
+    try:
+        asyncio.run(claude_llm(monkeypatch, twice_bad).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    except LlmInvalidResponse:
+        assert len(twice_bad.calls) == 2
+    else:
+        raise AssertionError("two invalid responses must fall back")

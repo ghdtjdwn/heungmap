@@ -10,7 +10,7 @@ import { KakaoMapPreview } from "@/components/kakao-map-preview";
 import { ApiError, getEvent, getEventNearby, getEventPrediction } from "@/lib/api";
 import type { EventDetail, NearbyPlaceListResponse, Prediction } from "@/lib/types";
 import { HeungDiagnosis } from "@/components/heung-diagnosis";
-import { demandLevelText, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
+import { componentText, demandLevelText, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
 
 const PLACE_LABELS: Record<string, { icon: string; label: string }> = {
   parking: { icon: "P", label: "주차" },
@@ -174,7 +174,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
             {demandLevelText(predictionData) && <p>{demandLevelText(predictionData)}</p>}
             {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
             {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
-            {predictionData.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}
+            {predictionData.components?.map(component => <p key={component.component_type}>{componentText(component)}</p>)}
             <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "MODEL MOCK" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
             <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
             <p>모델 버전 {predictionData.model_version}</p>
