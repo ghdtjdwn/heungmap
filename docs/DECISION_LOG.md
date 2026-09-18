@@ -335,3 +335,14 @@
 - 문체부 보고 전년 방문객은 모델 입력이 아니라 `verified_fact` 근거로만 표시합니다. 같은 광역·시군구(또는 광역
   주관)·정확 축제명 한 건만, 최근 3년 실적만 쓰며 퍼지 매칭은 하지 않습니다(2026 TourAPI 축제 32.8% 연결).
 - 상세 수치는 [MODEL_CARD.md](MODEL_CARD.md)와 [MODEL_EVALUATION.md](MODEL_EVALUATION.md)에 있습니다.
+
+## D32. 기획 보고서 LLM을 Claude로 전환 (2026-09-18)
+
+- `LLM_PROVIDER=anthropic`을 추가했습니다. Claude 호출은 `backend/app/services/llm_anthropic.py`(공식 `anthropic` SDK)로 분리하고,
+  근거 ID·입력에 없는 숫자·고정 제약·관람객 오해 표현 검사는 기존 공급자와 같은 `_validated_response`를 거칩니다.
+- 개발 중에는 가성비 모델 `claude-sonnet-5`, 제출·발표 직전에는 최고 성능 `claude-fable-5-1`로 `LLM_MODEL`만 바꿉니다.
+  Fable 5.1·Opus 5에서는 안전 거절 시 서버가 권장 모델로 다시 실행하는 `fallbacks: "default"`를 켭니다.
+- 구조화 출력(JSON Schema)이 최소·최대 개수 제약을 받지 않아, 필수 개수·사용 가능한 evidence ID·숫자 금지 규칙을 요청문에
+  명시합니다. 응답은 Pydantic으로 원래 계약 전체를 다시 검증하고 실패하면 규칙 보고서로 전환합니다.
+- `claude-sonnet-5`로 기존 5개 평가 시나리오를 두 번 실행해 10/10 통과, 응답 19~30초(로컬 Ollama는 4/5, 31~65초).
+- 테스트는 conftest가 LLM을 끊어 `.env`의 실제 키로 외부 호출하지 않습니다. API 키는 `.env`에만 둡니다.

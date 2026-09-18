@@ -2,7 +2,9 @@
 
 ## 준비
 
-1. Ollama와 `qwen3.5:9b`, FastAPI, Next.js를 실행합니다.
+1. `.env`의 `LLM_PROVIDER=anthropic`, `LLM_MODEL`(발표용 `claude-fable-5-1`), `LLM_API_KEY`를 확인하고 FastAPI, Next.js를
+   실행합니다. 모델을 바꾼 뒤에는 `PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py --output
+   data/processed/llm-eval-<모델>.json`으로 5개 시나리오를 다시 확인합니다.
 2. `PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py`가 `"status": "ready"`인지,
    `last_predictable_target_date`가 시연 행사일 이후인지 확인합니다. 실행 중에는
    `curl http://127.0.0.1:8000/api/v1/system/model-status`로도 볼 수 있습니다. 샘플 행사 일정은 **오늘부터 30일 이내
@@ -10,8 +12,8 @@
 3. <http://localhost:3000>에서 모의 로그인 후 기획자 역할을 선택합니다. 브라우저 저장소에 민감정보가 없는지 확인합니다.
 4. `대형 행사 샘플`과 `소규모 독립 행사 샘플`을 각각 한 번 분석해 응답 지연과 fallback 상태를 확인합니다.
 
-2026-09-06 실제 로컬 평가의 5개 scenario 응답 시간은 31.054–51.978초였으므로 시연에서는 약 1분의
-대기 여유를 둡니다. 장비 상태에 따라 달라질 수 있으며 서버 성능 수치로 일반화하지 않습니다.
+2026-09-18 `claude-sonnet-5` 평가의 5개 scenario 응답 시간은 19–30초(두 번 실행, 10/10 통과)였습니다.
+발표용 `claude-fable-5-1`은 더 오래 걸릴 수 있으므로 시연 전에 같은 평가로 다시 측정하고 약 1분의 대기 여유를 둡니다. 장비 상태에 따라 달라질 수 있으며 서버 성능 수치로 일반화하지 않습니다.
 
 ## 3분 순서
 
