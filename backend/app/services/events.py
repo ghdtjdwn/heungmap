@@ -25,6 +25,9 @@ from app.services.tourapi import TourApiClient, TourApiUnavailable
 from app.publications import published_event, published_events
 
 
+LONG_RUNNING_DAYS = 31
+
+
 def _response_meta() -> ResponseMeta:
     return ResponseMeta(
         contract_version="0.1.0",
@@ -97,7 +100,9 @@ async def build_event_list(
              and (not sigungu_code or event.region.sigungu_code == sigungu_code)
              and (not event_types or event.event_type in event_types)
              and (not query or query.casefold() in (event.title + " " + event.region.display_name).casefold())]
-    items.sort(key=lambda event: (event.start_date, event.event_id))
+    # 기간이 한 달 이하인 행사(진행 중 → 곧 시작 순)를 먼저, 연중·상시 행사는 뒤에 보여 준다.
+    items.sort(key=lambda event: ((event.end_date - event.start_date).days >= LONG_RUNNING_DAYS,
+                                  max(event.start_date, range_start), event.start_date, event.event_id))
     total_count = len(items)
     page_start = (page - 1) * page_size
     page_items = items[page_start:page_start + page_size]

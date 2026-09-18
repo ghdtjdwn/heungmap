@@ -11,6 +11,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from app.demand.service import ADMIN_TO_AREA
+from app.regions import split_region_message, tour_area_for_legal_code
 from app.schemas import (
     AvailablePrediction, Evidence, PredictionComponent, PredictionFactor, PredictionIndicators,
     PredictionRangeMetric, PredictionResult, RegionRef, SourceRef, UnavailablePrediction,
@@ -136,13 +137,26 @@ def model_status(now: datetime | None = None) -> dict:
     }
 
 
-def prediction_regions() -> list[RegionRef]:
+def area_code_for(code: str) -> str | None:
+    """법정동 시군구 코드 → 공통 계약 지역 코드. 전남광주통합특별시는 옛 광주·전남 코드로 나눈다."""
+    return tour_area_for_legal_code(code) or ADMIN_TO_AREA.get(code[:2])
+
+
+def prediction_regions(now: datetime | None = None) -> list[RegionRef]:
+    """지금 예측할 수 있는 시군구만 돌려준다. 이력이 오래전에 끊긴 지역(행정구역 개편 등)은 목록에서 뺀다."""
+    today = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Asia/Seoul")).date()
     try:
         manifest, _, histories = _artifact()
-        return sorted([
-            RegionRef(area_code=ADMIN_TO_AREA[code[:2]], legal_dong_code=code, display_name=item["name"])
-            for item in manifest["regions"] if (code := str(item["code"])) in histories and code[:2] in ADMIN_TO_AREA
-        ], key=lambda item: (item.area_code, item.display_name))
+        regions = []
+        for item in manifest["regions"]:
+            code = str(item["code"])
+            area = area_code_for(code)
+            if code not in histories or not area:
+                continue
+            if (today - histories[code].date.max().date()).days > STALE_AFTER_DAYS:
+                continue
+            regions.append(RegionRef(area_code=area, legal_dong_code=code, display_name=item["name"]))
+        return sorted(regions, key=lambda item: (item.area_code, item.display_name))
     except (OSError, ValueError, KeyError, TypeError, ImportError):
         return []
 
@@ -223,7 +237,10 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
     if event_type not in {"festival", "local_event"}:
         return _unavailable(event_id, now, "unsupported_event_type", "축제·지역 행사만 지원합니다.")
     code = region.legal_dong_code if region else None
-    if not code or not re.fullmatch(r"\d{5}", code) or code.endswith("000") or ADMIN_TO_AREA.get(code[:2]) != region.area_code:
+    if message := split_region_message(code):
+        return _unavailable(event_id, now, "insufficient_data", message)
+    if (not code or not re.fullmatch(r"\d{5}", code) or code.endswith("000")
+            or region.area_code not in {area_code_for(code), code[:2]}):
         return _unavailable(event_id, now, "missing_required_input", "지원 시군구를 정확히 선택해 주세요.")
     today = now.date()
     if end_date < start_date:

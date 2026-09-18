@@ -104,6 +104,13 @@ export function emptyDraft(): DraftRecord {
 
 const sampleBase = (): DraftRecord => ({ ...emptyDraft(), current_step: 0 });
 
+// 예시 일정은 오늘 기준으로 계산해 언제 열어도 수요 예측 가능 기간(시작 30일 이내)에 들어오게 한다.
+function daysFromToday(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export function sampleDraft(kind: "independent" | "large"): DraftRecord {
   const record = sampleBase();
   if (kind === "large") {
@@ -117,11 +124,11 @@ export function sampleDraft(kind: "independent" | "large"): DraftRecord {
       theme_keywords: ["지역문화", "바다", "가족"],
       schedule_selection_mode: "candidates",
       date_candidates: [
-        { start_date: "2026-10-09", end_date: "2026-10-11" },
-        { start_date: "2026-10-16", end_date: "2026-10-18" },
+        { start_date: daysFromToday(17), end_date: daysFromToday(19) },
+        { start_date: daysFromToday(24), end_date: daysFromToday(26) },
       ],
       region_selection_mode: "fixed",
-      region: { area_code: "6", display_name: "부산" },
+      region: { area_code: "6", legal_dong_code: "26350", display_name: "해운대구" },
       indoor_outdoor: "outdoor",
       target_audience: ["family", "local_resident", "domestic_tourist"],
       target_attendance: 20000,
@@ -136,7 +143,7 @@ export function sampleDraft(kind: "independent" | "large"): DraftRecord {
       team_size: 18,
       decision_makers: 4,
       experience_level: "six_plus",
-      decision_deadline: "2026-09-25",
+      decision_deadline: daysFromToday(7),
       recommendation_goals: ["타당성 검증", "장소 비교", "안전 점검"],
       detail_level: "detailed",
       main_concern: "무료 대형 야외행사의 혼잡과 우천 대응",
@@ -171,7 +178,7 @@ export function sampleDraft(kind: "independent" | "large"): DraftRecord {
       secured_budget_krw: 200000000,
       expected_revenue_krw: 50000000,
       marketing_channels: ["인스타그램", "블로그", "보도자료"],
-      marketing_start_date: "2026-08-10",
+      marketing_start_date: daysFromToday(-14),
       marketing_budget_krw: 30000000,
       marketing_kpi: "지역 외 사전등록과 제휴 쿠폰 사용",
       operation_plan: "다중 출입구와 임시 주차·셔틀을 검토 중",
@@ -203,10 +210,10 @@ export function sampleDraft(kind: "independent" | "large"): DraftRecord {
     purpose: "community",
     theme_keywords: ["청년", "인디음악"],
     schedule_selection_mode: "fixed",
-    start_date: "2026-10-10",
-    end_date: "2026-10-10",
+    start_date: daysFromToday(21),
+    end_date: daysFromToday(21),
     region_selection_mode: "fixed",
-    region: { area_code: "1", display_name: "서울" },
+    region: { area_code: "1", legal_dong_code: "11440", display_name: "마포구" },
     indoor_outdoor: "outdoor",
     target_audience: ["young_adult", "local_resident"],
     target_attendance: 500,

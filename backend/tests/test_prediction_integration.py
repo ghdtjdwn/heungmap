@@ -123,3 +123,28 @@ def test_unknown_planner_schedule_returns_unavailable_without_model(monkeypatch)
         assert response.status_code == 200
         assert response.json()["prediction"]["reason_code"] == "missing_required_input"
         assert response.json()["prediction"]["is_mock"] is False
+
+
+def test_planner_candidate_schedule_predicts_first_candidate_and_says_so(monkeypatch):
+    import asyncio
+    from app.demand import daily_service
+    from app.schemas import PlannerAnalysisRequest
+    from app.services import planner
+
+    captured = {}
+
+    def fake_predict(**kwargs):
+        captured.update(kwargs)
+        return regional_prediction(kwargs["event_id"])
+
+    monkeypatch.setenv("HEUNGMAP_DEMAND_MODE", "auto")
+    monkeypatch.setattr(daily_service, "predict_demand", fake_predict)
+    payload = valid_request()
+    first = (date.today() + timedelta(days=10), date.today() + timedelta(days=12))
+    payload["event_draft"].update(schedule_selection_mode="candidates", start_date=None, end_date=None, date_candidates=[
+        {"start_date": first[0].isoformat(), "end_date": first[1].isoformat()},
+        {"start_date": (date.today() + timedelta(days=20)).isoformat(), "end_date": (date.today() + timedelta(days=21)).isoformat()}],
+        region={"area_code": "1", "legal_dong_code": "11440", "display_name": "마포구"})
+    result = asyncio.run(planner.build_analysis(PlannerAnalysisRequest.model_validate(payload), TourApiClient(service_key="")))
+    assert (captured["start_date"], captured["end_date"]) == first
+    assert any("첫 번째 후보" in item for item in result.prediction.limitations)

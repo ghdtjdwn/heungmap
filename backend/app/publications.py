@@ -23,6 +23,34 @@ def remember_analysis(user_id: str, analysis: PlannerAnalysisResponse):
                    (analysis.analysis_id, user_id, analysis.model_dump_json()))
 
 
+# 공개 일정·지역·행사명만으로 계산되는 근거. 기획자 입력(예산·목표 인원·수용인원 등) 기반 근거는 포함하지 않는다.
+PUBLIC_EVIDENCE_IDS = {"ev_daily_baseline", "ev_daily_region_holdout", "ev_daily_demand_level",
+                       "ev_mcst_prior_attendance", "ev_tourapi_same_period"}
+
+
+def public_prediction(analysis: PlannerAnalysisResponse, source: SourceRef):
+    """공개용 예측. 같은 ID·수치는 유지하고 비공개 기획 입력 근거는 뺀다."""
+    prediction = analysis.prediction.model_copy(deep=True)
+    if isinstance(prediction, AvailablePrediction):
+        # 같은 예측 ID·수치는 유지하고 비공개 기획 입력(예산·목표 인원·메모 등)은 내보내지 않는다.
+        # 공개 일정·지역·행사명만으로 정해지는 공공 근거와 모델 요인은 방문객 흥행 진단을 위해 남긴다.
+        public_evidence = [item for item in [*prediction.evidence, *analysis.evidence]
+                           if item.evidence_id in PUBLIC_EVIDENCE_IDS]
+        prediction.evidence = list({item.evidence_id: item for item in public_evidence}.values())
+        prediction.factors = [factor for factor in prediction.factors if factor.factor_id.startswith("daily_")]
+        kept_refs = {ref for item in prediction.evidence for ref in item.source_refs}
+        prediction.sources = [source, *[s for s in prediction.sources
+                                         if s.source_type in {"heungmap_model", "kto_datalab", "tourapi"}
+                                         or s.source_id in kept_refs]]
+        kept_ids = {item.evidence_id for item in prediction.evidence}
+        for component in prediction.components or []:
+            component.evidence_refs = [ref for ref in component.evidence_refs if ref in kept_ids]
+        if prediction.indicators is not None:
+            prediction.indicators.ticket_demand_level = "unknown"
+        prediction.limitations = [*prediction.limitations, "비공개 기획 입력의 세부 영향 요인은 공개하지 않습니다."]
+    return prediction
+
+
 class PublishRequest(BaseModel):
     analysis_id: str = Field(min_length=1, max_length=128)
     description: str = Field(min_length=1, max_length=3000)
@@ -72,17 +100,7 @@ def publish(body: PublishRequest, request: Request):
             warnings=["기획자가 직접 등록한 정보입니다. 방문 전 개최 여부를 확인해 주세요."], is_mock=False),
         updated_at=now,
     )
-    prediction = analysis.prediction.model_copy(deep=True)
-    if isinstance(prediction, AvailablePrediction):
-        # Preserve the same prediction ID and metric without disclosing private inputs.
-        prediction.factors = []
-        prediction.evidence = []
-        prediction.sources = [source, *[s for s in prediction.sources if s.source_type in {"heungmap_model", "kto_datalab", "tourapi"}]]
-        for component in prediction.components or []:
-            component.evidence_refs = []
-        if prediction.indicators is not None:
-            prediction.indicators.ticket_demand_level = "unknown"
-        prediction.limitations = [*prediction.limitations, "비공개 기획 입력의 세부 영향 요인은 공개하지 않습니다."]
+    prediction = public_prediction(analysis, source)
     with database() as db:
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute("SELECT owner_id FROM publications WHERE event_id=?", (event.event_id,)).fetchone()

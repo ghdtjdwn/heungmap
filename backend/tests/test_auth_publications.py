@@ -151,3 +151,28 @@ def test_publish_shared_prediction_ownership_private_fields_and_withdraw():
         assert other.delete("/api/v1/planner/publications/" + event_id, headers=HEADERS).status_code == 404
         assert owner.delete("/api/v1/planner/publications/" + event_id, headers=HEADERS).status_code == 200
         assert owner.get("/api/v1/events/" + event_id).status_code == 404
+
+
+def test_public_prediction_keeps_public_evidence_and_model_factors_but_not_planner_inputs():
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from app.publications import public_prediction
+    from app.schemas import Evidence, PredictionFactor, SourceRef
+    from test_prediction_integration import regional_prediction
+
+    prediction = regional_prediction()
+    prediction.evidence = [Evidence(evidence_id="ev_daily_demand_level", value_type="derived_value", label="수준", display_value="높음", source_refs=["src_datalab"]),
+                           Evidence(evidence_id="ev_mcst_prior_attendance", value_type="verified_fact", label="문체부", display_value="1,000명", source_refs=["src_mcst_festivals"])]
+    prediction.sources.append(SourceRef(source_id="src_mcst_festivals", source_type="other_public", provider_name="문화체육관광부", dataset_name="지역축제", retrieved_at=datetime.now().astimezone()))
+    prediction.factors = [PredictionFactor(factor_id="daily_log_baseline", label="전년도 같은 시기 수요", direction="up", explanation="모델", evidence_refs=[]),
+                          PredictionFactor(factor_id="budget_factor", label="예산", direction="up", explanation="기획 입력", evidence_refs=[])]
+    analysis = SimpleNamespace(prediction=prediction, evidence=[
+        Evidence(evidence_id="ev_planner_budget", value_type="user_input", label="최대 예산", display_value="10,000,000원", source_refs=[]),
+        Evidence(evidence_id="ev_tourapi_same_period", value_type="verified_fact", label="같은 지역·기간", display_value="3건", source_refs=["src_tourapi"])])
+    source = SourceRef(source_id="src_evt_planner_x", source_type="planner_input", provider_name="기획자", dataset_name="공개", retrieved_at=datetime.now().astimezone())
+    public = public_prediction(analysis, source)
+    assert {item.evidence_id for item in public.evidence} == {"ev_daily_demand_level", "ev_mcst_prior_attendance", "ev_tourapi_same_period"}
+    assert [factor.factor_id for factor in public.factors] == ["daily_log_baseline"]
+    assert "10,000,000" not in public.model_dump_json() and "src_mcst_festivals" in {s.source_id for s in public.sources}
+    assert public.prediction_id == prediction.prediction_id and public.primary_metric == prediction.primary_metric

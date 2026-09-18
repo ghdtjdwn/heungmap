@@ -44,7 +44,9 @@ def build_lookup(archives: Iterable[Path]) -> tuple[pd.DataFrame, dict]:
 
 
 def _province(region: RegionRef) -> str | None:
-    code = region.legal_dong_code or ""
+    from app.regions import predecessor_code
+
+    code = predecessor_code(region.legal_dong_code or "")  # 전남광주통합특별시는 옛 광주·전남으로 본다
     if len(code) >= 2 and code[:2] in ADMIN_TO_PROVINCE:
         return ADMIN_TO_PROVINCE[code[:2]]
     first = (region.display_name or "").split()[:1]

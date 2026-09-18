@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
-from app.data_gate.cli import collect
 from app.demand.daily_training import next_production_directory, train_daily_model
-from app.demand.training_inputs import RAW_DIRECTORY, default_visitor_paths, latest_raw_date
+from app.demand.refresh import collect_new_visitors
+from app.demand.training_inputs import RAW_DIRECTORY, default_visitor_paths
 
 
 def main() -> int:
@@ -19,17 +18,9 @@ def main() -> int:
     parser.add_argument("--no-collect", action="store_true", help="수집 없이 이미 받은 원본으로만 재학습")
     args = parser.parse_args()
     if not args.no_collect:
-        # 이미 받은 마지막 날 다음부터만 받는다. 겹쳐 받으면 수정된 값이 기존 값과 충돌해 학습이 중단된다.
-        start = latest_raw_date(default_visitor_paths(args.raw_dir)) + timedelta(days=1)
-        today = date.today()
-        output = args.raw_dir / f"visitors-{start:%Y%m}-{today:%Y%m}-refresh-{today:%Y%m%d}.jsonl"
-        if start > today:
-            print(json.dumps({"status": "no_new_data", "requested_from": start.isoformat()}, ensure_ascii=False))
-            return 3
-        asyncio.run(collect("visitors", f"{start:%Y%m%d}", f"{today:%Y%m%d}", output, max_pages=20, rows=10000))
-        if not output.exists() or latest_raw_date([output]) < start:
-            output.unlink(missing_ok=True)  # 빈 응답 페이지만 담긴 이번 실행 파일은 남기지 않는다.
-            print(json.dumps({"status": "no_new_data", "requested_from": start.isoformat()}, ensure_ascii=False))
+        collected = collect_new_visitors(args.raw_dir, date.today())
+        if collected["status"] == "no_new_data":
+            print(json.dumps(collected, ensure_ascii=False))
             return 3
     visitors = default_visitor_paths(args.raw_dir)
     output_dir = next_production_directory(args.output_root)
