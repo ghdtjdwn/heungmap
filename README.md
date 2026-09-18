@@ -3,7 +3,7 @@
 **한국관광공사 OpenAPI와 지역 방문자 빅데이터로 축제의 흥행 여건을 예측하고, 같은 예측을 기획자와 방문객 모두에게 연결하는
 웹 서비스**입니다. 2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문, 지정과제 9번(축제 흥행 예측) 출품작입니다.
 
-- 팀: 경사하강단 (홍성주 — 기획자 서비스·AI 수요 모델, 박지성 — 방문객 서비스·통합 검토)
+- 팀: 경사하강단
 - 모델 한눈에 보기: [모델 카드](docs/MODEL_CARD.md) · 시연 순서와 예상 질문: [3분 시연](docs/PLANNER_DEMO.md)
 
 ## 해결하는 문제
@@ -60,7 +60,8 @@ flowchart LR
     O[오라클 서버 cron] -->|매일 새 자료 수집·재학습| M
 ```
 
-- Web: Next.js App Router·TypeScript, API: FastAPI·Pydantic(OpenAPI 3.1 공통 계약 `contracts/openapi.yaml`)
+- Web: Next.js App Router·TypeScript, 흥할지도 브랜드 로고·색상 토큰과 360px까지 반응형([UI 가이드](docs/UI_DESIGN_GUIDE.md))
+- API: FastAPI·Pydantic(OpenAPI 3.1 공통 계약 `contracts/openapi.yaml`)
 - 모델: pandas·LightGBM, 채택 artifact는 checksum·채택 조건을 검증한 뒤에만 불러옵니다.
 - LLM: Claude(개발 `claude-sonnet-5`, 발표 `claude-fable-5-1`). 입력에 없는 숫자·근거·고정 제약 위반을 서버가 검사하고,
   통과하지 못하면 규칙 보고서로 전환합니다.
@@ -116,5 +117,6 @@ cd frontend && npm run typecheck && npm run lint && npm run build && npm run e2e
 | 기획자·방문객 흐름 | [PLANNER_WORKFLOW.md](docs/PLANNER_WORKFLOW.md), [VISITOR_WORKFLOW.md](docs/VISITOR_WORKFLOW.md), [SERVICE_INTEGRATION.md](docs/SERVICE_INTEGRATION.md) |
 | 재학습 운영 | [ORACLE_MODEL_REFRESH.md](docs/ORACLE_MODEL_REFRESH.md) |
 | 심사기준 대응 | [EVALUATION_CRITERIA.md](docs/EVALUATION_CRITERIA.md) |
-| 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D37) |
-| 역할·작업 방식 | [TEAM_WORKFLOW.md](docs/TEAM_WORKFLOW.md), [00_START_HERE.md](docs/00_START_HERE.md) |
+| 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D38) |
+| UI 브랜드·반응형·접근성 기준 | [UI_DESIGN_GUIDE.md](docs/UI_DESIGN_GUIDE.md) |
+| 개발 시작 안내 | [00_START_HERE.md](docs/00_START_HERE.md) |
