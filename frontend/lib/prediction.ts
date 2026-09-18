@@ -27,3 +27,11 @@ export function predictionNotice(prediction: Prediction): string {
     ? "모델 입출력 연결을 확인하기 위한 규칙 기반 mock 상대지수이며 실제 행사 관람객 수가 아닙니다."
     : "행사기간 시군구 전체의 방문자-일 예측이며 특정 행사 관람객 수, 고유 방문자, 행사로 인한 추가 효과나 혼잡도는 아닙니다.";
 }
+
+const DEMAND_LEVEL_LABELS: Record<string, string> = { low: "낮음", medium: "보통", high: "높음", very_high: "매우 높음" };
+
+export function demandLevelText(prediction: Prediction): string | undefined {
+  if (prediction.status !== "available" || prediction.is_mock) return undefined;
+  const label = DEMAND_LEVEL_LABELS[prediction.indicators?.congestion_level ?? ""];
+  return label ? `평소 대비 지역 방문수요: ${label} (최근 1년 이 지역 관측 분포 기준, 현장 혼잡도 아님)` : undefined;
+}

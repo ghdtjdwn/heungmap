@@ -8,6 +8,7 @@ from html import unescape
 from typing import Any
 
 import httpx
+from pydantic import HttpUrl, TypeAdapter
 
 from app.schemas import (
     Coordinates,
@@ -421,10 +422,22 @@ class TourApiClient:
         if summary is None:
             return None
         description = self._text(common.get("overview")) or None
-        homepage_raw = str(common.get("homepage") or "")
-        match = re.search(r'href="([^"]+)"', homepage_raw)
-        homepage_url = match.group(1) if match else (self._text(homepage_raw) or None)
-        return EventDetail(**summary.model_dump(), description=description, homepage_url=homepage_url)
+        return EventDetail(**summary.model_dump(), description=description,
+                           homepage_url=self._homepage_url(common.get("homepage")))
+
+    @staticmethod
+    def _homepage_url(value: Any) -> str | None:
+        """TourAPI homepage는 a 태그·설명문·URL이 섞여 온다. 첫 http(s) URL만 쓰고 없으면 링크를 생략한다."""
+        raw = str(value or "")
+        match = re.search(r'href="(https?://[^"]+)"', raw) or re.search(r"https?://[^\s\"'<>]+", raw)
+        if not match:
+            return None
+        url = (match.group(1) if match.re.groups else match.group(0)).rstrip(").,")
+        try:
+            TypeAdapter(HttpUrl).validate_python(url)
+        except ValueError:
+            return None
+        return url
 
     async def nearby_places(self, coordinates: Coordinates, radius_m: int = 5000) -> list[NearbyPlace]:
         items = await self._get_items(

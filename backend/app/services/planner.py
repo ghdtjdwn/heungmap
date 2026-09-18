@@ -327,6 +327,10 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
             event_id=draft.event_id, start_date=start, end_date=end,
             region=draft.region, event_type=draft.event_type,
         )
+    from app.attendance.lookup import attach_prior_attendance
+
+    # 같은 이름의 기존 축제가 문체부 자료에 있으면 전년 보고 실적을 예측과 분리된 실제값 근거로 보여 준다.
+    prediction = attach_prior_attendance(prediction, evidence, draft.working_title, draft.region)
     source_ids = {source.source_id for source in prediction.sources}
     prediction.sources.extend(source for source in external_sources if source.source_id not in source_ids)
     if isinstance(prediction, AvailablePrediction):

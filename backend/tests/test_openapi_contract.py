@@ -25,6 +25,7 @@ def test_planner_schema_top_level_fields_match_approved_contract() -> None:
         "PlannerAnalysisRequest",
         "PlannerAnalysisResponse",
         "HealthResponse",
+        "ModelStatusResponse",
         "VenueSearchItem",
         "VenueSearchResponse",
         "AddressSearchItem",

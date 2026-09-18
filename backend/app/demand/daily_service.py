@@ -18,6 +18,7 @@ from app.schemas import (
 
 
 DEFAULT_DIRECTORY = Path(__file__).resolve().parents[3] / "data" / "processed" / "daily-forecast-production-v3"
+STALE_AFTER_DAYS = 60
 FEATURE_LABELS = {
     "log_baseline": "전년도 같은 시기 수요", "log_annual_growth": "지역 연간 성장률",
     "log_recent_to_annual": "최근·전년 지역수요 차이", "recent_trend": "최근 지역수요 추세",
@@ -28,8 +29,29 @@ FEATURE_LABELS = {
 }
 
 
+def select_production_directory(root: Path) -> Path | None:
+    """production-v* 중 번호가 가장 큰 채택 artifact. 미채택·손상 폴더는 건너뛴다(무결성은 _load가 다시 검사)."""
+    candidates = []
+    for path in root.glob("daily-forecast-production-v*"):
+        match = re.fullmatch(r"daily-forecast-production-v(\d+)", path.name)
+        if match and path.is_dir():
+            candidates.append((int(match.group(1)), path))
+    for _, path in sorted(candidates, reverse=True):
+        try:
+            manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+            report = json.loads((path / "evaluation.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if manifest.get("model_adopted") is True and report.get("model_adopted") is True:
+            return path
+    return None
+
+
 def _directory() -> Path:
-    return Path(os.environ.get("HEUNGMAP_DAILY_MODEL_DIR", str(DEFAULT_DIRECTORY))).resolve()
+    """환경변수로 고정한 artifact가 우선이고, 없으면 가장 최근 채택 production 폴더를 쓴다."""
+    if configured := os.environ.get("HEUNGMAP_DAILY_MODEL_DIR"):
+        return Path(configured).resolve()
+    return (select_production_directory(DEFAULT_DIRECTORY.parent) or DEFAULT_DIRECTORY).resolve()
 
 
 def _digest(path: Path) -> str:
@@ -87,6 +109,31 @@ def _artifact():
     return _load(str(directory), state)
 
 
+def model_status(now: datetime | None = None) -> dict:
+    """artifact를 검증해 불러오고 노후 여부를 계산한다. 파일 경로·비밀값은 노출하지 않는다."""
+    now = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Asia/Seoul"))
+    try:
+        manifest, _, histories = _artifact()
+        data_end = date.fromisoformat(manifest["data_end"])
+        created = datetime.fromisoformat(manifest["created_at"])
+    except OSError:
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "채택 모델 파일을 찾거나 읽을 수 없습니다."}
+    except ImportError:
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "모델 실행 라이브러리를 불러오지 못했습니다."}
+    except (ValueError, KeyError, TypeError) as exc:
+        message = str(exc) if isinstance(exc, ValueError) else "모델 manifest 형식이 잘못됐습니다."
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": message[:500]}
+    except Exception:  # LightGBM 파일 파싱 오류 등. 상태 조회는 어떤 경우에도 500을 내지 않는다.
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "모델 파일을 해석하지 못했습니다."}
+    remaining = STALE_AFTER_DAYS - (now.date() - data_end).days
+    return {
+        "status": "ready" if remaining >= 0 and created <= now else "stale", "adopted": True, "checked_at": now,
+        "model_version": manifest["model_version"], "data_end": data_end, "created_at": created,
+        "last_predictable_target_date": data_end + timedelta(days=STALE_AFTER_DAYS), "days_until_stale": remaining,
+        "regions": sum(str(item["code"]) in histories for item in manifest["regions"]),
+    }
+
+
 def prediction_regions() -> list[RegionRef]:
     try:
         manifest, _, histories = _artifact()
@@ -96,6 +143,62 @@ def prediction_regions() -> list[RegionRef]:
         ], key=lambda item: (item.area_code, item.display_name))
     except (OSError, ValueError, KeyError, TypeError, ImportError):
         return []
+
+
+def predict_rows(models, manifest: dict, frame, baselines):
+    """저장 모델로 날짜별 입력을 예측해 (하한, 중앙, 상한, 로그 중앙) 일별 배열을 돌려준다."""
+    import numpy as np
+
+    raw = np.asarray(models[1].predict(frame[manifest["features"]], num_threads=1), dtype=float)
+    center_log = np.log1p(np.asarray(baselines, dtype=float)) + raw * float(manifest["parameters"]["model_weight"])
+    low_error, high_error = manifest["calibration_log_error_quantiles"]
+    center = np.maximum(0, np.expm1(center_log))
+    return (np.maximum(0, np.expm1(center_log + low_error)), center,
+            np.maximum(center, np.expm1(center_log + high_error)), center_log)
+
+
+LEVEL_LABELS = {"low": "낮음", "medium": "보통", "high": "높음", "very_high": "매우 높음"}
+
+
+def region_confidence(manifest: dict, code: str) -> tuple[str, dict | None]:
+    """이 시군구의 시간 홀드아웃 WAPE로 신뢰도를 정한다. 기준이 없는 이전 artifact는 기존 medium을 유지한다."""
+    thresholds = manifest.get("confidence_thresholds")
+    if not thresholds:
+        return "medium", None
+    meta = next((item for item in manifest["regions"] if str(item["code"]) == code), {})
+    wape, days = meta.get("holdout_wape"), meta.get("holdout_days") or 0
+    if wape is None or days < thresholds["min_holdout_days"]:
+        return "low", None
+    level = "high" if wape < thresholds["high_below"] else "medium" if wape < thresholds["medium_below"] else "low"
+    return level, {"wape": float(wape), "days": int(days)}
+
+
+def regional_demand_level(manifest: dict, history, cutoff: date, daily_mean: float) -> tuple[str, float | None]:
+    """예측 일평균이 최근 1년 이 지역 관측 분포의 몇 백분위인지로 평소 대비 수요 수준을 정한다. 현장 혼잡이 아니다."""
+    import pandas as pd
+
+    percentiles = manifest.get("demand_level_percentiles")
+    if not percentiles:
+        return "unknown", None
+    dates = pd.to_datetime(history.date)
+    recent = history.loc[(dates > pd.Timestamp(cutoff) - pd.Timedelta(days=365)) & (dates <= pd.Timestamp(cutoff))]
+    if len(recent) < percentiles["min_days"]:
+        return "unknown", None
+    percentile = float((recent.visitor_count.to_numpy(dtype=float) < daily_mean).mean() * 100)
+    level = ("very_high" if percentile >= percentiles["very_high"] else "high" if percentile >= percentiles["high"]
+             else "medium" if percentile >= percentiles["medium"] else "low")
+    return level, percentile
+
+
+def merged_factors(contributions, features: list[str], limit: int = 5) -> list[tuple[str, str, float]]:
+    """같은 라벨(예: 계절 sin·cos)의 TreeSHAP 기여를 합쳐 (대표 feature, 라벨, 로그 기여) 상위 목록을 만든다."""
+    merged: dict[str, tuple[str, float]] = {}
+    for feature, value in zip(features, contributions):
+        label = FEATURE_LABELS.get(feature, feature)
+        first, total = merged.get(label, (feature, 0.0))
+        merged[label] = (first, total + float(value))
+    ranked = sorted(merged.items(), key=lambda item: abs(item[1][1]), reverse=True)[:limit]
+    return [(feature, label, value) for label, (feature, value) in ranked]
 
 
 def _unavailable(event_id, now, reason, message):
@@ -127,7 +230,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
         if code not in histories:
             return _unavailable(event_id, now, "insufficient_data", "이 시군구는 검증된 학습 범위에 없습니다.")
         created = datetime.fromisoformat(manifest["created_at"])
-        if created > now or (now.date() - date.fromisoformat(manifest["data_end"])).days > 60:
+        if created > now or (now.date() - date.fromisoformat(manifest["data_end"])).days > STALE_AFTER_DAYS:
             return _unavailable(event_id, now, "insufficient_data", "최신 방문자 이력으로 모델을 갱신해야 합니다.")
         history = histories[code]
         history = history[pd.to_datetime(history.retrieved_at, utc=True) <= now.astimezone(timezone.utc)]
@@ -137,13 +240,8 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
             inputs.append(values)
             baselines.append(baseline)
         frame = pd.DataFrame(inputs, columns=FEATURES)
-        raw = np.asarray(models[1].predict(frame, num_threads=1), dtype=float)
         weight = float(manifest["parameters"]["model_weight"])
-        center_log = np.log1p(np.asarray(baselines)) + raw * weight
-        low_error, high_error = manifest["calibration_log_error_quantiles"]
-        daily_low = np.maximum(0, np.expm1(center_log + low_error))
-        daily_center = np.maximum(0, np.expm1(center_log))
-        daily_high = np.maximum(daily_center, np.expm1(center_log + high_error))
+        daily_low, daily_center, daily_high, _ = predict_rows(models, manifest, frame, baselines)
         lower, center, upper = map(float, (daily_low.sum(), daily_center.sum(), daily_high.sum()))
         contributions = np.asarray(models[1].predict(frame, pred_contrib=True, num_threads=1), dtype=float).mean(axis=0) * weight
         if not np.isfinite([lower, center, upper, *contributions]).all():
@@ -168,12 +266,28 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
                          display_value=f"행사기간 합계 {sum(baselines):,.0f} 방문자-일", numeric_value=float(sum(baselines)),
                          unit="people", source_refs=["src_daily_visitors"], as_of=sources[1].data_as_of,
                          limitation="전년도 같은 요일과 60일 전까지 관측한 연간 성장률로 계산했습니다.")]
+    confidence, holdout = region_confidence(manifest, code)
+    demand_level, percentile = regional_demand_level(manifest, history, cutoff, center / len(baselines))
+    limitations = [*manifest["limitations"],
+                   "행사기간 합계는 날짜별 방문자 수의 합으로 같은 사람이 여러 날 방문하면 중복될 수 있습니다.",
+                   "예산·출연진·날씨·축제 자체 효과를 이 수치의 원인으로 해석하지 않습니다."]
+    if holdout:
+        evidence.append(Evidence(evidence_id="ev_daily_region_holdout", value_type="derived_value", label="이 시군구 시간 홀드아웃 오차",
+            display_value=f"WAPE {holdout['wape']:.1%} ({holdout['days']}일)", numeric_value=holdout["wape"], unit="ratio",
+            source_refs=["src_daily_model"], confidence=confidence,
+            limitation="과거 시험 구간의 오차이며 이번 예측의 오차를 보장하지 않습니다. 신뢰도는 이 값으로 정했습니다."))
+    if percentile is not None:
+        evidence.append(Evidence(evidence_id="ev_daily_demand_level", value_type="derived_value", label="평소 대비 지역 방문수요 수준",
+            display_value=f"최근 1년 이 지역 일별 방문자 중 {percentile:.0f}백분위 ({LEVEL_LABELS[demand_level]})",
+            numeric_value=round(percentile, 1), unit="percentile", source_refs=["src_daily_visitors"], as_of=sources[1].data_as_of,
+            limitation="예측 일평균을 최근 1년 관측 분포와 비교한 상대 수준이며 현장 혼잡도나 입장 대기가 아닙니다."))
+        limitations.append("congestion_level은 최근 1년 지역 방문자 분포에서 예측 일평균의 위치이며 현장 혼잡이 아닙니다.")
     factors = []
-    for index in sorted(range(len(FEATURES)), key=lambda i: abs(contributions[i]), reverse=True)[:5]:
-        effect = float(np.expm1(contributions[index]) * 100)
-        factors.append(PredictionFactor(factor_id=f"daily_{FEATURES[index]}", label=FEATURE_LABELS[FEATURES[index]],
+    for feature, label, value in merged_factors(contributions, FEATURES):
+        effect = float(np.expm1(value) * 100)
+        factors.append(PredictionFactor(factor_id=f"daily_{feature}", label=label,
             direction="up" if effect > 0 else "down" if effect < 0 else "neutral", importance=abs(effect),
-            explanation=f"ML 보정에서 지역 계절 기준 대비 약 {effect:+.2f}% 기여했습니다. 인과효과는 아닙니다.",
+            explanation=f"LightGBM TreeSHAP 기여도 기준 지역 계절 기준선 대비 약 {effect:+.2f}%입니다. 인과효과는 아닙니다.",
             evidence_refs=["ev_daily_baseline"]))
     fingerprint = f"{manifest['model_version']}:{event_id}:{code}:{start_date}:{end_date}:{now.date()}"
     return AvailablePrediction(status="available", prediction_id="pred_daily_" + hashlib.sha256(fingerprint.encode()).hexdigest()[:24],
@@ -183,9 +297,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
                                              p10=round(lower), p50=round(center), p90=round(upper)),
         components=[PredictionComponent(component_type="regional_baseline", value=round(sum(baselines)), unit="people",
             scope_description="행사기간 시군구 전체 예상 방문자-일 계절 기준선", evidence_refs=["ev_daily_baseline"])],
-        indicators=PredictionIndicators(congestion_level="unknown", ticket_demand_level="unknown"),
-        confidence="medium", data_sufficiency="sufficient", method="machine_learning", model_version=manifest["model_version"],
-        factors=factors, evidence=evidence, sources=sources, limitations=[*manifest["limitations"],
-            "행사기간 합계는 날짜별 방문자 수의 합으로 같은 사람이 여러 날 방문하면 중복될 수 있습니다.",
-            "예산·출연진·날씨·축제 자체 효과를 이 수치의 원인으로 해석하지 않습니다."],
+        indicators=PredictionIndicators(congestion_level=demand_level, ticket_demand_level="unknown"),
+        confidence=confidence, data_sufficiency="sufficient", method="machine_learning", model_version=manifest["model_version"],
+        factors=factors, evidence=evidence, sources=sources, limitations=limitations,
         out_of_distribution=False, fallback_used=False, is_mock=False, created_at=now)

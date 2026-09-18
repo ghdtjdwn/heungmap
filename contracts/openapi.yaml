@@ -514,6 +514,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+  /system/model-status:
+    get:
+      tags: [system]
+      operationId: getModelStatus
+      summary: 채택 수요 모델 artifact의 적재·노후 상태
+      description: |
+        시연·운영 전에 모델이 예측을 낼 수 있는지 확인한다. 파일 경로·비밀값은 반환하지 않는다.
+        stale은 자료 기준일이 60일을 넘어 모든 예측이 unavailable이 되는 상태다.
+      responses:
+        "200":
+          description: 모델 상태. 모델을 불러오지 못해도 200과 unavailable을 반환한다.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelStatusResponse"
   /events:
     get:
       tags: [events]
@@ -967,6 +982,39 @@ components:
         checked_at:
           type: string
           format: date-time
+    ModelStatusResponse:
+      type: object
+      required: [status, adopted, checked_at]
+      properties:
+        status:
+          type: string
+          enum: [ready, stale, unavailable]
+        adopted:
+          type: boolean
+        checked_at:
+          type: string
+          format: date-time
+        model_version:
+          type: string
+        data_end:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+        last_predictable_target_date:
+          type: string
+          format: date
+          description: 현재 이력으로 예측 가능한 마지막 행사일(data_end + 60일)
+        days_until_stale:
+          type: integer
+          description: 음수면 이미 노후 상태
+        regions:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+          maxLength: 500
     ResponseMeta:
       type: object
       required: [contract_version, generated_at, request_id]

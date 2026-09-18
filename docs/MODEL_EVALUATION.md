@@ -1,24 +1,32 @@
-# 지역 방문수요 D-30 모델 실행·평가 — 2026-09-15
+# 지역 방문수요 D-30 모델 실행·평가 — 2026-09-18 갱신
 
-현재 서비스 기본 모델은 `regional-daily-1.0-3e0451e58b0c`입니다. 행사 시작 30일 전을 기준으로
+현재 서비스 기본 모델은 `regional-daily-1.0-e279d9027dff`(v5 폴더, 자료 기준일 2026-08-19)입니다.
+v3(`regional-daily-1.0-3e0451e58b0c`, 기준일 08-15)와 같은 구조·설정으로 새 방문자 자료를 더해 재학습했습니다. 행사 시작 30일 전을 기준으로
 공표 지연 30일을 추가 가정해, 목표일 60일 전까지 확인 가능한 한국관광공사 시군구 방문자 이력만으로
 행사기간의 **지역 전체 방문자-일 합계**를 예측합니다. 특정 축제 관람객·고유 방문자·티켓 수요·혼잡도나
 축제의 인과효과가 아닙니다.
 
-모델·학습표·원본과 checksum manifest는 Git 제외 경로
-`data/processed/daily-forecast-production-v3/`에 있습니다. 서버 배포·커밋·push는 하지 않았습니다.
+모델·학습표·원본과 checksum manifest는 Git 제외 경로 `data/processed/daily-forecast-production-v5/`에 있습니다.
+`HEUNGMAP_DAILY_MODEL_DIR`를 지정하지 않으면 서비스는 `daily-forecast-production-v*` 중 번호가 가장 큰 **채택**
+폴더를 자동으로 씁니다(미채택·손상 폴더는 건너뜀).
 
 ## 바로 확인하기
 
 ```bash
 .venv/bin/pip install -r backend/requirements-model.txt
 
+# 재현: 분할일은 자료 마지막 날로 자동 결정(default_split_dates)
 PYTHONPATH=backend .venv/bin/python backend/scripts/train_daily_forecast.py \
-  --output-dir data/processed/daily-forecast-reproduction \
-  --validation-start 2026-07-01 --test-start 2026-08-01
+  --output-dir data/processed/daily-forecast-reproduction
+
+# 새 방문자 자료 수집(append-only) + 다음 production-v* 폴더에 재학습. 2~3주마다 실행
+PYTHONPATH=backend .venv/bin/python backend/scripts/refresh_daily_forecast.py
 
 PYTHONPATH=backend .venv/bin/pytest -q backend/tests
+# 시연 전 모델 점검: 상태·원본 checksum·홀드아웃 재계산·온라인 예측
+PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
+# 실행 중 상태 확인: curl http://127.0.0.1:8000/api/v1/system/model-status
 cd frontend && npm run dev
 ```
 
@@ -26,7 +34,59 @@ cd frontend && npm run dev
 설정합니다. manifest·평가·모델·이력 checksum 중 하나라도 다르거나 채택 조건이 하나라도 실패하면
 모델을 제공하지 않습니다.
 
+## 재학습 절차 (2026-09-18 고정)
+
+- `refresh_daily_forecast.py`는 이미 받은 원본의 마지막 기준일 다음 날부터 오늘까지를 새 파일
+  `data/raw/visitors-<시작월>-<오늘월>-refresh-<오늘>.jsonl`로 받습니다. 기존 원본은 수정하지 않고, 겹쳐 받지 않아
+  수정된 값과 기존 값의 충돌을 만들지 않습니다. 새 날짜가 없으면 종료 코드 3으로 끝납니다.
+- 분할은 `default_split_dates(data_end)`로 고정했습니다. 시험 구간은 data_end가 속한 달 1일부터(그 달 관측이 15일
+  미만이면 앞 달), 후보 선택은 시험 직전 두 달의 전진 검증창입니다. v3의 실제 분할(07-01/08-01)과 같습니다.
+- 출력은 항상 새 `daily-forecast-production-v<N+1>`이고 이미 있으면 중단합니다. 5개 채택 조건을 모두 통과해야
+  서비스 자동 선택 대상이 됩니다. 미채택이면 폴더는 남기되 서비스는 이전 채택 폴더를 계속 씁니다.
+- 최종 p10/p50/p90 모델은 시험 구간 이전 자료로 학습합니다. 따라서 재학습의 주된 효과는 **예측에 쓰는 최근 이력의
+  연장**(예측 가능 기간 연장)이고, 모델이 더 많은 기간을 학습하는 것은 시험 구간이 다음 달로 넘어갈 때입니다.
+
+### v4 재학습 결과 (2026-09-18)
+
+| 방법 (2026-08-01~08-19 시간 홀드아웃 4,446행) | WAPE | 중앙 절대비율오차 | RMSLE | ±20% 이내 |
+| --- | ---: | ---: | ---: | ---: |
+| 계절·성장 기준선 | 4.260% | 3.500% | 0.07536 | 97.39% |
+| v4 LightGBM 결합 | **3.939%** | **3.325%** | **0.07530** | 97.32% |
+
+- WAPE 7.54% 상대 개선, 80% 구간 포함률 77.64%, 5개 채택 조건 모두 통과. 선택 설정·구간 보정폭은 v3와 동일합니다.
+- 시험 구간의 마지막 4일(08-16~19)은 v3 전향 평가에 쓴 날짜와 같습니다. v4의 후보 선택(6·7월)에는 쓰이지 않았습니다.
+- 자료 기준일 2026-08-19 → **마지막 예측 가능 행사일 2026-10-18**, 2026-10-19부터 노후 상태가 됩니다.
+- 점검: `verify_daily_model.py` ready, 원본 checksum 4/4, 홀드아웃 재계산 일치, 온라인 예측 가능 234/264 시군구.
+
+### v5: 지역별 신뢰도·수요 수준 메타데이터 (2026-09-18)
+
+`daily-forecast-production-v5`는 v4와 **같은 원본·같은 설정으로 다시 학습한 동일 모델**입니다(p10/p50/p90 파일
+SHA-256과 `model_version`이 같음). 달라진 것은 manifest에 추가된 지역별 시간 홀드아웃 오차와 두 판정 기준뿐입니다.
+
+| 지역 방문자 규모 5분위 (홀드아웃 08-01~19) | 행 | 일평균 방문자 | WAPE | 중앙 절대비율오차 |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 (가장 작음) | 890 | 48,541 | 7.80% | 5.07% |
+| 2 | 889 | 116,225 | 6.23% | 4.07% |
+| 3 | 889 | 209,664 | 4.31% | 3.18% |
+| 4 | 889 | 319,995 | 3.49% | 2.77% |
+| 5 (가장 큼) | 889 | 591,748 | 3.28% | 2.41% |
+
+오차가 큰 시군구는 옹진군 18.8%, 영덕군 15.3%, 단양군 15.0%, 무주군 14.8%, 인제군 14.6%, 울진군 13.1%로
+전향 평가와 같은 관광형 군 지역입니다. 그래서 신뢰도를 한 값으로 고정하지 않고 지역별로 계산합니다.
+
+- **신뢰도** (`confidence`): 이 시군구 홀드아웃 WAPE 5% 미만 `high`, 10% 미만 `medium`, 그 외 또는 홀드아웃
+  10일 미만 `low`. v5 기준 264개 중 high 150 · medium 62 · low 52. 근거 값은 evidence
+  `ev_daily_region_holdout`으로 함께 내려갑니다. 기준이 없는 이전 artifact(v3·v4)는 기존처럼 `medium`입니다.
+- **평소 대비 지역 방문수요 수준** (`indicators.congestion_level`): 예측 일평균이 예측 기준일(행사 종료 60일 전)까지
+  최근 1년 이 지역 일별 관측값 중 몇 백분위인지로 정합니다. 50 미만 `low`, 50~75 `medium`, 75~90 `high`, 90 이상
+  `very_high`, 관측 300일 미만이면 `unknown`. 계약 필드 이름은 congestion이지만 **현장 혼잡도가 아니며** 화면에는
+  "평소 대비 지역 방문수요"로 표시하고 limitation에도 명시합니다. `ticket_demand_level`은 근거가 없어 `unknown`입니다.
+- **요인 설명**: 요인은 LightGBM 내장 TreeSHAP(`pred_contrib`) 기여도입니다. 같은 라벨(계절 sin·cos)은 합쳐
+  하나로 보여 줍니다. 별도 `shap` 패키지는 쓰지 않습니다.
+
 ## 데이터와 예측 시점
+
+아래 표와 "관측 성능"은 v3(기준일 08-15) 기준 기록입니다.
 
 | 항목 | 관측 결과 |
 | --- | ---: |
@@ -66,6 +126,68 @@ WAPE나 중앙 절대비율오차를 `정확도 96%`처럼 바꿔 말하지 않�
 후향 실험입니다. 따라서 완전히 손대지 않은 전향 시험이나 미래 운영 정확도로 주장하지 않습니다.
 발표에서는 `최근 시간 홀드아웃 성능`으로 표현하고 운영 후 새 날짜를 고정 평가해야 합니다.
 
+## 전향 평가 (2026-08-16~08-19)
+
+2026-09-18에 새로 공개된 방문자 자료(08-16~08-19, 4일)로 **동결된 v3 모델을 그대로** 채점했습니다. 이 날짜들은
+모델의 `data_end`(08-15) 이후라 학습·후보 선택·구간 보정 어디에도 쓰이지 않았습니다. 입력은 서비스와 같은
+`make_forecast_features`(목표일 60일 전까지 이력)와 `predict_rows` 수식입니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_frozen_daily_model.py \
+  --model-dir data/processed/daily-forecast-production-v3
+```
+
+| 방법 (936개 지역·일, 234시군구) | WAPE | 중앙 절대비율오차 | RMSLE | ±20% 이내 |
+| --- | ---: | ---: | ---: | ---: |
+| 계절·성장 기준선 | 4.977% | 3.672% | **0.09160** | **96.05%** |
+| v3 LightGBM 결합 | **4.434%** | **3.236%** | 0.09240 | 95.51% |
+
+- WAPE는 기준선보다 10.90% 상대 개선됐고 중앙 오차도 줄었습니다. 반면 RMSLE와 ±20% 이내 비율은 기준선이
+  근소하게 앞섰습니다. 큰 지역의 절대 오차는 줄였지만 작은 관광 지역의 비율 오차는 줄이지 못했다는 뜻입니다.
+- 80% 구간 실제 포함률은 75.53%로 명목 80%보다 약간 낮습니다.
+- 264개 중 30개 시군구는 이 기간 세 방문자 구분이 모두 공개되지 않아 평가에서 빠졌습니다(결측을 0으로 채우지 않음).
+- 오류가 큰 지역은 옹진군 31.1%, 강화군 21.0%, 인제군 19.5%, 단양군 18.9%, 양양군 18.7% 등 휴가철 관광형
+  군 지역입니다. 지역 규모 하위 40%의 WAPE는 7.5~7.7%, 상위 40%는 3.7%입니다.
+- **한계**: 4일·한 번의 여름 주말 구간뿐이라 표본이 작습니다. 새 자료가 공개될 때마다 같은 명령으로 갱신합니다.
+  결과 JSON은 `data/processed/daily-forecast-production-v3/forward-evaluation-20260918.json`(Git 제외)입니다.
+
+## TourAPI 축제 일정 feature 실험 (v1.1) — 미채택
+
+TourAPI `searchFestival2` 일정을 모델 입력으로 넣으면 지역 방문수요 예측이 좋아지는지 같은 행·같은 분할에서
+축제 입력 유/무를 비교했습니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python backend/scripts/train_daily_forecast.py --festivals \
+  --output-dir data/processed/daily-forecast-festival-v1.1-experiment
+```
+
+- 입력 2개: `festival_active`(목표일에 진행 중인 이 시군구 축제 수), `festival_days_in_window`(목표일 ±3일 중 축제가
+  있는 날 수). **목표일 30일 전까지 TourAPI에 등록(`createdtime`)된 축제만** 사용해 예측 시점 이후 정보를 막았습니다.
+- 전년도 축제 수는 쓰지 않았습니다. 2024·2025 조회 결과가 5건·243건뿐이었는데, TourAPI가 현재 등록 정보만 돌려줘
+  반복 축제의 지난 회차가 올해 일정으로 덮어써지기 때문입니다.
+- 축제 676건·204시군구, 학습표 38,628행 중 축제 진행일 3,258행(8.4%).
+
+| 비교 (같은 행·분할) | 전진 검증 WAPE | 시험 WAPE (08-01~19) | 시험 중앙 절대비율오차 |
+| --- | ---: | ---: | ---: |
+| 축제 입력 없음 (v5와 동일) | 4.0594% | **3.9388%** | 3.3246% |
+| 축제 입력 있음 | **4.0575%** | 3.9414% | **3.3166%** |
+
+| 시험 구간 부분집합 | 행 | 축제 입력 있음 | 축제 입력 없음 | 계절·성장 기준선 |
+| --- | ---: | ---: | ---: | ---: |
+| 축제 진행일 | 494 | 4.796% | 4.788% | **4.749%** |
+| 축제 없는 날 | 3,952 | 3.797% | **3.795%** | 4.177% |
+
+- 사전 정한 6개 조건(기존 5개 + 축제 없는 모델보다 전진 검증 WAPE 우위)을 형식상 모두 통과했지만, 검증 개선이
+  0.05%(상대)로 잡음 수준이고 시험 구간에서는 오히려 근소하게 나빴습니다. 두 축제 입력의 TreeSHAP 기여 비중은
+  합계 1.1%입니다.
+- 서비스에 연결하면 예측마다 TourAPI 실시간 조회가 필수가 되어 장애 시 예측이 사라집니다. 이득 없이 위험만 늘어
+  **채택하지 않았습니다**(D31). 실험 artifact는 `production-v*` 이름이 아니라 자동 선택되지 않고, 경로를 직접 지정해도
+  입력 목록이 달라 서비스가 거부합니다.
+- 발견: **축제가 열리는 날에도 시군구 전체 방문수요는 계절·성장 기준선으로 대부분 설명됩니다.** 시군구 단위 이동통신
+  집계에서는 개별 축제 효과가 드러나지 않으며, 지역 방문수요를 축제 관람객으로 환산하지 않는 이유와 같습니다.
+- 한계: `createdtime`은 콘텐츠 최초 등록일이라 반복 축제의 올해 일정 공개일보다 이를 수 있고, 수집 시점에 남아 있는
+  축제만 포함합니다.
+
 ## 문체부 축제별 실제 방문객 자료 감사
 
 문체부 공식 연도별 지역축제 ZIP 2017~2026년 10개를 직접 수집했습니다. 총 10,198개 축제 행이며,
@@ -87,6 +209,22 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
   --output-dir data/processed/attendance-model-reproduction
 ```
 
+### 전년 보고 실적을 "실제값 근거"로 표시 (2026-09-18)
+
+관람객 **모델**은 탈락했지만, 문체부 자료의 전년도 보고 방문객 자체는 축제 규모를 가늠하는 공식 관측값입니다.
+그래서 예측과 분리해 `Evidence(value_type="verified_fact")` "문체부 보고 전년 방문객"으로 기획 분석 근거·방문객 상세
+예측 근거에 붙입니다. 흥할지도 예측값을 바꾸지 않습니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python backend/scripts/build_mcst_lookup.py   # → data/processed/mcst-attendance-lookup.csv
+```
+
+- 조회표 3,184개 축제(양수 전년 실적, 축제별 가장 최근 계획연도). 연결 조건: 법정동 코드로 정한 같은 광역 + 같은
+  시군구(또는 광역 주관 행사) + 회차·연도를 지운 **정확히 같은 축제명**. 후보가 둘 이상이면 표시하지 않고, 퍼지 매칭은 없습니다.
+- 최근 3년 실적만 표시합니다(오래된 값이 현재 규모를 오해하게 하지 않도록).
+- TourAPI 2026년 1~8월 축제 445건 중 **146건(32.8%)** 연결. 집계 방식: 계측 57 · 추정 36 · 무응답 39 · 미제공 14.
+- 조회표가 없으면 조용히 생략합니다. 표시 문구에 "주최 측 제출값, 집계 방식이 축제마다 다름, 예측값 아님"을 넣습니다.
+
 자료 출처는 [문화체육관광부 연도별 지역축제 정보](https://www.mcst.go.kr/site/s_culture/festival/festivalList.jsp)와
 [공공데이터포털 메타데이터](https://www.data.go.kr/data/15143175/fileData.do)입니다. XLSX에는 담당자 정보도
 있지만 모델 파이프라인은 연락처·성명을 읽거나 가공표에 저장하지 않습니다.
@@ -95,10 +233,11 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
 
 응답은 `prediction_type=regional_visit_demand`, `unit=people`로 행사기간 날짜별 시군구 방문자 수를
 합산한 p10/p50/p90 범위, 계절 기준선, ML 기여요인과 출처를 제공합니다. 같은 사람이 여러 날 방문하면
-중복되는 방문자-일 단위입니다. 관측 근거 없는 티켓 수요와 혼잡 등급은 `unknown`으로 유지합니다.
+중복되는 방문자-일 단위입니다. 신뢰도는 지역별 홀드아웃 오차로, `congestion_level`은 평소 대비 지역 방문수요
+백분위로 계산합니다(v5 절 참조). 관측 근거 없는 티켓 수요는 `unknown`으로 유지합니다.
 
 지원 범위는 오늘부터 30일 이내 시작하는 1~30일 행사, 완전한 전년·최근 이력이 있는 264개 시군구입니다.
-현재 원본으로 마지막으로 계산 가능한 목표일은 2026-10-14입니다. 이력 누락·60일 초과 노후화·artifact
+v4 원본으로 마지막으로 계산 가능한 목표일은 2026-10-18입니다. 이력 누락·60일 초과 노후화·artifact
 손상·미채택 상태에서는 숫자를 만들지 않고 `unavailable`을 반환합니다.
 
 공표 지연 30일은 과거 공개 snapshot이 없어 둔 보수적 가정이며 실제 API SLA를 증명한 값은 아닙니다.
@@ -108,10 +247,11 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
 방법·데이터 근거: [한국관광공사 지역별 방문자수](https://www.data.go.kr/data/15101972/openapi.do),
 [LightGBM 공식 문서](https://lightgbm.readthedocs.io/en/stable/Parameters.html).
 
-## 이번 로컬 검증
+## 이번 로컬 검증 (2026-09-18)
 
-- backend: `124 passed`(로컬 API 키를 차단한 격리 환경, deprecation 경고 3건)
-- frontend: TypeScript 검사, ESLint, Next.js production build 통과
-- Playwright: desktop·mobile `24 passed`
-- 실제 채택 artifact + 격리된 임시 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서
-  동일 prediction ID·모델 버전·방문자-일 범위를 확인했습니다. 실계정·운영 DB·배포는 사용하지 않았습니다.
+- backend: `147 passed`(로컬 API 키·문체부 조회표를 차단한 격리 환경, deprecation 경고 3건)
+- frontend: TypeScript 검사, ESLint, Next.js production build 통과. Playwright desktop·mobile `24 passed`
+- `verify_daily_model.py`(v5): ready, 원본 checksum 4/4, 홀드아웃 300행 재계산 일치, 온라인 예측 가능 234/264 시군구
+- 실제 채택 artifact + 격리 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서 동일 prediction ID·
+  모델 버전·방문자-일 범위 확인. 실제 TourAPI 행사 100건 예측 조회에서 500 없음(이 과정에서 homepage 설명문 500 버그를 고침).
+- 화면 캡처: `docs/assets/submission-20260921/` (기획 수요 진단, 근거·출처, 방문객 수요 지표)
