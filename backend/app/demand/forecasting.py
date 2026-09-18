@@ -281,6 +281,11 @@ def save_daily_run(output_dir: Path, report, models, predictions, frame, daily, 
     frame.to_csv(output_dir / "training.csv", index=False)
     daily.to_csv(output_dir / "history.csv", index=False)
     material = "".join(file_digest(output_dir / name) for name in ("p10.txt", "p50.txt", "p90.txt", "history.csv"))
+    holdout = {}
+    if {"p50", "target", "region_code"}.issubset(predictions.columns):
+        errors = predictions.assign(error=(predictions.p50 - predictions.target).abs()).groupby(predictions.region_code.astype(str))
+        holdout = {code: {"holdout_wape": round(float(group.error.sum() / group.target.sum()), 6), "holdout_days": len(group)}
+                   for code, group in errors}
     report["model_version"] += "-" + hashlib.sha256(material.encode()).hexdigest()[:12]
     report["data_audit"] = audit
     (output_dir / "evaluation.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
@@ -290,8 +295,12 @@ def save_daily_run(output_dir: Path, report, models, predictions, frame, daily, 
         "parameters": report["selected_candidate"]["parameters"],
         "calibration_log_error_quantiles": report["calibration_log_error_quantiles"],
         "data_end": pd.to_datetime(daily.date).max().date().isoformat(),
-        "regions": [{"code": str(code), "name": group.region_name.iloc[-1]}
+        "regions": [{"code": str(code), "name": group.region_name.iloc[-1], **holdout.get(str(code), {"holdout_wape": None, "holdout_days": 0})}
                     for code, group in daily.loc[daily.region_code.astype(str).isin(set(frame.region_code.astype(str)))].groupby("region_code")],
+        # 지역별 신뢰도: 시간 홀드아웃 WAPE 5% 미만 high, 10% 미만 medium, 그 외·표본 10일 미만 low.
+        "confidence_thresholds": {"high_below": 0.05, "medium_below": 0.10, "min_holdout_days": 10},
+        # 평소 대비 지역 방문수요 수준: 최근 1년(300일 이상 관측) 분포에서 예측 일평균의 백분위.
+        "demand_level_percentiles": {"medium": 50, "high": 75, "very_high": 90, "min_days": 300},
         "source_files": [{"name": path.name, "sha256": file_digest(path)} for path in source_paths],
         "files": {name: file_digest(output_dir / name) for name in ("p10.txt", "p50.txt", "p90.txt", "history.csv", "evaluation.json")},
         "limitations": report["limitations"],

@@ -13,7 +13,7 @@ import { optionLabel, regionFromCode, REGIONS } from "@/lib/options";
 import { buildPlanningContext } from "@/lib/planning-context";
 import { buildRecommendationPrompt, buildRuleFallbackRecommendation, validateStructuredRecommendation } from "@/lib/recommendation";
 import { buildReport, reportAsMarkdown } from "@/lib/report";
-import { predictionLabel, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
+import { demandLevelText, predictionLabel, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
 import type { DraftRecord, EventDraft, PlannerAnalysisRequest, PlannerAnalysisResponse, RegionRef, SourceRef } from "@/lib/types";
 
 type Tab = "overview" | "report" | "compare" | "evidence";
@@ -224,7 +224,7 @@ export function PlannerResult() {
                 {prediction.primary_metric.metric_name === "relative_demand_score" ? <>
                   <div className="score-scale"><span style={{ width: `${prediction.primary_metric.value}%` }} /><i style={{ left: `${prediction.primary_metric.value}%` }} /></div>
                   <div className="scale-labels"><span>낮음</span><span>중간</span><span>높음</span></div>
-                </> : <><p>{predictionSummary(prediction)}</p><p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>{prediction.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}</>}
+                </> : <><p>{predictionSummary(prediction)}</p>{demandLevelText(prediction) && <p>{demandLevelText(prediction)}</p>}<p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>{prediction.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}</>}
                 {prediction.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
                 <p>기준 시각 {new Date(prediction.as_of).toLocaleString("ko-KR")} · {prediction.method === "machine_learning" ? "학습 모델" : "규칙 기반"}</p>
                 <ul className="factor-list">{prediction.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>

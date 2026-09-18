@@ -157,6 +157,50 @@ def predict_rows(models, manifest: dict, frame, baselines):
             np.maximum(center, np.expm1(center_log + high_error)), center_log)
 
 
+LEVEL_LABELS = {"low": "낮음", "medium": "보통", "high": "높음", "very_high": "매우 높음"}
+
+
+def region_confidence(manifest: dict, code: str) -> tuple[str, dict | None]:
+    """이 시군구의 시간 홀드아웃 WAPE로 신뢰도를 정한다. 기준이 없는 이전 artifact는 기존 medium을 유지한다."""
+    thresholds = manifest.get("confidence_thresholds")
+    if not thresholds:
+        return "medium", None
+    meta = next((item for item in manifest["regions"] if str(item["code"]) == code), {})
+    wape, days = meta.get("holdout_wape"), meta.get("holdout_days") or 0
+    if wape is None or days < thresholds["min_holdout_days"]:
+        return "low", None
+    level = "high" if wape < thresholds["high_below"] else "medium" if wape < thresholds["medium_below"] else "low"
+    return level, {"wape": float(wape), "days": int(days)}
+
+
+def regional_demand_level(manifest: dict, history, cutoff: date, daily_mean: float) -> tuple[str, float | None]:
+    """예측 일평균이 최근 1년 이 지역 관측 분포의 몇 백분위인지로 평소 대비 수요 수준을 정한다. 현장 혼잡이 아니다."""
+    import pandas as pd
+
+    percentiles = manifest.get("demand_level_percentiles")
+    if not percentiles:
+        return "unknown", None
+    dates = pd.to_datetime(history.date)
+    recent = history.loc[(dates > pd.Timestamp(cutoff) - pd.Timedelta(days=365)) & (dates <= pd.Timestamp(cutoff))]
+    if len(recent) < percentiles["min_days"]:
+        return "unknown", None
+    percentile = float((recent.visitor_count.to_numpy(dtype=float) < daily_mean).mean() * 100)
+    level = ("very_high" if percentile >= percentiles["very_high"] else "high" if percentile >= percentiles["high"]
+             else "medium" if percentile >= percentiles["medium"] else "low")
+    return level, percentile
+
+
+def merged_factors(contributions, features: list[str], limit: int = 5) -> list[tuple[str, str, float]]:
+    """같은 라벨(예: 계절 sin·cos)의 TreeSHAP 기여를 합쳐 (대표 feature, 라벨, 로그 기여) 상위 목록을 만든다."""
+    merged: dict[str, tuple[str, float]] = {}
+    for feature, value in zip(features, contributions):
+        label = FEATURE_LABELS.get(feature, feature)
+        first, total = merged.get(label, (feature, 0.0))
+        merged[label] = (first, total + float(value))
+    ranked = sorted(merged.items(), key=lambda item: abs(item[1][1]), reverse=True)[:limit]
+    return [(feature, label, value) for label, (feature, value) in ranked]
+
+
 def _unavailable(event_id, now, reason, message):
     return UnavailablePrediction(status="unavailable", event_id=event_id, reason_code=reason, message=message,
         as_of=now, sources=[], limitations=["지역 전체 방문자-일 수요이며 특정 축제 관람객 수가 아닙니다."],
@@ -222,12 +266,28 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
                          display_value=f"행사기간 합계 {sum(baselines):,.0f} 방문자-일", numeric_value=float(sum(baselines)),
                          unit="people", source_refs=["src_daily_visitors"], as_of=sources[1].data_as_of,
                          limitation="전년도 같은 요일과 60일 전까지 관측한 연간 성장률로 계산했습니다.")]
+    confidence, holdout = region_confidence(manifest, code)
+    demand_level, percentile = regional_demand_level(manifest, history, cutoff, center / len(baselines))
+    limitations = [*manifest["limitations"],
+                   "행사기간 합계는 날짜별 방문자 수의 합으로 같은 사람이 여러 날 방문하면 중복될 수 있습니다.",
+                   "예산·출연진·날씨·축제 자체 효과를 이 수치의 원인으로 해석하지 않습니다."]
+    if holdout:
+        evidence.append(Evidence(evidence_id="ev_daily_region_holdout", value_type="derived_value", label="이 시군구 시간 홀드아웃 오차",
+            display_value=f"WAPE {holdout['wape']:.1%} ({holdout['days']}일)", numeric_value=holdout["wape"], unit="ratio",
+            source_refs=["src_daily_model"], confidence=confidence,
+            limitation="과거 시험 구간의 오차이며 이번 예측의 오차를 보장하지 않습니다. 신뢰도는 이 값으로 정했습니다."))
+    if percentile is not None:
+        evidence.append(Evidence(evidence_id="ev_daily_demand_level", value_type="derived_value", label="평소 대비 지역 방문수요 수준",
+            display_value=f"최근 1년 이 지역 일별 방문자 중 {percentile:.0f}백분위 ({LEVEL_LABELS[demand_level]})",
+            numeric_value=round(percentile, 1), unit="percentile", source_refs=["src_daily_visitors"], as_of=sources[1].data_as_of,
+            limitation="예측 일평균을 최근 1년 관측 분포와 비교한 상대 수준이며 현장 혼잡도나 입장 대기가 아닙니다."))
+        limitations.append("congestion_level은 최근 1년 지역 방문자 분포에서 예측 일평균의 위치이며 현장 혼잡이 아닙니다.")
     factors = []
-    for index in sorted(range(len(FEATURES)), key=lambda i: abs(contributions[i]), reverse=True)[:5]:
-        effect = float(np.expm1(contributions[index]) * 100)
-        factors.append(PredictionFactor(factor_id=f"daily_{FEATURES[index]}", label=FEATURE_LABELS[FEATURES[index]],
+    for feature, label, value in merged_factors(contributions, FEATURES):
+        effect = float(np.expm1(value) * 100)
+        factors.append(PredictionFactor(factor_id=f"daily_{feature}", label=label,
             direction="up" if effect > 0 else "down" if effect < 0 else "neutral", importance=abs(effect),
-            explanation=f"ML 보정에서 지역 계절 기준 대비 약 {effect:+.2f}% 기여했습니다. 인과효과는 아닙니다.",
+            explanation=f"LightGBM TreeSHAP 기여도 기준 지역 계절 기준선 대비 약 {effect:+.2f}%입니다. 인과효과는 아닙니다.",
             evidence_refs=["ev_daily_baseline"]))
     fingerprint = f"{manifest['model_version']}:{event_id}:{code}:{start_date}:{end_date}:{now.date()}"
     return AvailablePrediction(status="available", prediction_id="pred_daily_" + hashlib.sha256(fingerprint.encode()).hexdigest()[:24],
@@ -237,9 +297,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
                                              p10=round(lower), p50=round(center), p90=round(upper)),
         components=[PredictionComponent(component_type="regional_baseline", value=round(sum(baselines)), unit="people",
             scope_description="행사기간 시군구 전체 예상 방문자-일 계절 기준선", evidence_refs=["ev_daily_baseline"])],
-        indicators=PredictionIndicators(congestion_level="unknown", ticket_demand_level="unknown"),
-        confidence="medium", data_sufficiency="sufficient", method="machine_learning", model_version=manifest["model_version"],
-        factors=factors, evidence=evidence, sources=sources, limitations=[*manifest["limitations"],
-            "행사기간 합계는 날짜별 방문자 수의 합으로 같은 사람이 여러 날 방문하면 중복될 수 있습니다.",
-            "예산·출연진·날씨·축제 자체 효과를 이 수치의 원인으로 해석하지 않습니다."],
+        indicators=PredictionIndicators(congestion_level=demand_level, ticket_demand_level="unknown"),
+        confidence=confidence, data_sufficiency="sufficient", method="machine_learning", model_version=manifest["model_version"],
+        factors=factors, evidence=evidence, sources=sources, limitations=limitations,
         out_of_distribution=False, fallback_used=False, is_mock=False, created_at=now)

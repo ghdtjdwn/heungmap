@@ -37,3 +37,12 @@
 - `daily_service._directory()`: 환경변수 없으면 가장 번호가 큰 채택 production-v* 자동 선택
 - v4 `regional-daily-1.0-e279d9027dff`: 채택. 홀드아웃(08-01~19, 4,446행) WAPE 3.939% vs 기준선 4.260%,
   80% 구간 77.64%. data_end 08-19 → 마지막 예측 가능 행사일 10-18. verify ready, checksum 4/4.
+
+## Step 5 + Step 8. 지역별 신뢰도·수요 수준, 요인 병합
+
+- manifest에 `regions[].holdout_wape/holdout_days`, `confidence_thresholds`, `demand_level_percentiles` 추가
+  (schema_version 1.0 유지, 키 없는 이전 artifact는 기존 동작)
+- `daily_service.region_confidence`, `regional_demand_level`, `merged_factors`; evidence `ev_daily_region_holdout`,
+  `ev_daily_demand_level`; 요인 설명을 "LightGBM TreeSHAP 기여도"로 명시하고 같은 라벨 합산
+- v5 재학습(같은 자료): 모델 파일·버전 v4와 동일, 신뢰도 high 150 / medium 62 / low 52
+- 프론트: `demandLevelText`로 "평소 대비 지역 방문수요: …(현장 혼잡도 아님)" 한 줄, 방문객 상세에 예측 근거 목록. tsc·lint 통과

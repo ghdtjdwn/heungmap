@@ -108,3 +108,40 @@ def test_select_production_directory_prefers_newest_adopted(tmp_path):
     (v10 / "evaluation.json").write_text("{broken")
     assert daily_service.select_production_directory(tmp_path) == v3
     assert daily_service.select_production_directory(tmp_path / "none") is None
+
+
+def test_region_confidence_uses_holdout_wape_thresholds_and_keeps_legacy_medium():
+    thresholds = {"high_below": 0.05, "medium_below": 0.10, "min_holdout_days": 10}
+    def manifest(wape, days):
+        return {"confidence_thresholds": thresholds, "regions": [{"code": "11110", "holdout_wape": wape, "holdout_days": days}]}
+    assert daily_service.region_confidence(manifest(0.049, 19), "11110") == ("high", {"wape": 0.049, "days": 19})
+    assert daily_service.region_confidence(manifest(0.05, 19), "11110")[0] == "medium"
+    assert daily_service.region_confidence(manifest(0.10, 19), "11110")[0] == "low"
+    assert daily_service.region_confidence(manifest(0.01, 9), "11110") == ("low", None)
+    assert daily_service.region_confidence(manifest(None, 0), "11110") == ("low", None)
+    assert daily_service.region_confidence({"regions": []}, "11110") == ("medium", None)
+
+
+def test_regional_demand_level_needs_a_year_of_history_and_legacy_stays_unknown():
+    percentiles = {"medium": 50, "high": 75, "very_high": 90, "min_days": 300}
+    dates = pd.date_range("2025-08-14", "2026-08-13")
+    history = pd.DataFrame({"date": dates, "visitor_count": np.arange(len(dates), dtype=float)})
+    manifest = {"demand_level_percentiles": percentiles}
+    assert daily_service.regional_demand_level(manifest, history, date(2026, 8, 13), 400.0)[0] == "very_high"
+    assert daily_service.regional_demand_level(manifest, history, date(2026, 8, 13), 300.0)[0] == "high"
+    assert daily_service.regional_demand_level(manifest, history, date(2026, 8, 13), 200.0)[0] == "medium"
+    assert daily_service.regional_demand_level(manifest, history, date(2026, 8, 13), 10.0)[0] == "low"
+    assert daily_service.regional_demand_level(manifest, history.tail(299), date(2026, 8, 13), 10.0) == ("unknown", None)
+    assert daily_service.regional_demand_level({}, history, date(2026, 8, 13), 10.0) == ("unknown", None)
+
+
+def test_prediction_merges_same_label_factors_and_explains_demand_level(artifact):
+    result = predict()
+    labels = [factor.label for factor in result.factors]
+    assert len(labels) == len(set(labels)) and all("TreeSHAP" in factor.explanation for factor in result.factors)
+    assert result.indicators.congestion_level in {"low", "medium", "high", "very_high"}
+    assert result.indicators.ticket_demand_level == "unknown"
+    assert any(item.evidence_id == "ev_daily_demand_level" for item in result.evidence)
+    assert any("현장 혼잡이 아닙니다" in item for item in result.limitations)
+    merged = daily_service.merged_factors([0.1, 0.2, -0.05], ["month_sin", "month_cos", "recent_trend"])
+    assert merged[0][1] == "계절" and abs(merged[0][2] - 0.3) < 1e-12
