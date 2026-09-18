@@ -40,7 +40,8 @@
 - Claude 보고서 안정화(D36): 실제 예시 4/4, 평가 5/5. `.env`의 `LLM_EFFORT=medium`.
 
 - 재학습 자동 실행(D37): 이 맥에 launchd 등록됨(`scripts/install-model-refresh.sh --uninstall`로 해제).
-  오라클 서버는 `scripts/oracle/push.sh <서버>` 한 번이면 폴더 하나에 설치·등록([ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)).
+  오라클 서버 `ssumcp`에 설치 완료: `~/heungmap-model`, 매일 한국 04:30 자동 재학습([ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)).
+  확인 `ssh ubuntu@100.97.34.28 'tail -1 ~/heungmap-model/data/processed/model-refresh-log.jsonl'`, 새 모델 가져오기 `scripts/oracle/pull.sh ubuntu@100.97.34.28`.
 
 ## 시연·제출 전 할 일
 
