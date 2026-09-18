@@ -18,6 +18,7 @@ from app.schemas import (
 
 
 DEFAULT_DIRECTORY = Path(__file__).resolve().parents[3] / "data" / "processed" / "daily-forecast-production-v3"
+STALE_AFTER_DAYS = 60
 FEATURE_LABELS = {
     "log_baseline": "전년도 같은 시기 수요", "log_annual_growth": "지역 연간 성장률",
     "log_recent_to_annual": "최근·전년 지역수요 차이", "recent_trend": "최근 지역수요 추세",
@@ -87,6 +88,31 @@ def _artifact():
     return _load(str(directory), state)
 
 
+def model_status(now: datetime | None = None) -> dict:
+    """artifact를 검증해 불러오고 노후 여부를 계산한다. 파일 경로·비밀값은 노출하지 않는다."""
+    now = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo("Asia/Seoul"))
+    try:
+        manifest, _, histories = _artifact()
+        data_end = date.fromisoformat(manifest["data_end"])
+        created = datetime.fromisoformat(manifest["created_at"])
+    except OSError:
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "채택 모델 파일을 찾거나 읽을 수 없습니다."}
+    except ImportError:
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "모델 실행 라이브러리를 불러오지 못했습니다."}
+    except (ValueError, KeyError, TypeError) as exc:
+        message = str(exc) if isinstance(exc, ValueError) else "모델 manifest 형식이 잘못됐습니다."
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": message[:500]}
+    except Exception:  # LightGBM 파일 파싱 오류 등. 상태 조회는 어떤 경우에도 500을 내지 않는다.
+        return {"status": "unavailable", "adopted": False, "checked_at": now, "reason": "모델 파일을 해석하지 못했습니다."}
+    remaining = STALE_AFTER_DAYS - (now.date() - data_end).days
+    return {
+        "status": "ready" if remaining >= 0 and created <= now else "stale", "adopted": True, "checked_at": now,
+        "model_version": manifest["model_version"], "data_end": data_end, "created_at": created,
+        "last_predictable_target_date": data_end + timedelta(days=STALE_AFTER_DAYS), "days_until_stale": remaining,
+        "regions": sum(str(item["code"]) in histories for item in manifest["regions"]),
+    }
+
+
 def prediction_regions() -> list[RegionRef]:
     try:
         manifest, _, histories = _artifact()
@@ -139,7 +165,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
         if code not in histories:
             return _unavailable(event_id, now, "insufficient_data", "이 시군구는 검증된 학습 범위에 없습니다.")
         created = datetime.fromisoformat(manifest["created_at"])
-        if created > now or (now.date() - date.fromisoformat(manifest["data_end"])).days > 60:
+        if created > now or (now.date() - date.fromisoformat(manifest["data_end"])).days > STALE_AFTER_DAYS:
             return _unavailable(event_id, now, "insufficient_data", "최신 방문자 이력으로 모델을 갱신해야 합니다.")
         history = histories[code]
         history = history[pd.to_datetime(history.retrieved_at, utc=True) <= now.astimezone(timezone.utc)]

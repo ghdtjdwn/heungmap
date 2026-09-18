@@ -20,6 +20,7 @@ from app.schemas import (
     EventSort,
     EventType,
     HealthResponse,
+    ModelStatusResponse,
     NearbyPlaceListResponse,
     PlannerAnalysisRequest,
     PlannerAnalysisResponse,
@@ -152,6 +153,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.get("/api/v1/health", response_model=HealthResponse, operation_id="getHealth", tags=["system"])
 async def health() -> HealthResponse:
     return HealthResponse(status="ok", service="heungmap-api", contract_version="0.1.0", checked_at=datetime.now().astimezone())
+
+
+@app.get("/api/v1/system/model-status", response_model=ModelStatusResponse, response_model_exclude_none=True,
+         operation_id="getModelStatus", tags=["system"])
+def get_model_status() -> ModelStatusResponse:
+    from app.demand.daily_service import model_status
+
+    return ModelStatusResponse(**model_status())
 
 
 EVENT_ERROR_RESPONSES = {

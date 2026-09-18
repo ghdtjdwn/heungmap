@@ -18,7 +18,10 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_daily_forecast.py \
   --validation-start 2026-07-01 --test-start 2026-08-01
 
 PYTHONPATH=backend .venv/bin/pytest -q backend/tests
+# 시연 전 모델 점검: 상태·원본 checksum·홀드아웃 재계산·온라인 예측
+PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
+# 실행 중 상태 확인: curl http://127.0.0.1:8000/api/v1/system/model-status
 cd frontend && npm run dev
 ```
 

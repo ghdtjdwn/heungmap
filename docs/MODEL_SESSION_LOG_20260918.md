@@ -19,3 +19,10 @@
 - 예측 수식을 `daily_service.predict_rows`로 추출해 서비스·평가가 공유
 - 936행·234시군구: 모델 WAPE 4.434% vs 기준선 4.977% (10.90% 개선), RMSLE 0.09240 vs 0.09160(기준선 우세),
   ±20% 95.51% vs 96.05%, 80% 구간 포함률 75.53%
+
+## Step 3. 모델 상태 점검
+
+- `GET /api/v1/system/model-status`(계약 `ModelStatusResponse` 추가): ready/stale/unavailable, data_end,
+  마지막 예측 가능 행사일, 노후까지 남은 일수. 경로·비밀값 미노출, 어떤 오류에도 200.
+- `backend/scripts/verify_daily_model.py` 신규(기존 `verify_demand_model.py`는 D29 행사단위 모델용이라 유지)
+- v3 점검: ready, days_until_stale 26, checksum 3/3, 홀드아웃 재계산 300행 일치, 온라인 가능 234/264 시군구
