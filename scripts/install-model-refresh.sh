@@ -3,7 +3,11 @@
 #   리눅스 서버: crontab에 매일 06:30 실행을 추가
 #   macOS:      ~/Library/LaunchAgents에 매일 06:30 실행(launchd)을 추가. 맥이 잠자고 있었으면 깨어난 뒤 실행
 # 해제: scripts/install-model-refresh.sh --uninstall
+# 실행 시각: HEUNGMAP_REFRESH_TIME=HH:MM (이 컴퓨터 시계 기준, 기본 06:30)
 set -eu
+TIME="${HEUNGMAP_REFRESH_TIME:-06:30}"
+case "$TIME" in [0-2][0-9]:[0-5][0-9]) ;; *) echo "HEUNGMAP_REFRESH_TIME은 HH:MM 형식이어야 합니다: $TIME" >&2; exit 1;; esac
+HOUR=$(( ${TIME%%:*} + 0 )); MINUTE=$(( 1${TIME##*:} - 100 ))
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="$ROOT/scripts/model-refresh.sh"
 LOG="$ROOT/data/processed/model-refresh-cron.log"
@@ -37,7 +41,7 @@ if [ "$(uname)" = "Darwin" ]; then
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key><array><string>/bin/sh</string><string>$SCRIPT</string></array>
   <key>WorkingDirectory</key><string>$ROOT</string>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>$HOUR</integer><key>Minute</key><integer>$MINUTE</integer></dict>
   <key>StandardOutPath</key><string>$LOG</string>
   <key>StandardErrorPath</key><string>$LOG</string>
 </dict>
@@ -45,7 +49,7 @@ if [ "$(uname)" = "Darwin" ]; then
 PLIST_EOF
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$PLIST"
-  echo "등록했습니다(macOS launchd, 매일 06:30): $PLIST"
+  echo "등록했습니다(macOS launchd, 매일 $TIME): $PLIST"
   echo "확인: launchctl print gui/$(id -u)/$LABEL | grep -E 'state|path'"
   exit 0
 fi
@@ -57,7 +61,7 @@ if [ "${1:-}" = "--uninstall" ]; then
   echo "해제했습니다(crontab)."
   exit 0
 fi
-LINE="30 6 * * * $SCRIPT >> $LOG 2>&1 $MARK"
+LINE="$MINUTE $HOUR * * * $SCRIPT >> $LOG 2>&1 $MARK"
 printf '%s\n%s\n' "$FILTERED" "$LINE" | sed '/^$/d' | crontab -
-echo "등록했습니다(crontab, 매일 06:30):"
+echo "등록했습니다(crontab, 매일 $TIME, 서버 시계 $(date +%Z)):"
 crontab -l | grep "$MARK"

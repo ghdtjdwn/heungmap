@@ -21,11 +21,30 @@ else
 fi
 echo "[3/5] 의존성 설치"
 "$TOOLS/bin/uv" pip install --quiet --python "$ROOT/.venv/bin/python" -r backend/requirements-model.txt
+# LightGBM은 OpenMP(libgomp)가 필요하다. 서버에 없으면 관리자 권한 없이 패키지를 받아 이 폴더 안(.tools/lib)에 푼다.
+if ! "$ROOT/.venv/bin/python" -c "import lightgbm" >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1 && command -v dpkg-deb >/dev/null 2>&1; then
+    echo "     libgomp가 없어 이 폴더 안에 받습니다(.tools/lib)"
+    mkdir -p "$TOOLS/deb" "$TOOLS/lib"
+    (cd "$TOOLS/deb" && apt-get download libgomp1 >/dev/null)
+    dpkg-deb -x "$(ls "$TOOLS"/deb/libgomp1_*.deb | head -1)" "$TOOLS/deb/root"
+    find "$TOOLS/deb/root" -name 'libgomp.so.1*' -exec cp -P {} "$TOOLS/lib/" \;
+  else
+    echo "libgomp를 찾지 못했습니다. 관리자에게 libgomp 설치를 요청하세요(Oracle Linux: sudo dnf install libgomp)." >&2
+    exit 1
+  fi
+fi
+[ -d "$TOOLS/lib" ] && export LD_LIBRARY_PATH="$TOOLS/lib:${LD_LIBRARY_PATH:-}"
 "$ROOT/.venv/bin/python" -c "import lightgbm, pandas; print('     lightgbm', lightgbm.__version__, '/ pandas', pandas.__version__)"
 [ -f "$ROOT/.env" ] && chmod 600 "$ROOT/.env"
 echo "[4/5] 지금 한 번 실행(새 자료 수집·필요 시 재학습)"
 sh "$ROOT/scripts/model-refresh.sh" >/dev/null 2>&1 || echo "     종료 코드 $? (0 정상, 4 곧 만료·모델 없음, 2 미채택, 1 오류) — 자세한 내용: data/processed/model-refresh-log.jsonl"
 tail -1 "$ROOT/data/processed/model-refresh-log.jsonl" | "$ROOT/.venv/bin/python" -c "import json,sys; d=json.loads(sys.stdin.read()); a=d.get('after') or {}; print('     결과:', d.get('action') or d.get('error'), '| 모델', a.get('model_version'), '| 예측 가능 ~', a.get('last_predictable_target_date'), '| 만료까지', a.get('days_until_stale'), '일')"
-echo "[5/5] 매일 06:30 자동 실행 등록"
+# 한국 시간 새벽 4:30에 돈다. 서버 시계가 UTC면 19:30, 그 밖에는 지정값 또는 04:30.
+if [ -z "${HEUNGMAP_REFRESH_TIME:-}" ]; then
+  if [ "$(date +%z)" = "+0000" ]; then HEUNGMAP_REFRESH_TIME=19:30; else HEUNGMAP_REFRESH_TIME=04:30; fi
+fi
+export HEUNGMAP_REFRESH_TIME
+echo "[5/5] 매일 자동 실행 등록(한국 시간 04:30)"
 sh "$ROOT/scripts/install-model-refresh.sh"
 echo "완료. 이 폴더($ROOT)에 전부 있습니다. 지우기: 맥에서 scripts/oracle/remove.sh <서버>"
