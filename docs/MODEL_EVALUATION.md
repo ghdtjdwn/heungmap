@@ -266,7 +266,8 @@ v4 원본으로 마지막으로 계산 가능한 목표일은 2026-10-18입니�
 
 - backend: `147 passed`(로컬 API 키·문체부 조회표를 차단한 격리 환경, deprecation 경고 3건)
 - frontend: TypeScript 검사, ESLint, Next.js production build 통과. Playwright desktop·mobile `24 passed`
-- `verify_daily_model.py`(v5): ready, 원본 checksum 4/4, 홀드아웃 300행 재계산 일치, 온라인 예측 가능 234/264 시군구
+- `verify_daily_model.py`(v6, 현재): ready, 원본 checksum 4/4, 홀드아웃 300행 재계산 일치, 선택 가능 261개 시군구 모두 온라인 예측 가능
+  (v5 당시 234/264는 광주·전남 코드 개편으로 이력이 끊긴 지역 때문이었고 v6에서 해소됐습니다)
 - 실제 채택 artifact + 격리 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서 동일 prediction ID·
   모델 버전·방문자-일 범위 확인. 실제 TourAPI 행사 100건 예측 조회에서 500 없음(이 과정에서 homepage 설명문 500 버그를 고침).
 - 화면 캡처: `docs/assets/submission-20260921/` (기획 수요 진단, 근거·출처, 방문객 수요 지표)

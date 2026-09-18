@@ -403,7 +403,8 @@
 ## D37. 재학습 자동 실행 설치와 모델 상태 표시 (2026-09-18)
 
 - `scripts/install-model-refresh.sh`: macOS는 launchd, 리눅스는 사용자 crontab에 매일 06:30 `model-refresh.sh`를 등록합니다.
-  여러 번 실행해도 한 번만 등록되고 `--uninstall`로 해제합니다. 이 맥에 등록해 launchd로 1회 실행을 확인했습니다.
+  여러 번 실행해도 한 번만 등록되고 `--uninstall`로 해제합니다. 이 맥에 등록해 launchd로 1회 실행을 확인한 뒤,
+  재학습 위치를 오라클 서버 하나로 두기 위해 맥 등록은 해제했습니다(두 곳에서 서로 다른 모델이 생기지 않게).
 - 오라클 서버는 폴더 하나(`~/heungmap-model`) 원칙입니다. `scripts/oracle/push.sh`가 재학습 코드·원본·현재 모델·방문자 키 한
   줄만 올리고, 폴더 안에 uv·Python 3.12·가상환경을 만들어(시스템 Python·sudo 불필요) cron을 등록합니다. `pull.sh`로 새 모델을
   가져오고 `remove.sh`로 cron 한 줄과 폴더를 지웁니다. 가짜 서버로 설치·재실행·가져오기·삭제를 검증했습니다.
