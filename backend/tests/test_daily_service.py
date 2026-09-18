@@ -145,3 +145,35 @@ def test_prediction_merges_same_label_factors_and_explains_demand_level(artifact
     assert any("현장 혼잡이 아닙니다" in item for item in result.limitations)
     merged = daily_service.merged_factors([0.1, 0.2, -0.05], ["month_sin", "month_cos", "recent_trend"])
     assert merged[0][1] == "계절" and abs(merged[0][2] - 0.3) < 1e-12
+
+
+def predict_range(start, end, as_of=NOW):
+    return daily_service.predict_demand(event_id="evt_planner_daily_window", start_date=start, end_date=end,
+                                        region=REGION, event_type="festival", as_of=as_of)
+
+
+def test_ongoing_event_predicts_only_remaining_days(artifact):
+    result = predict_range(date(2026, 9, 10), date(2026, 9, 20))
+    assert result.status == "available"
+    assert (result.target_start_date, result.target_end_date) == (date(2026, 9, 15), date(2026, 9, 20))
+    assert any("2026-09-15~2026-09-20 구간만 예측" in item for item in result.limitations)
+    assert result.components[0].scope_description.startswith("예측 구간")
+
+
+def test_long_event_is_capped_at_thirty_days_and_last_predictable_date(artifact):
+    long_event = predict_range(date(2026, 9, 16), date(2026, 12, 31))
+    assert (long_event.target_start_date, long_event.target_end_date) == (date(2026, 9, 16), date(2026, 10, 14))
+    early = predict_range(date(2026, 9, 1), date(2026, 12, 31), as_of=datetime(2026, 9, 5, 12, tzinfo=ZoneInfo("Asia/Seoul")))
+    assert (early.target_start_date, early.target_end_date) == (date(2026, 9, 5), date(2026, 10, 4))
+
+
+def test_full_window_keeps_event_period_and_prediction_id(artifact):
+    result = predict()
+    assert (result.target_start_date, result.target_end_date) == (date(2026, 10, 10), date(2026, 10, 12))
+    assert not any("구간만 예측" in item for item in result.limitations)
+
+
+def test_ended_far_future_and_unpredictable_windows_are_unavailable(artifact):
+    assert predict_range(date(2026, 9, 1), date(2026, 9, 14)).message == "이미 끝난 행사는 예측하지 않습니다."
+    assert predict_range(date(2026, 10, 16), date(2026, 10, 18)).reason_code == "insufficient_data"
+    assert predict_range(date(2026, 10, 20), date(2026, 10, 21)).message == "행사 시작 30일 전부터 예측을 제공합니다."

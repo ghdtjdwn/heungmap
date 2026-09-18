@@ -28,6 +28,10 @@
   방문객 예측에서 같은 prediction ID·모델 버전·범위 확인. 실제 TourAPI 행사 100건 예측 조회 500 없음
   (available 30, 이미 시작·30일 초과 행사 등 설계상 unavailable 70). 화면 캡처 `docs/assets/submission-20260921/`.
 
+## 2026-09-18 추가 반영
+
+- Claude LLM(D32), 방문객 예측 구간 확대(실제 행사 30% → 88% 예측)와 흥행 진단 카드(D33). backend 157 passed, E2E 24 passed.
+
 ## 시연·제출 전 할 일
 
 0. LLM은 Claude(D32). 지금 `.env`는 `claude-sonnet-5`. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
