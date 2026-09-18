@@ -55,3 +55,10 @@
 - 결과: 6/6 형식 통과. 검증 WAPE 4.0575% vs 4.0594%, 시험 3.9414% vs 3.9388%(축제 입력이 근소하게 나쁨),
   축제 진행일 494행에서도 개선 없음, 축제 입력 TreeSHAP 비중 1.1%
 - 결정: 이득이 잡음 수준이고 실시간 TourAPI 의존만 늘어 서비스 미연결(명세 6-c 연결 작업은 수행하지 않음)
+
+## Step 7. 문체부 전년 실적 표시
+
+- `app/attendance/lookup.py`, `scripts/build_mcst_lookup.py`; planner·방문객 예측에 `ev_mcst_prior_attendance`(verified_fact)
+- 조회표 3,184개 축제. TourAPI 2026 축제 445건 중 146건(32.8%) 정확 일치(최근 3년 실적만)
+- 명세 보완: `canonical_title`이 "2026년"의 "년"을 남겨 조회용 `lookup_key`에서 제거. 광역 주관(시군구 빈칸) 행사 허용.
+- 테스트는 conftest가 조회표 경로를 없는 파일로 지정해 로컬 자료와 격리

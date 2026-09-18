@@ -10,6 +10,7 @@ def isolated_accounts(tmp_path, monkeypatch):
     monkeypatch.setenv("HEUNGMAP_ENV", "development")
     monkeypatch.setenv("HEUNGMAP_PUBLIC_ORIGIN", "http://localhost:3000")
     monkeypatch.setenv("HEUNGMAP_DEMAND_MODE", "mock")
+    monkeypatch.setenv("HEUNGMAP_MCST_LOOKUP_PATH", str(tmp_path / "no-mcst-lookup.csv"))
     monkeypatch.setattr(main_module.kakao_places, "rest_api_key", "")
 
 

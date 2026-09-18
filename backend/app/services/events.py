@@ -217,6 +217,16 @@ async def build_event_prediction(
     event: EventDetail,
     tourapi: TourApiClient,
 ) -> AvailablePrediction | UnavailablePrediction:
+    from app.attendance.lookup import attach_prior_attendance
+
+    prediction = await _build_event_prediction(event, tourapi)
+    return attach_prior_attendance(prediction, None, event.title, event.region)
+
+
+async def _build_event_prediction(
+    event: EventDetail,
+    tourapi: TourApiClient,
+) -> AvailablePrediction | UnavailablePrediction:
     if os.getenv("HEUNGMAP_DEMAND_MODE", "auto") != "mock":
         from app.demand.daily_service import predict_demand
 

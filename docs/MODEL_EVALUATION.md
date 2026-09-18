@@ -209,6 +209,22 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/train_attendance_model.py \
   --output-dir data/processed/attendance-model-reproduction
 ```
 
+### 전년 보고 실적을 "실제값 근거"로 표시 (2026-09-18)
+
+관람객 **모델**은 탈락했지만, 문체부 자료의 전년도 보고 방문객 자체는 축제 규모를 가늠하는 공식 관측값입니다.
+그래서 예측과 분리해 `Evidence(value_type="verified_fact")` "문체부 보고 전년 방문객"으로 기획 분석 근거·방문객 상세
+예측 근거에 붙입니다. 흥할지도 예측값을 바꾸지 않습니다.
+
+```bash
+PYTHONPATH=backend .venv/bin/python backend/scripts/build_mcst_lookup.py   # → data/processed/mcst-attendance-lookup.csv
+```
+
+- 조회표 3,184개 축제(양수 전년 실적, 축제별 가장 최근 계획연도). 연결 조건: 법정동 코드로 정한 같은 광역 + 같은
+  시군구(또는 광역 주관 행사) + 회차·연도를 지운 **정확히 같은 축제명**. 후보가 둘 이상이면 표시하지 않고, 퍼지 매칭은 없습니다.
+- 최근 3년 실적만 표시합니다(오래된 값이 현재 규모를 오해하게 하지 않도록).
+- TourAPI 2026년 1~8월 축제 445건 중 **146건(32.8%)** 연결. 집계 방식: 계측 57 · 추정 36 · 무응답 39 · 미제공 14.
+- 조회표가 없으면 조용히 생략합니다. 표시 문구에 "주최 측 제출값, 집계 방식이 축제마다 다름, 예측값 아님"을 넣습니다.
+
 자료 출처는 [문화체육관광부 연도별 지역축제 정보](https://www.mcst.go.kr/site/s_culture/festival/festivalList.jsp)와
 [공공데이터포털 메타데이터](https://www.data.go.kr/data/15143175/fileData.do)입니다. XLSX에는 담당자 정보도
 있지만 모델 파이프라인은 연락처·성명을 읽거나 가공표에 저장하지 않습니다.
