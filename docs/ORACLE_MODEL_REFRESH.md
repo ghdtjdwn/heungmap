@@ -58,6 +58,7 @@ ssh <서버> 'crontab -l | grep heungmap'
 ## 서버 요구 사항
 
 - 리눅스(Ubuntu·Oracle Linux, x86_64·ARM 모두 가능), 인터넷으로 나가는 연결(공공데이터포털·uv·PyPI)
+- LightGBM이 쓰는 `libgomp`가 없으면 Ubuntu에서는 관리자 권한 없이 `apt-get download`로 받아 폴더 안 `.tools/lib`에 둡니다.
 - `crontab` 명령. 없으면 Ubuntu는 `sudo apt install cron`, Oracle Linux는 `sudo dnf install cronie && sudo systemctl enable --now crond`
 - 디스크 약 1GB(원본 100MB대, 모델 폴더 하나 약 25MB, Python·패키지)
 - 방문자 원본 수집은 바깥으로 나가는 요청만 하므로 방화벽 포트를 열 필요가 없습니다.
@@ -68,8 +69,13 @@ ssh <서버> 'crontab -l | grep heungmap'
 `HEUNGMAP_DAILY_MODEL_DIR`을 쓰지 말고, 서비스의 `data/processed`가 이 폴더의 `data/processed`를 가리키게 하거나(심볼릭 링크)
 `pull.sh`처럼 새 모델 폴더를 복사해 두면 서비스가 가장 최근 채택 모델을 자동으로 고릅니다.
 
-## 검증 (2026-09-18)
+## 실제 설치 상태 (2026-09-18)
 
-실제 서버 대신 맥 안의 가짜 홈 폴더와 `ssh`·`rsync`·`crontab` 대역으로 전체 흐름을 확인했습니다.
-push(43초, 폴더 안 Python 3.12 설치·의존성·1회 실행·cron 등록) → 재실행(cron 한 줄 유지) → pull → remove(폴더 삭제, 다른
-cron 작업 보존). 실제 오라클 서버에서의 첫 실행은 사용자가 `push.sh`로 진행합니다.
+- 서버: 오라클 `ssumcp`(Ubuntu 22.04.5 ARM64). 관리 접속은 Tailscale `ubuntu@100.97.34.28`
+  (서버 안내서: `~/pal_server/docs/server-handbook.md`). 같은 VM에서 다른 서비스가 돌므로 폴더 하나·`nice`·새벽 실행을 지킵니다.
+- 설치: `scripts/oracle/push.sh ubuntu@100.97.34.28`. 폴더 `~/heungmap-model` 597MB, 서버에 없던 `libgomp`는 폴더 안에 둠.
+- cron: `30 19 * * *`(서버 시계 UTC → 한국 04:30). cron과 같은 최소 환경에서 1회 실행: 종료 코드 0, 5초, 메모리 220MB,
+  새 자료 없음(공표 지연)으로 재학습 없음, 모델 v6 ready·만료까지 30일.
+- 재학습 경로 확인: 임시 폴더로 전체 재학습 38초, 최대 메모리 747MB, 채택(시험 WAPE 3.939%, v6와 동일). 모델 파일 해시는
+  맥과 달라(ARM 리눅스 부동소수 차이) 버전 이름 끝 12자리가 다를 수 있으나 성능 수치는 같습니다.
+- 가짜 서버(맥 내 홈 폴더와 `ssh`·`rsync`·`crontab` 대역)로 재실행 멱등, pull, remove(다른 cron 작업 보존)도 확인했습니다.
