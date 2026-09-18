@@ -98,6 +98,18 @@ def prediction_regions() -> list[RegionRef]:
         return []
 
 
+def predict_rows(models, manifest: dict, frame, baselines):
+    """저장 모델로 날짜별 입력을 예측해 (하한, 중앙, 상한, 로그 중앙) 일별 배열을 돌려준다."""
+    import numpy as np
+
+    raw = np.asarray(models[1].predict(frame[manifest["features"]], num_threads=1), dtype=float)
+    center_log = np.log1p(np.asarray(baselines, dtype=float)) + raw * float(manifest["parameters"]["model_weight"])
+    low_error, high_error = manifest["calibration_log_error_quantiles"]
+    center = np.maximum(0, np.expm1(center_log))
+    return (np.maximum(0, np.expm1(center_log + low_error)), center,
+            np.maximum(center, np.expm1(center_log + high_error)), center_log)
+
+
 def _unavailable(event_id, now, reason, message):
     return UnavailablePrediction(status="unavailable", event_id=event_id, reason_code=reason, message=message,
         as_of=now, sources=[], limitations=["지역 전체 방문자-일 수요이며 특정 축제 관람객 수가 아닙니다."],
@@ -137,13 +149,8 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
             inputs.append(values)
             baselines.append(baseline)
         frame = pd.DataFrame(inputs, columns=FEATURES)
-        raw = np.asarray(models[1].predict(frame, num_threads=1), dtype=float)
         weight = float(manifest["parameters"]["model_weight"])
-        center_log = np.log1p(np.asarray(baselines)) + raw * weight
-        low_error, high_error = manifest["calibration_log_error_quantiles"]
-        daily_low = np.maximum(0, np.expm1(center_log + low_error))
-        daily_center = np.maximum(0, np.expm1(center_log))
-        daily_high = np.maximum(daily_center, np.expm1(center_log + high_error))
+        daily_low, daily_center, daily_high, _ = predict_rows(models, manifest, frame, baselines)
         lower, center, upper = map(float, (daily_low.sum(), daily_center.sum(), daily_high.sum()))
         contributions = np.asarray(models[1].predict(frame, pred_contrib=True, num_threads=1), dtype=float).mean(axis=0) * weight
         if not np.isfinite([lower, center, upper, *contributions]).all():
