@@ -80,7 +80,7 @@ export async function generatePlannerRecommendation(
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
-      if (externalSignal?.aborted) throw new ApiError("로컬 AI 보고서 생성을 취소했습니다.");
+      if (externalSignal?.aborted) throw new ApiError("AI 보고서 생성을 취소했습니다.");
       throw new ApiError("LLM 보고서 생성 시간이 초과되어 규칙 보고서로 전환합니다.");
     }
     throw new ApiError("LLM 서비스에 연결하지 못해 규칙 보고서로 전환합니다.");

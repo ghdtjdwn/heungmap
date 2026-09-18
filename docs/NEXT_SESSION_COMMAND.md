@@ -2,12 +2,13 @@
 
 ## 2026-09-18 종료 시점 (제출 2026-09-21)
 
-- 서비스 모델: `regional-daily-1.0-e279d9027dff` — `data/processed/daily-forecast-production-v5/`(Git 제외).
+- 서비스 모델: `regional-daily-1.0-ab975d661247` — `data/processed/daily-forecast-production-v6/`(Git 제외).
   환경변수가 없으면 가장 번호가 큰 **채택** production 폴더를 자동 선택합니다.
-- 자료 기준일 2026-08-19 → **마지막 예측 가능 행사일 2026-10-18**, 2026-10-19부터 모든 예측이 `unavailable`.
+- 자료 기준일 2026-08-19 → 이 맥의 모델로는 **2026-10-18까지** 예측됩니다. 오라클 서버 `ssumcp`가 매일 한국 04:30에 새 자료를
+  받아 재학습하므로, 맥에서 최신 모델이 필요하면 `scripts/oracle/pull.sh ubuntu@100.97.34.28`로 가져옵니다.
 - 현재 모델 요약은 [MODEL_CARD.md](MODEL_CARD.md), 실행·평가·재현은 [MODEL_EVALUATION.md](MODEL_EVALUATION.md),
-  이번 세션 기록은 [MODEL_SESSION_LOG_20260918.md](MODEL_SESSION_LOG_20260918.md), 결정은 DECISION_LOG D31.
-- 작업 브랜치 `feat/model-submission-20260921`(push·PR은 사용자 확인 후).
+  서버 재학습은 [ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md), 결정은 DECISION_LOG D30~D37.
+- 모든 작업은 `main`에 병합됐습니다(PR #35~#43 이후 제출 정리 PR).
 
 ## 이번에 끝낸 일
 
@@ -23,7 +24,7 @@
 ## 실제 검증 (2026-09-18)
 
 - backend `147 passed`, frontend typecheck·lint·build 통과, Playwright `24 passed`
-- `verify_daily_model.py`: ready, 원본 checksum 4/4, 홀드아웃 재계산 일치, 온라인 예측 가능 234/264 시군구
+- `verify_daily_model.py`(v6): ready, 원본 checksum 4/4, 홀드아웃 재계산 일치, 선택 가능 261개 시군구 모두 온라인 예측 가능
 - 실제 artifact + 격리 SQLite: 체험 로그인 → 기획 분석 200(강릉시, 신뢰도 보통, 문체부 81,266명) → 공개 200 →
   방문객 예측에서 같은 prediction ID·모델 버전·범위 확인. 실제 TourAPI 행사 100건 예측 조회 500 없음
   (available 30, 이미 시작·30일 초과 행사 등 설계상 unavailable 70). 화면 캡처 `docs/assets/submission-20260921/`.
@@ -39,7 +40,8 @@
 
 - Claude 보고서 안정화(D36): 실제 예시 4/4, 평가 5/5. `.env`의 `LLM_EFFORT=medium`.
 
-- 재학습 자동 실행(D37): 이 맥에 launchd 등록됨(`scripts/install-model-refresh.sh --uninstall`로 해제).
+- 재학습 자동 실행(D37): **오라클 서버만** 매일 재학습합니다. 맥 launchd는 해제했습니다. 맥에서 최신 모델이 필요하면
+  `scripts/oracle/pull.sh ubuntu@100.97.34.28`.
   오라클 서버 `ssumcp`에 설치 완료: `~/heungmap-model`, 매일 한국 04:30 자동 재학습([ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)).
   확인 `ssh ubuntu@100.97.34.28 'tail -1 ~/heungmap-model/data/processed/model-refresh-log.jsonl'`, 새 모델 가져오기 `scripts/oracle/pull.sh ubuntu@100.97.34.28`.
 

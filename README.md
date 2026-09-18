@@ -1,182 +1,120 @@
 # 흥할지도 (HeungMap)
 
-현재 통합 구현은 소개 페이지, 모의 로그인·역할 기억, 기획자 서비스, 방문객 목록·지도·달력과
-기획 행사 공개·철회를 포함합니다. 최신 실행 흐름과 Google 연결 설정은
-[통합 서비스 안내](docs/SERVICE_INTEGRATION.md)를 따릅니다. 아래 초기 계획·평가 기록보다 D25가 우선합니다.
+**한국관광공사 OpenAPI와 지역 방문자 빅데이터로 축제의 흥행 여건을 예측하고, 같은 예측을 기획자와 방문객 모두에게 연결하는
+웹 서비스**입니다. 2026 관광데이터 활용 공모전 ②-2 웹·앱 구현 부문, 지정과제 9번(축제 흥행 예측) 출품작입니다.
 
-[통합 PR #23](https://github.com/ghdtjdwn/heungmap/pull/23)은 2026-09-10 `main`에 병합됐습니다.
-병합 전 전달 당시의 검증과 제한 사항은 [세션 인계](docs/NEXT_SESSION_COMMAND.md)에 있습니다.
+- 팀: 경사하강단 (홍성주 — 기획자 서비스·AI 수요 모델, 박지성 — 방문객 서비스·통합 검토)
+- 모델 한눈에 보기: [모델 카드](docs/MODEL_CARD.md) · 시연 순서와 예상 질문: [3분 시연](docs/PLANNER_DEMO.md)
 
-한국관광공사 TourAPI와 지역별 방문자 데이터를 결합해 축제 수요를 예측하고, 같은 결과를
-기획자와 방문객의 의사결정에 연결하는 서비스 설계 저장소입니다.
+## 해결하는 문제
 
-현재 저장소에는 소개·모의 로그인·역할 선택 화면, Next.js 기획자·방문객 서비스, FastAPI 분석·인증·
-행사 공개 API, 재개 가능한 데이터 게이트와 Playwright E2E가 있습니다. 2026-09-15에는 D-30 지역 일별
-수요 기준선과 LightGBM을 결합한 실제 모델을 학습해 두 서비스에 연결했습니다. 가장 최근 3,510개
-지역·일 홀드아웃에서 WAPE3.81%, 중앙 절대비율오차3.35%, ±20% 이내97.81%를 관측했습니다.
-내일 바로 사용할 실행법·성능·지원 범위는 [모델 실행·평가](docs/MODEL_EVALUATION.md)를 따릅니다.
-실제 Google 연결과 서버 배포는 제외했습니다. 과거 데이터 게이트 이력은
-[기존 보고서](docs/DATA_GATE_REPORT.md)에 보존합니다.
+축제 기획은 과거 경험과 감에 크게 의존하고, 방문객은 일정·혼잡·주차·숙박을 여러 서비스에서 따로 찾아야 합니다.
+흥할지도는 **하나의 예측 엔진**을 두 사용자에게 연결합니다.
 
-## 해결하려는 문제
-
-축제 기획은 과거 경험과 정성 판단에 크게 의존하고, 방문자는 혼잡도와 주변 편의시설을 여러
-서비스에서 따로 찾아야 합니다. 흥할지도는 하나의 예측 엔진으로 두 사용자의 흐름을 연결합니다.
-
-| 사용자 | 입력 | 제공하려는 결과 |
+| 사용자 | 하는 일 | 받는 것 |
 | --- | --- | --- |
-| 대형 행사·콘서트 기획자 | 지역, 시기, 기간, 규모, 테마 | 예상 수요, 영향 요인, 개최지·편의시설 보완점 |
-| 소규모 독립 기획자·가수 | 제한된 예산에서 직접 준비하는 공연·행사의 시기, 장소와 규모 | 선택지별 수요 위험과 우선 보완점 |
-| 축제·콘서트·행사 이용객 | 관심 행사와 방문 조건 | 예상 혼잡도, 티켓 수요 지표, 주차·숙박·연계 관광 정보 |
+| 기획자(지자체·기획사·독립 기획자) | 행사명·일정(또는 후보)·시군구·규모·예산·제약을 단계별로 입력 | 행사기간 지역 방문수요 예측 범위, 흥행 진단, 우선 보완 항목, Claude가 쓴 기획 보고서, What-if 비교, 행사 공개 |
+| 방문객 | TourAPI 축제를 목록·지도·달력으로 탐색 | 흥행 진단(평소 대비 방문수요·지난 회차 규모·같은 기간 축제), 예측 범위, 주변 관광지·주차·숙박 |
 
-TourAPI의 축제·관광 정보를 서비스 탐색과 주변 정보의 기준 데이터로 사용하고, 지역·기간별 방문자
-시계열을 결합해 수요 지표를 계산합니다.
+## 무엇을 예측하나 (정직한 정의)
 
-공모전의 첫 데이터 검증과 구현 범위는 TourAPI로 설명 가능한 축제·지역 행사입니다. 콘서트와 홍대
-클럽 같은 소규모 공연은 별도 수요 데이터가 확보된 뒤 같은 예측·의사결정 구조로 확장합니다.
+행사 시작 **30일 전**에 알 수 있는 자료만으로, 행사기간 동안 그 **시군구 전체를 찾는 방문자-일**(날짜별 방문자 합)의
+p10·p50·p90 범위를 예측합니다. 특정 축제의 관람객 수나 현장 혼잡도를 지어내지 않습니다. 축제 규모는 문화체육관광부에
+주최 측이 보고한 **전년 방문객(실제값)**을 따로 보여 주고, 이 둘과 TourAPI 경쟁 축제 수·지역별 신뢰도를 묶어
+**흥행 진단**으로 과제 9번 질문에 답합니다.
 
-## 데이터 검증 게이트
+| 지표 (2026-08-01~19 시간 홀드아웃, 4,959 지역·일) | WAPE | 중앙 절대비율오차 | ±20% 이내 |
+| --- | ---: | ---: | ---: |
+| 계절·성장 기준선 | 4.256% | 3.514% | 97.24% |
+| **채택 모델** (기준선 + LightGBM 잔차 보정) | **3.939%** | **3.344%** | 97.20% |
 
-모델을 먼저 만들지 않고 다음 과정을 재현하는 것이 첫 번째 완료 조건입니다.
+- 학습에 쓰지 않은 새 날짜(08-16~19)로 동결 모델을 채점한 **전향 평가**에서도 WAPE 4.43%(기준선 4.98%)였습니다.
+- 작은 관광 군 지역은 오차가 커서 **신뢰도를 시군구별로** 표시합니다(홀드아웃 WAPE 5%/10% 기준).
+- 사전에 정한 5개 채택 조건을 모두 통과한 모델만 서비스에 연결되고, 기여 요인은 LightGBM TreeSHAP으로 보여 줍니다.
+- 시도한 뒤 기준 미달로 **채택하지 않은 것**도 기록했습니다: 축제별 관람객 모델(문체부 자료), TourAPI 축제 일정 입력(D30·D31).
 
-1. TourAPI `searchFestival2`에서 과거 축제의 이름·지역·기간·식별자를 수집합니다.
-2. 같은 지역과 기간의 방문자 시계열을 별도 공공 API에서 가져옵니다.
-3. 지역 코드와 기간을 기준으로 두 표를 결합합니다.
-4. 학습에 사용할 수 있는 행 수, 결측률과 label의 의미를 기록합니다.
-5. 근거가 부족하면 임의 보간으로 숨기지 않고 지역 단위 관광 혼잡 예측으로 범위를 전환합니다.
+## 한국관광공사 OpenAPI 활용
 
-| 판정 | 다음 단계 |
+| TourAPI(KorService2) | 쓰는 곳 |
 | --- | --- |
-| 축제별 label을 충분히 설명할 수 있음 | 축제 수요 예측 기능 구현 |
-| 지역 단위 집계만 가능하거나 표본이 부족함 | 지역별 관광 혼잡 예측으로 전환 |
+| `searchFestival2` | 방문객 축제 목록·지도·달력, 같은 기간·지역 경쟁 축제 수(흥행 진단), 데이터 게이트·모델 실험 |
+| `detailCommon2`, `detailIntro2` | 방문객 축제 상세(소개·기간·홈페이지) |
+| `searchKeyword2` | 기획자 장소 후보 검색 |
+| `locationBasedList2` | 행사장·축제 주변 관광정보(관광지·문화시설·숙박·음식점 등). 주차장·숙박 보강은 Kakao Local |
+| 지역별 방문자수(한국관광공사 데이터랩) | 예측 모델 학습·예측 입력(원본 47만 행, 264개 시군구) |
 
-상세 수집·결합 절차는 [데이터와 API 문서](docs/DATA_AND_APIS.md)에 있습니다.
+모든 결과에 출처·조회 시각을 붙여 화면의 "근거·출처"에서 추적할 수 있습니다. 보조 자료로 문화체육관광부 연도별 지역축제
+정보(전년 방문객 실제값), Kakao Local·지도(주소·주차·숙박 보강)를 씁니다.
 
-## 목표 제품 흐름
+## 구조
 
 ```mermaid
 flowchart LR
-    A[TourAPI 축제·관광 정보] --> C[재현 가능한 데이터 조립]
-    B[지역·기간별 방문자 데이터] --> C
-    C --> D[규칙 기반 baseline]
-    D --> E[검증된 경우 LightGBM]
-    E --> F[수요와 영향 요인]
-    F --> G[기획자 대시보드]
-    F --> H[방문객 지도]
+    A[TourAPI 축제·상세·주변 정보] --> F[FastAPI]
+    B[지역별 방문자수] --> M[D-30 수요 모델<br/>기준선 + LightGBM]
+    C[문체부 전년 방문객] --> F
+    M --> F
+    F --> P[기획자: 분석·흥행 진단·보고서·What-if·공개]
+    F --> V[방문객: 목록·지도·달력·상세]
+    F --> L[Claude: 기획 보고서<br/>수치 변경 금지·검증 후 사용]
+    O[오라클 서버 cron] -->|매일 새 자료 수집·재학습| M
 ```
 
-이 구성은 목표 아키텍처이며 구현 완료를 의미하지 않습니다. frontend, backend와 모델 선택은 데이터
-게이트 결과에 따라 [기술 스택 문서](docs/TECH_STACK.md)의 기준으로 확정합니다.
+- Web: Next.js App Router·TypeScript, API: FastAPI·Pydantic(OpenAPI 3.1 공통 계약 `contracts/openapi.yaml`)
+- 모델: pandas·LightGBM, 채택 artifact는 checksum·채택 조건을 검증한 뒤에만 불러옵니다.
+- LLM: Claude(개발 `claude-sonnet-5`, 발표 `claude-fable-5-1`). 입력에 없는 숫자·근거·고정 제약 위반을 서버가 검사하고,
+  통과하지 못하면 규칙 보고서로 전환합니다.
+- 운영: 방문자 자료가 약 30일 늦게 공개되므로 오라클 서버가 매일 새 자료를 받아 재학습합니다([오라클 재학습](docs/ORACLE_MODEL_REFRESH.md)).
 
-## 전달 단계
+## 실행
 
-| 단계 | 범위 | 완료 기준 |
-| --- | --- | --- |
-| 기반 흐름 | 데이터 조립, 규칙 기반 score, TourAPI, 입력·결과 화면과 지도 | 외부 모델 없이도 실행 가능한 사용자 흐름 |
-| 예측 모델 | LightGBM 회귀와 baseline 비교 | held-out 또는 교차검증 지표와 재현 가능한 학습 절차 |
-| 설명과 개선 | SHAP 영향 요인, 선택적 LLM 보완 report, UI 개선 | 계산 근거와 생성 문장을 구분하고 실패 fallback 제공 |
-
-기반 흐름을 완성하기 전에는 후속 단계를 시작하지 않습니다. 범위를 줄일 때도 TourAPI를 사용하는
-실행 가능한 제품 흐름과 검증 가능한 예측 근거는 유지합니다.
-
-## 2인 역할 분담
-
-두 팀원은 frontend와 backend 같은 기술 계층이 아니라 기획자 기능과 사용자 기능으로 나눠 각 흐름을
-end-to-end로 책임집니다. 홍성주는 기획자 기능을, 박지성은 사용자 기능을 담당합니다. 사용자 기능 담당은
-EVENT-US의 공개 행사 캘린더와 행사 지도를 조사해 정보구조와 상호작용 기준으로 삼습니다. 역할은
-확정됐지만 조사 결과를 기록하기 전까지 실제 화면을 확인했다고 주장하지 않습니다.
-
-역할 확정 후의 공동 작업, 첫 PR 순서와 파일 소유권은
-[작업 시작 안내](docs/00_START_HERE.md)에 있습니다. 담당자별 책임과 협업 규칙은
-[2인 역할 분담 문서](docs/TEAM_WORKFLOW.md)를 따릅니다.
-
-## 데이터와 기술 기준
-
-| 영역 | 현재 기준 | 확인·적용 조건 |
-| --- | --- | --- |
-| 관광 데이터 | TourAPI `searchFestival2`, 위치 기반 관광 정보 | API 응답과 이용 조건 확인 |
-| 예측 label 후보 | 평상시 대비 지역 방문수요 증감률 | 특정 축제 관람객이 아님을 표시하고 공동 계약 검토 |
-| 데이터·모델 | Python, pandas, LightGBM, SHAP | baseline보다 의미 있는 검증 결과 |
-| API | FastAPI·Pydantic | Python data·model과 OpenAPI 계약 연결 |
-| Web | Next.js App Router·TypeScript | 캘린더·지도·단계형 form과 URL 상태 구현 |
-| Map | Kakao Map JavaScript SDK | 위치·주차·숙박 표현 검증 |
-| 실행 | 모의 로그인 기반 로컬 실행 | macOS 검증 완료, Windows 공동 재현·실제 Google 연결·배포는 별도 확인 |
-
-API key, 원본·가공 dataset, 학습 artifact와 개인 설정은 Git에 포함하지 않습니다. 재현 절차와 schema만
-문서화하고 실제 데이터는 ignored `data/` 경로에서 다룹니다.
-
-## 저장소 사용법
-
-Python 3.11 이상과 Node.js 20.9 이상이 필요합니다. 두 터미널에서 backend와 frontend를 각각 실행합니다.
+Python 3.11 이상, Node.js 20.9 이상. 두 터미널에서 실행합니다.
 
 ```bash
-cp .env.example .env
+cp .env.example .env            # TOURAPI_SERVICE_KEY, VISITOR_API_SERVICE_KEY, KAKAO_*, LLM_* 입력
 python3 -m venv .venv
-.venv/bin/pip install -r backend/requirements-dev.txt
-# macOS에서 실제 LightGBM 평가를 재현할 때만 추가 설치
-brew install libomp
-.venv/bin/pip install -r backend/requirements-model.txt
+brew install libomp             # macOS에서 LightGBM 실행에 필요
+.venv/bin/pip install -r backend/requirements-dev.txt -r backend/requirements-model.txt
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev      # http://localhost:3000 → 로그인(체험 계정) → 역할 선택
 ```
 
-브라우저에서 <http://localhost:3000>를 열고 로그인 버튼으로 역할을 선택합니다. 장소명 검색에는 `TOURAPI_SERVICE_KEY`, 주소·좌표
-검색과 방문객 주변 주차장·숙박시설 보강에는 `KAKAO_REST_API_KEY`가 필요합니다. 실제 LLM 보고서는 기본적으로 로컬 Ollama의
-`qwen3.5:9b`를 사용하므로 별도 API key나 사용료가 없습니다. Ollama 설치 후 `ollama pull qwen3.5:9b`를
-한 번 실행하면 됩니다. 로컬 LLM이 꺼져 있거나 출력 검증에 실패해도 수동 입력, 수요 예측 결과와 규칙
-보고서는 계속 동작합니다. 선택적으로 OpenAI를 사용할 때만 `.env.example`의 provider와 key를 바꿉니다.
+기획자 화면의 **대형 축제 예시·소규모 행사 예시**는 날짜가 오늘 기준으로 계산돼 언제 열어도 실제 모델 예측이 나옵니다.
+모델 자료 파일(`data/processed/daily-forecast-production-v*`)은 Git에 없으므로 [재현 절차](docs/MODEL_EVALUATION.md)로
+만들거나 `scripts/oracle/pull.sh <서버>`로 가져옵니다.
 
-검증 명령은 다음과 같습니다.
+## 검증
 
 ```bash
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
-PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py \
-  --output data/processed/llm-eval.json
-PYTHONPATH=backend .venv/bin/python backend/scripts/verify_demand_model.py
-cd frontend
-npm run typecheck
-npm run lint
-npm run build
-npm run e2e
-npm run smoke:map
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q          # 172 passed (외부 API 호출 없이 격리)
+PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py  # 모델 상태·checksum·재계산·온라인 예측
+PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py --output data/processed/llm-eval.json
+cd frontend && npm run typecheck && npm run lint && npm run build && npm run e2e   # Playwright 24 passed
 ```
 
-데이터 게이트 수집·결합 명령은 [data/README.md](data/README.md)에 있습니다. Playwright는 외부 API를
-fixture로 고정하며 실제 credential·지도 smoke와 로컬 Ollama 평가는 별도 명령으로 실행합니다.
+실행 중 모델 상태는 `GET /api/v1/system/model-status`와 기획자 대시보드의 "수요 모델" 카드에서 확인합니다.
 
-## 문서 지도
+## 한계 (숨기지 않는 것)
 
-- [역할 결정 후 바로 시작하는 안내](docs/00_START_HERE.md)
-- [서비스 범위](docs/SERVICE_SPEC.md)
-- [2인 역할 분담과 작업 시작 절차](docs/TEAM_WORKFLOW.md)
-- [기획자·사용자 공통 데이터와 API 스펙](docs/SHARED_SPEC.md)
-- [기획자 입력·예측·LLM 추천 흐름과 담당 범위](docs/PLANNER_WORKFLOW.md)
-- [현재 기획자 기능 구현 상태](docs/PLANNER_IMPLEMENTATION.md)
-- [데이터 게이트와 실제 모델 평가](docs/DATA_GATE_REPORT.md)
-- [3분 기획자 시연과 Windows 재현](docs/PLANNER_DEMO.md)
-- [사용자 캘린더·지도·상세 흐름과 담당 범위](docs/VISITOR_WORKFLOW.md)
-- [전달 단계와 범위 조정 기준](docs/DELIVERY_MILESTONES.md)
-- [데이터와 API, go/no-go 기준](docs/DATA_AND_APIS.md)
-- [AI 모델 목표·입출력 후보·학습 및 검증 계획](docs/MODEL_PLAN.md)
-- [1차·최종 심사기준과 자체 점검표](docs/EVALUATION_CRITERIA.md)
-- [한국관광공사 OpenAPI와 외부 참고 API 카탈로그](docs/OPENAPI_CATALOG.md)
-- [확정 기술 스택과 폴더 구조](docs/TECH_STACK.md)
-- [개인 서버 배포 조건과 구조](docs/DEPLOYMENT.md)
-- [외부 API 문제 해결 기록](docs/TROUBLESHOOTING.md)
-- [결정 로그](docs/DECISION_LOG.md)
+- 예측값은 시군구 전체 방문자-일이며 특정 축제 관람객·현장 혼잡·티켓 수요·축제의 인과효과가 아닙니다.
+- 방문자 이력이 약 1년 반이라 명절 이동·기상이변을 충분히 학습하지 못했습니다. 성능은 후향 홀드아웃과 4일 전향 평가 기준입니다.
+- 예측은 오늘부터 30일 이내에 시작하거나 진행 중인 행사의 남은 날짜(최대 30일)를 대상으로 하며, 2026년 7월 행정구역 개편으로
+  새로 생긴 인천 영종구·제물포구 등은 1년 이력이 쌓일 때까지 예측하지 않습니다.
+- 로그인은 체험용 모의 로그인이고 기획 초안은 브라우저에 저장됩니다. 실제 Google 연결·웹 서비스 운영 배포는 이번 범위 밖입니다.
 
-## 현재 제약
+## 문서
 
-- 축제 원본 688건과 지역 방문자 464,092행을 실제 수집해 중복 제거 후 514건·76.37%로 결합했습니다. label 후보는 지역
-  방문수요 증가율이며 특정 축제 관람객 수가 아닙니다.
-- 기존 행사기간 증감률 모델을 대체하는 D-30 지역 방문자-일 모델을 로컬에 연결했습니다. 최종 평가는
-  2026년8월3,510개 지역·일이며 당시 공표 snapshot이 없는 후향 평가입니다. 특정 행사 관람객·인과 효과·티켓 수요를 예측하지 않습니다.
-  운영·제출 적합성과 공통 계약 변경은 공동 검토 대상으로 남습니다.
-- 모의 로그인은 구현되어 있으며 실제 Google 계정 연결·운영 배포는 아직 수행하지 않았습니다.
-- 기획자 초안은 계정별 브라우저 `localStorage`에 보관되며 다른 기기와 동기화되지 않습니다.
-  계정·역할·분석 snapshot·공개 행사는 로컬 서버의 SQLite에 저장합니다.
+| 주제 | 문서 |
+| --- | --- |
+| 모델 요약·성능·한계 | [MODEL_CARD.md](docs/MODEL_CARD.md), [MODEL_EVALUATION.md](docs/MODEL_EVALUATION.md) |
+| 시연 순서·예상 질문 | [PLANNER_DEMO.md](docs/PLANNER_DEMO.md) |
+| 서비스 범위·공통 계약 | [SERVICE_SPEC.md](docs/SERVICE_SPEC.md), [SHARED_SPEC.md](docs/SHARED_SPEC.md), [contracts/openapi.yaml](contracts/openapi.yaml) |
+| 데이터·API·게이트 | [DATA_AND_APIS.md](docs/DATA_AND_APIS.md), [OPENAPI_CATALOG.md](docs/OPENAPI_CATALOG.md), [DATA_GATE_REPORT.md](docs/DATA_GATE_REPORT.md), [data/README.md](data/README.md) |
+| 기획자·방문객 흐름 | [PLANNER_WORKFLOW.md](docs/PLANNER_WORKFLOW.md), [VISITOR_WORKFLOW.md](docs/VISITOR_WORKFLOW.md), [SERVICE_INTEGRATION.md](docs/SERVICE_INTEGRATION.md) |
+| 재학습 운영 | [ORACLE_MODEL_REFRESH.md](docs/ORACLE_MODEL_REFRESH.md) |
+| 심사기준 대응 | [EVALUATION_CRITERIA.md](docs/EVALUATION_CRITERIA.md) |
+| 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D37) |
+| 역할·작업 방식 | [TEAM_WORKFLOW.md](docs/TEAM_WORKFLOW.md), [00_START_HERE.md](docs/00_START_HERE.md) |
