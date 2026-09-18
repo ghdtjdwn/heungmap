@@ -43,8 +43,12 @@ class InsufficientForecastHistory(ValueError):
     """예측일에 필요한 정확 날짜 이력이 없을 때 사용한다."""
 
 
-def make_forecast_features(target_date, history: pd.DataFrame) -> tuple[dict[str, float], float]:
-    """목표일 60일 전까지의 이력과 전년도 대응일만 사용해 한 날짜 입력을 만든다."""
+def make_forecast_features(target_date, history: pd.DataFrame, festival_calendar: pd.DataFrame | None = None,
+                           region_code: str | None = None) -> tuple[dict[str, float], float]:
+    """목표일 60일 전까지의 이력과 전년도 대응일만 사용해 한 날짜 입력을 만든다.
+
+    festival_calendar를 주면 목표일 30일 전까지 등록된 TourAPI 축제 입력을 덧붙인다(v1.1 실험).
+    """
     target = pd.Timestamp(target_date).normalize()
     source = history.copy()
     source["date"] = pd.to_datetime(source.date)
@@ -91,10 +95,14 @@ def make_forecast_features(target_date, history: pd.DataFrame) -> tuple[dict[str
     }
     if list(inputs) != FEATURES or not np.isfinite(list(inputs.values())).all():
         raise ValueError("일별 예측 입력이 유효하지 않습니다.")
+    if festival_calendar is not None:
+        from app.demand.festivals import festival_features
+
+        inputs.update(festival_features(target, str(region_code or history.region_code.iloc[0]), festival_calendar))
     return inputs, baseline
 
 
-def build_daily_forecast_dataset(daily: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+def build_daily_forecast_dataset(daily: pd.DataFrame, festival_calendar: pd.DataFrame | None = None) -> tuple[pd.DataFrame, dict[str, Any]]:
     required = {"date", "region_code", "region_name", "visitor_count", "retrieved_at"}
     if not required.issubset(daily.columns):
         raise ValueError("일별 방문자 데이터 컬럼이 부족합니다.")
@@ -142,11 +150,20 @@ def build_daily_forecast_dataset(daily: pd.DataFrame) -> tuple[pd.DataFrame, dic
         })
         for day in range(7):
             result[f"weekday_{day}"] = (valid.date.dt.dayofweek == day).astype(float)
+        if festival_calendar is not None:
+            from app.demand.festivals import FESTIVAL_FEATURES, festival_features
+
+            region_calendar = festival_calendar.loc[festival_calendar.region_code == str(region)]
+            values = [festival_features(day, str(region), region_calendar) if len(region_calendar) else dict.fromkeys(FESTIVAL_FEATURES, 0.0)
+                      for day in result.date]
+            for name in FESTIVAL_FEATURES:
+                result[name] = [item[name] for item in values]
         rows.append(result)
     if not rows:
         raise ValueError("D-30 일별 예측 학습행을 만들 수 없습니다.")
     output = pd.concat(rows, ignore_index=True).replace([np.inf, -np.inf], np.nan).dropna()
-    if output.empty or not np.isfinite(output[FEATURES + ["target", "baseline", "log_residual"]]).all().all():
+    columns = FEATURES + ([name for name in output.columns if name.startswith("festival_")] if festival_calendar is not None else [])
+    if output.empty or not np.isfinite(output[columns + ["target", "baseline", "log_residual"]]).all().all():
         raise ValueError("일별 예측 학습값이 유효하지 않습니다.")
     return output.sort_values(["date", "region_code"]).reset_index(drop=True), {
         "feature_version": FEATURE_VERSION, "rows": len(output), "regions": int(output.region_code.nunique()),
@@ -160,7 +177,7 @@ def build_daily_forecast_dataset(daily: pd.DataFrame) -> tuple[pd.DataFrame, dic
     }
 
 
-def _fit(frame: pd.DataFrame, parameters: dict[str, Any], alpha: float | None = None):
+def _fit(frame: pd.DataFrame, parameters: dict[str, Any], alpha: float | None = None, features: list[str] = FEATURES):
     arguments = dict(
         objective="quantile" if alpha is not None else "regression_l1", num_leaves=parameters["num_leaves"],
         min_child_samples=parameters["min_child_samples"], n_estimators=parameters["n_estimators"],
@@ -169,11 +186,11 @@ def _fit(frame: pd.DataFrame, parameters: dict[str, Any], alpha: float | None = 
     )
     if alpha is not None:
         arguments["alpha"] = alpha
-    return LGBMRegressor(**arguments).fit(frame[FEATURES], frame.log_residual)
+    return LGBMRegressor(**arguments).fit(frame[features], frame.log_residual)
 
 
-def _predict(model, frame: pd.DataFrame, parameters: dict[str, Any]) -> np.ndarray:
-    residual = model.predict(frame[FEATURES]) * parameters["model_weight"]
+def _predict(model, frame: pd.DataFrame, parameters: dict[str, Any], features: list[str] = FEATURES) -> np.ndarray:
+    residual = model.predict(frame[features]) * parameters["model_weight"]
     return np.maximum(0, np.expm1(np.log1p(frame.baseline.to_numpy()) + residual))
 
 
@@ -188,7 +205,8 @@ def metrics(actual, predicted) -> dict[str, float | int]:
     }
 
 
-def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01", test_start="2026-07-01"):
+def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01", test_start="2026-07-01",
+                            features: list[str] = FEATURES):
     validation_start, test_start = pd.Timestamp(validation_start), pd.Timestamp(test_start)
     train = frame.loc[frame.date < validation_start]
     validation = frame.loc[(frame.date >= validation_start) & (frame.date < test_start)]
@@ -207,8 +225,8 @@ def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01
             fold_validation = frame.loc[(frame.date >= fold_start) & (frame.date < fold_end)]
             if min(len(fold_train), len(fold_validation)) == 0:
                 raise ValueError("전진 검증창에 필요한 표본이 없습니다.")
-            fold_model = _fit(fold_train, parameters)
-            fold_prediction = _predict(fold_model, fold_validation, parameters)
+            fold_model = _fit(fold_train, parameters, features=features)
+            fold_prediction = _predict(fold_model, fold_validation, parameters, features)
             actual_parts.append(fold_validation.target.to_numpy())
             prediction_parts.append(fold_prediction)
             fold_metrics.append({"start": fold_start.date().isoformat(), "end": (fold_end - pd.Timedelta(days=1)).date().isoformat(),
@@ -217,13 +235,12 @@ def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01
         candidates.append({"parameters": parameters, "metrics": combined_metrics, "folds": fold_metrics})
     selected = min(candidates, key=lambda item: (item["metrics"]["wape"], item["metrics"]["rmsle"]))
     development = frame.loc[frame.date < test_start]
-    models = (_fit(development, selected["parameters"], 0.1), _fit(development, selected["parameters"]),
-              _fit(development, selected["parameters"], 0.9))
-    predictions = [_predict(model, test, selected["parameters"]) for model in models]
+    models = tuple(_fit(development, selected["parameters"], alpha, features) for alpha in (0.1, None, 0.9))
+    predictions = [_predict(model, test, selected["parameters"], features) for model in models]
     # 선택된 중앙 모델의 전진 검증 오차로 80% 구간을 보정한다.
     calibration_train = frame.loc[frame.date < validation_start]
-    calibration_model = _fit(calibration_train, selected["parameters"])
-    calibration_prediction = _predict(calibration_model, validation, selected["parameters"])
+    calibration_model = _fit(calibration_train, selected["parameters"], features=features)
+    calibration_prediction = _predict(calibration_model, validation, selected["parameters"], features)
     calibration_error = np.log1p(validation.target.to_numpy()) - np.log1p(calibration_prediction)
     # 시간 이동에도 과도하게 좁아지지 않도록 절대 로그오차의 80% split-conformal 폭을 사용한다.
     calibration_width = float(np.quantile(np.abs(calibration_error), 0.8, method="higher"))
@@ -242,7 +259,8 @@ def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01
     }
     report = {
         "schema_version": "1.0", "generated_at": datetime.now(timezone.utc).isoformat(),
-        "model_version": "regional-daily-1.0", "target": "시군구 일별 방문자-일 수(명)",
+        "model_version": "regional-daily-1.0" if features == FEATURES else "regional-daily-1.1",
+        "target": "시군구 일별 방문자-일 수(명)", "features": list(features),
         "split": {"train_end": train.date.max().date().isoformat(), "validation_start": validation_start.date().isoformat(),
                   "validation_end": validation.date.max().date().isoformat(), "test_start": test_start.date().isoformat(),
                   "test_end": test.date.max().date().isoformat(), "training_rows": len(train),
@@ -291,7 +309,7 @@ def save_daily_run(output_dir: Path, report, models, predictions, frame, daily, 
     (output_dir / "evaluation.json").write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     manifest = {
         "schema_version": "1.0", "model_version": report["model_version"], "created_at": report["generated_at"],
-        "model_adopted": report["model_adopted"], "features": FEATURES,
+        "model_adopted": report["model_adopted"], "features": report.get("features", FEATURES),
         "parameters": report["selected_candidate"]["parameters"],
         "calibration_log_error_quantiles": report["calibration_log_error_quantiles"],
         "data_end": pd.to_datetime(daily.date).max().date().isoformat(),

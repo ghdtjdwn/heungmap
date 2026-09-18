@@ -46,3 +46,12 @@
   `ev_daily_demand_level`; 요인 설명을 "LightGBM TreeSHAP 기여도"로 명시하고 같은 라벨 합산
 - v5 재학습(같은 자료): 모델 파일·버전 v4와 동일, 신뢰도 high 150 / medium 62 / low 52
 - 프론트: `demandLevelText`로 "평소 대비 지역 방문수요: …(현장 혼잡도 아님)" 한 줄, 방문객 상세에 예측 근거 목록. tsc·lint 통과
+
+## Step 6. TourAPI 축제 일정 feature 실험 (v1.1) — 미채택
+
+- `app/demand/festivals.py`(calendar_from_items, load_festival_calendar, festival_features), forecasting에 선택적
+  feature 목록, `daily_training.add_festival_ablation`(6번째 조건), `train_daily_forecast.py --festivals`
+- 전년 축제 수 feature는 제외(2024·2025 조회 5·243건, TourAPI가 지난 회차를 올해 일정으로 덮어씀)
+- 결과: 6/6 형식 통과. 검증 WAPE 4.0575% vs 4.0594%, 시험 3.9414% vs 3.9388%(축제 입력이 근소하게 나쁨),
+  축제 진행일 494행에서도 개선 없음, 축제 입력 TreeSHAP 비중 1.1%
+- 결정: 이득이 잡음 수준이고 실시간 TourAPI 의존만 늘어 서비스 미연결(명세 6-c 연결 작업은 수행하지 않음)
