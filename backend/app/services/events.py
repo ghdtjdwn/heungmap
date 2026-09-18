@@ -6,6 +6,7 @@ import os
 
 from app.schemas import (
     AvailablePrediction,
+    Evidence,
     EventDetail,
     EventListResponse,
     EventType,
@@ -220,7 +221,26 @@ async def build_event_prediction(
     from app.attendance.lookup import attach_prior_attendance
 
     prediction = await _build_event_prediction(event, tourapi)
-    return attach_prior_attendance(prediction, None, event.title, event.region)
+    prediction = attach_prior_attendance(prediction, None, event.title, event.region)
+    if isinstance(prediction, AvailablePrediction) and not prediction.is_mock and getattr(tourapi, "configured", False):
+        await _attach_same_period_festivals(prediction, event, tourapi)
+    return prediction
+
+
+async def _attach_same_period_festivals(prediction: AvailablePrediction, event: EventDetail, tourapi: TourApiClient) -> None:
+    """예측 구간에 같은 시군구에서 열리는 다른 TourAPI 축제 수를 근거로 붙인다. 실패하면 조용히 생략한다."""
+    own_id = event.event_id.removeprefix("evt_tourapi_") if event.event_id.startswith("evt_tourapi_") else None
+    try:
+        count, source = await tourapi.competing_festival_count(
+            region=event.region, start_date=prediction.target_start_date, end_date=prediction.target_end_date,
+            exclude_content_id=own_id)
+    except TourApiUnavailable:
+        return
+    prediction.sources.append(source)
+    prediction.evidence.append(Evidence(
+        evidence_id="ev_tourapi_same_period", value_type="verified_fact", label="같은 지역·기간 다른 TourAPI 축제",
+        display_value=f"{count}건", numeric_value=count, unit="events", as_of=source.retrieved_at, confidence="medium",
+        source_refs=[source.source_id], limitation="검색 건수이며 실제 경쟁 강도나 관람객 수가 아닙니다."))
 
 
 async def _build_event_prediction(

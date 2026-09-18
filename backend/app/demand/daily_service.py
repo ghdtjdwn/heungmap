@@ -19,6 +19,8 @@ from app.schemas import (
 
 DEFAULT_DIRECTORY = Path(__file__).resolve().parents[3] / "data" / "processed" / "daily-forecast-production-v3"
 STALE_AFTER_DAYS = 60
+MAX_LEAD_DAYS = 30  # 오늘부터 30일 이내에 시작하는(또는 이미 진행 중인) 구간만 예측한다.
+MAX_WINDOW_DAYS = 30
 FEATURE_LABELS = {
     "log_baseline": "전년도 같은 시기 수요", "log_annual_growth": "지역 연간 성장률",
     "log_recent_to_annual": "최근·전년 지역수요 차이", "recent_trend": "최근 지역수요 추세",
@@ -223,19 +225,32 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
     code = region.legal_dong_code if region else None
     if not code or not re.fullmatch(r"\d{5}", code) or code.endswith("000") or ADMIN_TO_AREA.get(code[:2]) != region.area_code:
         return _unavailable(event_id, now, "missing_required_input", "지원 시군구를 정확히 선택해 주세요.")
-    if not 0 <= (start_date - now.date()).days <= 30 or not 1 <= (end_date - start_date).days + 1 <= 30:
-        return _unavailable(event_id, now, "insufficient_data", "30일 이내 시작하는 1~30일 행사만 지원합니다.")
+    today = now.date()
+    if end_date < start_date:
+        return _unavailable(event_id, now, "missing_required_input", "행사 종료일이 시작일보다 빠릅니다.")
+    if end_date < today:
+        return _unavailable(event_id, now, "insufficient_data", "이미 끝난 행사는 예측하지 않습니다.")
+    window_start = max(start_date, today)
+    if (window_start - today).days > MAX_LEAD_DAYS:
+        return _unavailable(event_id, now, "insufficient_data", "행사 시작 30일 전부터 예측을 제공합니다.")
     try:
         manifest, models, histories = _artifact()
         if code not in histories:
             return _unavailable(event_id, now, "insufficient_data", "이 시군구는 검증된 학습 범위에 없습니다.")
         created = datetime.fromisoformat(manifest["created_at"])
-        if created > now or (now.date() - date.fromisoformat(manifest["data_end"])).days > STALE_AFTER_DAYS:
+        data_end = date.fromisoformat(manifest["data_end"])
+        if created > now or (today - data_end).days > STALE_AFTER_DAYS:
+            return _unavailable(event_id, now, "insufficient_data", "최신 방문자 이력으로 모델을 갱신해야 합니다.")
+        # 진행 중인 행사는 남은 날짜만, 긴 행사는 최대 30일만, 자료로 계산 가능한 마지막 날까지만 예측한다.
+        # 입력은 어느 날짜든 목표일 60일 전까지의 이력이므로 D-30 예측과 같은 정보 범위다.
+        window_end = min(end_date, window_start + timedelta(days=MAX_WINDOW_DAYS - 1),
+                         data_end + timedelta(days=STALE_AFTER_DAYS))
+        if window_end < window_start:
             return _unavailable(event_id, now, "insufficient_data", "최신 방문자 이력으로 모델을 갱신해야 합니다.")
         history = histories[code]
         history = history[pd.to_datetime(history.retrieved_at, utc=True) <= now.astimezone(timezone.utc)]
         inputs, baselines = [], []
-        for target in pd.date_range(start_date, end_date):
+        for target in pd.date_range(window_start, window_end):
             values, baseline = make_forecast_features(target, history)
             inputs.append(values)
             baselines.append(baseline)
@@ -251,7 +266,8 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
     except (OSError, ValueError, KeyError, TypeError, ImportError, lgb.basic.LightGBMError):
         return _unavailable(event_id, now, "model_unavailable", "채택된 일별 수요 모델을 검증해 불러오지 못했습니다.")
 
-    cutoff = end_date - timedelta(days=60)
+    cutoff = window_end - timedelta(days=60)
+    partial = (window_start, window_end) != (start_date, end_date)
     sources = [
         SourceRef(source_id="src_daily_model", source_type="heungmap_model", provider_name="흥할지도",
                   dataset_name=manifest["model_version"], retrieved_at=created,
@@ -263,7 +279,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
                   limitation="이동통신 기반 지역 방문자-일 집계이며 고유 방문자나 축제 입장객이 아닙니다."),
     ]
     evidence = [Evidence(evidence_id="ev_daily_baseline", value_type="derived_value", label="계절·성장 기준선",
-                         display_value=f"행사기간 합계 {sum(baselines):,.0f} 방문자-일", numeric_value=float(sum(baselines)),
+                         display_value=f"{'예측 구간' if partial else '행사기간'} 합계 {sum(baselines):,.0f} 방문자-일", numeric_value=float(sum(baselines)),
                          unit="people", source_refs=["src_daily_visitors"], as_of=sources[1].data_as_of,
                          limitation="전년도 같은 요일과 60일 전까지 관측한 연간 성장률로 계산했습니다.")]
     confidence, holdout = region_confidence(manifest, code)
@@ -271,6 +287,9 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
     limitations = [*manifest["limitations"],
                    "행사기간 합계는 날짜별 방문자 수의 합으로 같은 사람이 여러 날 방문하면 중복될 수 있습니다.",
                    "예산·출연진·날씨·축제 자체 효과를 이 수치의 원인으로 해석하지 않습니다."]
+    if partial:
+        limitations.append(f"행사 전체 기간({start_date}~{end_date}) 중 {window_start}~{window_end} 구간만 예측했습니다. "
+                           "지난 날짜, 30일을 넘는 날짜, 현재 자료로 계산할 수 없는 날짜는 포함하지 않습니다.")
     if holdout:
         evidence.append(Evidence(evidence_id="ev_daily_region_holdout", value_type="derived_value", label="이 시군구 시간 홀드아웃 오차",
             display_value=f"WAPE {holdout['wape']:.1%} ({holdout['days']}일)", numeric_value=holdout["wape"], unit="ratio",
@@ -289,14 +308,15 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
             direction="up" if effect > 0 else "down" if effect < 0 else "neutral", importance=abs(effect),
             explanation=f"LightGBM TreeSHAP 기여도 기준 지역 계절 기준선 대비 약 {effect:+.2f}%입니다. 인과효과는 아닙니다.",
             evidence_refs=["ev_daily_baseline"]))
-    fingerprint = f"{manifest['model_version']}:{event_id}:{code}:{start_date}:{end_date}:{now.date()}"
+    fingerprint = f"{manifest['model_version']}:{event_id}:{code}:{window_start}:{window_end}:{now.date()}"
     return AvailablePrediction(status="available", prediction_id="pred_daily_" + hashlib.sha256(fingerprint.encode()).hexdigest()[:24],
         event_id=event_id, prediction_type="regional_visit_demand", as_of=now,
-        target_start_date=start_date, target_end_date=end_date, target_region=region,
+        target_start_date=window_start, target_end_date=window_end, target_region=region,
         primary_metric=PredictionRangeMetric(metric_name="regional_visit_demand", unit="people",
                                              p10=round(lower), p50=round(center), p90=round(upper)),
         components=[PredictionComponent(component_type="regional_baseline", value=round(sum(baselines)), unit="people",
-            scope_description="행사기간 시군구 전체 예상 방문자-일 계절 기준선", evidence_refs=["ev_daily_baseline"])],
+            scope_description=("예측 구간" if partial else "행사기간") + " 시군구 전체 예상 방문자-일 계절 기준선",
+            evidence_refs=["ev_daily_baseline"])],
         indicators=PredictionIndicators(congestion_level=demand_level, ticket_demand_level="unknown"),
         confidence=confidence, data_sufficiency="sufficient", method="machine_learning", model_version=manifest["model_version"],
         factors=factors, evidence=evidence, sources=sources, limitations=limitations,

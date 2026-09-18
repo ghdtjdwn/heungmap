@@ -252,15 +252,22 @@ class TourApiClient:
         region: RegionRef,
         start_date: date,
         end_date: date,
+        exclude_content_id: str | None = None,
     ) -> tuple[int, SourceRef]:
+        legal = region.legal_dong_code or ""
+        # 법정동 시군구 코드가 있으면 시군구 단위로 센다. 없으면 기존처럼 지역 코드 기준이다.
+        region_params = ({"lDongRegnCd": legal[:2], "lDongSignguCd": legal[2:]} if len(legal) == 5 and not legal.endswith("000")
+                         else _festival_region_params(region.area_code, region.sigungu_code))
         items = await self._festival_items(
             {
                 "eventStartDate": start_date.strftime("%Y%m%d"),
                 "eventEndDate": end_date.strftime("%Y%m%d"),
-                **_festival_region_params(region.area_code, region.sigungu_code),
+                **region_params,
                 "arrange": "A",
             },
         )
+        if exclude_content_id:
+            items = [item for item in items if self._text(item.get("contentid")) != exclude_content_id]
         now = datetime.now().astimezone()
         source = SourceRef(
             source_id=f"src_tourapi_festivals_{now.strftime('%Y%m%d%H%M%S')}",

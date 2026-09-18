@@ -430,3 +430,23 @@ def test_tourapi_homepage_text_with_description_does_not_break_event_detail() ->
     assert parse('<a href="https://festival.example.kr" target="_blank">홈페이지</a>') == "https://festival.example.kr"
     assert parse("홈페이지 없음") is None and parse(None) is None
     assert parse("(https://example.kr).") == "https://example.kr"
+
+
+def test_competing_festival_count_uses_legal_sigungu_and_excludes_the_event_itself() -> None:
+    client = TourApiClient(service_key="test")
+    captured = {}
+
+    async def fake_items(params):
+        captured.clear()
+        captured.update(params)
+        return [{"contentid": "100"}, {"contentid": "200"}, {"contentid": "300"}]
+
+    client._festival_items = fake_items
+    region = RegionRef(area_code="32", legal_dong_code="51150", display_name="강릉시")
+    count, source = asyncio.run(client.competing_festival_count(
+        region=region, start_date=date(2026, 10, 3), end_date=date(2026, 10, 4), exclude_content_id="200"))
+    assert count == 2 and source.source_type == "tourapi"
+    assert captured["lDongRegnCd"] == "51" and captured["lDongSignguCd"] == "150"
+    asyncio.run(client.competing_festival_count(region=RegionRef(area_code="32", display_name="강원"),
+                                                start_date=date(2026, 10, 3), end_date=date(2026, 10, 4)))
+    assert captured["lDongRegnCd"] == "51" and "lDongSignguCd" not in captured

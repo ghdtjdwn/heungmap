@@ -236,7 +236,8 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/build_mcst_lookup.py   # →
 중복되는 방문자-일 단위입니다. 신뢰도는 지역별 홀드아웃 오차로, `congestion_level`은 평소 대비 지역 방문수요
 백분위로 계산합니다(v5 절 참조). 관측 근거 없는 티켓 수요는 `unknown`으로 유지합니다.
 
-지원 범위는 오늘부터 30일 이내 시작하는 1~30일 행사, 완전한 전년·최근 이력이 있는 264개 시군구입니다.
+지원 범위는 오늘부터 30일 이내 시작하거나 진행 중인 행사의 남은 날짜 중 최대 30일, 완전한 전년·최근 이력이 있는 264개
+시군구입니다(D33). 일부 구간만 예측하면 `target_start_date`·`target_end_date`와 limitation에 그 구간을 적습니다.
 v4 원본으로 마지막으로 계산 가능한 목표일은 2026-10-18입니다. 이력 누락·60일 초과 노후화·artifact
 손상·미채택 상태에서는 숫자를 만들지 않고 `unavailable`을 반환합니다.
 

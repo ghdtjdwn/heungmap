@@ -18,7 +18,9 @@ export function predictionSummary(prediction: Prediction): string {
   if (metric.metric_name === "relative_demand_score") return `상대 수요점수 ${metric.value}/100${prediction.is_mock ? " (학습 모델 연결 전 mock)" : ""}`;
   const unit = metric.unit === "percent_change" ? "%" : " 방문자-일";
   const format = (value: number) => metric.unit === "people" ? Math.round(value).toLocaleString("ko-KR") : value.toFixed(1);
-  return `${prediction.target_region?.display_name ?? "대상 지역"} 지역 방문수요 ${format(metric.p50)}${unit} · 예측 범위 ${format(metric.p10)}~${format(metric.p90)}${unit}`;
+  const day = (value: string) => { const [, month, date] = value.split("-"); return `${Number(month)}/${Number(date)}`; };
+  const period = prediction.target_start_date === prediction.target_end_date ? day(prediction.target_start_date) : `${day(prediction.target_start_date)}~${day(prediction.target_end_date)}`;
+  return `${prediction.target_region?.display_name ?? "대상 지역"} 지역 방문수요 ${format(metric.p50)}${unit} · 예측 범위 ${format(metric.p10)}~${format(metric.p90)}${unit} · 대상 기간 ${period}`;
 }
 
 export function predictionNotice(prediction: Prediction): string {

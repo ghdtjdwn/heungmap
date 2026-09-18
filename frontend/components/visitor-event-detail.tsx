@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/app-header";
 import { KakaoMapPreview } from "@/components/kakao-map-preview";
 import { ApiError, getEvent, getEventNearby, getEventPrediction } from "@/lib/api";
 import type { EventDetail, NearbyPlaceListResponse, Prediction } from "@/lib/types";
+import { HeungDiagnosis } from "@/components/heung-diagnosis";
 import { demandLevelText, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
 
 const PLACE_LABELS: Record<string, { icon: string; label: string }> = {
@@ -168,6 +169,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
           {predictionData?.status === "unavailable" && <div className="unavailable-box"><strong>현재 예측을 제공할 수 없습니다</strong><p>{predictionData.message}</p>{predictionData.limitations.map((item) => <small key={item}>{item}</small>)}</div>}
           {predictionData?.status === "available" && <>
             <div className="visitor-score"><strong>{predictionData.primary_metric.unit === "people" ? Math.round(predictionValue(predictionData) ?? 0).toLocaleString("ko-KR") : predictionValue(predictionData)}</strong><span>{predictionData.primary_metric.unit === "percent_change" ? "%" : predictionData.primary_metric.unit === "people" ? "방문자-일" : "/ 100"}</span></div>
+            <HeungDiagnosis prediction={predictionData} role="visitor" />
             <p>{predictionSummary(predictionData)}</p>
             {demandLevelText(predictionData) && <p>{demandLevelText(predictionData)}</p>}
             {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
