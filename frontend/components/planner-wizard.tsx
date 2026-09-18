@@ -356,7 +356,7 @@ export function PlannerWizard() {
         warning: "실제 LLM을 사용할 수 없어 규칙 보고서로 생성했습니다.",
       };
       try {
-        setSubmissionPhase("로컬 AI 보고서 작성 중");
+        setSubmissionPhase("AI 보고서 작성 중");
         llmAbort.current = new AbortController();
         setCanCancelLlm(true);
         const generated = await generatePlannerRecommendation({

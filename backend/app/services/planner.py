@@ -312,10 +312,11 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
 
     if os.getenv("HEUNGMAP_DEMAND_MODE", "auto") == "mock":
         prediction = build_mock_prediction(draft, evidence, external_sources)
-    elif draft.schedule_selection_mode != "fixed" or draft.region_selection_mode != "fixed" or not draft.region:
+    elif (draft.schedule_selection_mode not in {"fixed", "candidates"} or draft.region_selection_mode != "fixed"
+          or not draft.region or (draft.schedule_selection_mode == "candidates" and not draft.date_candidates)):
         prediction = UnavailablePrediction(
             status="unavailable", event_id=draft.event_id, reason_code="missing_required_input",
-            message="지역 방문수요 예측을 위해 일정과 시군구를 확정해 주세요.",
+            message="지역 방문수요 예측을 위해 일정(또는 일정 후보)과 시군구를 정해 주세요.",
             as_of=datetime.now().astimezone(), sources=external_sources,
             limitations=["미정인 일정·지역을 임의로 정해 수요를 예측하지 않습니다."],
             retryable=False, is_mock=False,
@@ -327,6 +328,13 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
             event_id=draft.event_id, start_date=start, end_date=end,
             region=draft.region, event_type=draft.event_type,
         )
+        if draft.schedule_selection_mode == "candidates":
+            # 후보 일정이면 첫 번째 후보로 예측하고 그 사실을 밝힌다. 다른 후보는 대안 비교에서 다룬다.
+            prediction.limitations.append(f"일정 후보 중 첫 번째 후보({start}~{end}) 기준 예측입니다. 일정을 확정하면 그 날짜로 다시 계산합니다.")
+    from app.attendance.lookup import attach_prior_attendance
+
+    # 같은 이름의 기존 축제가 문체부 자료에 있으면 전년 보고 실적을 예측과 분리된 실제값 근거로 보여 준다.
+    prediction = attach_prior_attendance(prediction, evidence, draft.working_title, draft.region)
     source_ids = {source.source_id for source in prediction.sources}
     prediction.sources.extend(source for source in external_sources if source.source_id not in source_ids)
     if isinstance(prediction, AvailablePrediction):

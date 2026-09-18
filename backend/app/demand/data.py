@@ -123,6 +123,7 @@ def load_daily_visitors(paths: Iterable[Path]) -> tuple[pd.DataFrame, dict[str, 
     daily = daily.loc[daily["visitor_types"] == 3, DAILY_COLUMNS].reset_index(drop=True)
     if daily.empty or not np.isfinite(daily["visitor_count"]).all():
         raise ValueError("합산한 일별 방문자 데이터가 비어 있거나 유한하지 않습니다.")
+    daily, splice_audit = splice_renamed_regions(daily)
     return daily, {
         "raw_rows": len(records), "duplicate_type_rows_removed": duplicate_count,
         "incomplete_type_days_discarded": incomplete_count,
@@ -131,6 +132,25 @@ def load_daily_visitors(paths: Iterable[Path]) -> tuple[pd.DataFrame, dict[str, 
         "date_min": daily["date"].min().date().isoformat(),
         "date_max": daily["date"].max().date().isoformat(),
         "retrieved_at_min": min(retrieved), "retrieved_at_max": max(retrieved),
+        **splice_audit,
+    }
+
+
+def splice_renamed_regions(daily: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """2026-07-01 코드만 바뀐 광주·전남 시군구의 옛 이력을 새 코드로 이어 붙인다(app.regions 참고)."""
+    from app.regions import RENAMED_REGION_CODES
+
+    renamed = daily["region_code"].isin(RENAMED_REGION_CODES)
+    daily = daily.assign(_spliced=renamed)
+    daily.loc[renamed, "region_code"] = daily.loc[renamed, "region_code"].map(RENAMED_REGION_CODES)
+    # 같은 날짜가 옛 코드와 새 코드 모두에 있으면 새 코드 관측을 쓴다.
+    overlap = daily.duplicated(["date", "region_code"], keep=False) & daily["_spliced"]
+    daily = daily.loc[~overlap]
+    latest_names = daily.sort_values("date").groupby("region_code")["region_name"].last()
+    daily["region_name"] = daily["region_code"].map(latest_names)
+    return daily[DAILY_COLUMNS].sort_values(["date", "region_code"]).reset_index(drop=True), {
+        "renamed_regions_spliced": int(daily.loc[daily["_spliced"], "region_code"].nunique()),
+        "renamed_region_rows": int(renamed.sum()), "renamed_region_overlap_dropped": int(overlap.sum()),
     }
 
 

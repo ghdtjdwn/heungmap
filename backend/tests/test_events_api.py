@@ -203,11 +203,11 @@ def test_planner_competing_festival_count_uses_same_region_conversion(monkeypatc
 
 def test_all_shared_area_codes_have_a_legal_region_mapping() -> None:
     assert TOUR_AREA_TO_LEGAL_REGION == {
-        "1": "11", "2": "28", "3": "30", "4": "27", "5": "29",
+        "1": "11", "2": "28", "3": "30", "4": "27", "5": "12",
         "6": "26", "7": "31", "8": "36", "31": "41", "32": "51",
         "33": "43", "34": "44", "35": "47", "36": "48", "37": "52",
-        "38": "46", "39": "50",
-    }
+        "38": "12", "39": "50",
+    }  # 광주(5)·전남(38)은 2026-07-01부터 전남광주통합특별시(12)로 조회한다.
 
 
 def test_missing_event_returns_problem_json(monkeypatch) -> None:
@@ -422,3 +422,51 @@ def test_event_prediction_is_low_confidence_mock(monkeypatch) -> None:
     assert data["is_mock"] is True
     assert data["confidence"] == "low"
     assert data["prediction_type"] == "relative_demand_score"
+
+
+def test_tourapi_homepage_text_with_description_does_not_break_event_detail() -> None:
+    parse = TourApiClient._homepage_url
+    assert parse('공식 인스타그램 https://www.instagram.com/jeju_ghost/') == "https://www.instagram.com/jeju_ghost/"
+    assert parse('<a href="https://festival.example.kr" target="_blank">홈페이지</a>') == "https://festival.example.kr"
+    assert parse("홈페이지 없음") is None and parse(None) is None
+    assert parse("(https://example.kr).") == "https://example.kr"
+
+
+def test_competing_festival_count_uses_legal_sigungu_and_excludes_the_event_itself() -> None:
+    client = TourApiClient(service_key="test")
+    captured = {}
+
+    async def fake_items(params):
+        captured.clear()
+        captured.update(params)
+        return [{"contentid": "100"}, {"contentid": "200"}, {"contentid": "300"}]
+
+    client._festival_items = fake_items
+    region = RegionRef(area_code="32", legal_dong_code="51150", display_name="강릉시")
+    count, source = asyncio.run(client.competing_festival_count(
+        region=region, start_date=date(2026, 10, 3), end_date=date(2026, 10, 4), exclude_content_id="200"))
+    assert count == 2 and source.source_type == "tourapi"
+    assert captured["lDongRegnCd"] == "51" and captured["lDongSignguCd"] == "150"
+    asyncio.run(client.competing_festival_count(region=RegionRef(area_code="32", display_name="강원"),
+                                                start_date=date(2026, 10, 3), end_date=date(2026, 10, 4)))
+    assert captured["lDongRegnCd"] == "51" and "lDongSignguCd" not in captured
+
+
+def test_event_list_puts_short_festivals_before_long_running_programs(monkeypatch) -> None:
+    today = date.today()
+    permanent = event().model_copy(update={"event_id": "evt_tourapi_permanent", "title": "상시 공연",
+                                           "start_date": today - timedelta(days=700), "end_date": today + timedelta(days=100)})
+    ongoing = event().model_copy(update={"event_id": "evt_tourapi_ongoing", "title": "진행 중 축제",
+                                         "start_date": today - timedelta(days=1), "end_date": today + timedelta(days=2)})
+    upcoming = event().model_copy(update={"event_id": "evt_tourapi_upcoming", "title": "곧 열릴 축제"})
+
+    class FakeTourApi:
+        configured = True
+
+        async def search_festivals(self, **_kwargs):
+            return [permanent, upcoming, ongoing]
+
+    monkeypatch.setattr(main_module, "tourapi", FakeTourApi())
+    response = client.get("/api/v1/events")
+    assert [item["event_id"] for item in response.json()["items"]] == [
+        "evt_tourapi_ongoing", "evt_tourapi_upcoming", "evt_tourapi_permanent"]

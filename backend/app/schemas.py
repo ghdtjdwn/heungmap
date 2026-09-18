@@ -587,6 +587,19 @@ class HealthResponse(ContractModel):
     checked_at: datetime
 
 
+class ModelStatusResponse(ContractModel):
+    status: Literal["ready", "stale", "unavailable"]
+    adopted: bool
+    checked_at: datetime
+    model_version: str | None = None
+    data_end: date | None = None
+    created_at: datetime | None = None
+    last_predictable_target_date: date | None = None
+    days_until_stale: int | None = None
+    regions: int | None = Field(default=None, ge=0)
+    reason: str | None = Field(default=None, max_length=500)
+
+
 class FieldError(ContractModel):
     field: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=500)

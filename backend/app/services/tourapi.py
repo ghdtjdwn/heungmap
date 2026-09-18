@@ -8,6 +8,9 @@ from html import unescape
 from typing import Any
 
 import httpx
+from pydantic import HttpUrl, TypeAdapter
+
+from app.regions import UNIFIED_REGION, tour_area_for_legal_code
 
 from app.schemas import (
     Coordinates,
@@ -53,6 +56,9 @@ LEGAL_REGION_TO_TOUR_AREA = {
     legal_code: area_code
     for area_code, legal_code in TOUR_AREA_TO_LEGAL_REGION.items()
 }
+# 2026-07-01부터 광주·전남 행사는 전남광주통합특별시(12) 코드로 조회된다. 광주·전남 구분은
+# _festival_to_summary가 시군구 코드로 복원하므로 조회는 통합 코드로 하고 지역 필터는 목록에서 다시 거른다.
+TOUR_AREA_TO_LEGAL_REGION.update({"5": UNIFIED_REGION, "38": UNIFIED_REGION})
 
 
 def _festival_region_params(
@@ -251,15 +257,22 @@ class TourApiClient:
         region: RegionRef,
         start_date: date,
         end_date: date,
+        exclude_content_id: str | None = None,
     ) -> tuple[int, SourceRef]:
+        legal = region.legal_dong_code or ""
+        # 법정동 시군구 코드가 있으면 시군구 단위로 센다. 없으면 기존처럼 지역 코드 기준이다.
+        region_params = ({"lDongRegnCd": legal[:2], "lDongSignguCd": legal[2:]} if len(legal) == 5 and not legal.endswith("000")
+                         else _festival_region_params(region.area_code, region.sigungu_code))
         items = await self._festival_items(
             {
                 "eventStartDate": start_date.strftime("%Y%m%d"),
                 "eventEndDate": end_date.strftime("%Y%m%d"),
-                **_festival_region_params(region.area_code, region.sigungu_code),
+                **region_params,
                 "arrange": "A",
             },
         )
+        if exclude_content_id:
+            items = [item for item in items if self._text(item.get("contentid")) != exclude_content_id]
         now = datetime.now().astimezone()
         source = SourceRef(
             source_id=f"src_tourapi_festivals_{now.strftime('%Y%m%d%H%M%S')}",
@@ -291,8 +304,10 @@ class TourApiClient:
         raw_area_code = self._text(item.get("areacode"))
         legal_area_code = self._text(item.get("lDongRegnCd") or item.get("ldongregncd"))
         legal_sigungu_code = self._text(item.get("lDongSignguCd") or item.get("ldongsigngucd"))
+        legal_dong_code = _legal_dong_code(legal_area_code, legal_sigungu_code)
         area_code = (
             raw_area_code
+            or tour_area_for_legal_code(legal_dong_code)
             or LEGAL_REGION_TO_TOUR_AREA.get(legal_area_code, legal_area_code)
             or "0"
         )
@@ -301,7 +316,6 @@ class TourApiClient:
             or legal_sigungu_code
             or None
         )
-        legal_dong_code = _legal_dong_code(legal_area_code, legal_sigungu_code)
         addr1 = self._text(item.get("addr1"))
         addr2 = self._text(item.get("addr2"))
         address = " ".join(part for part in (addr1, addr2) if part) or None
@@ -421,10 +435,22 @@ class TourApiClient:
         if summary is None:
             return None
         description = self._text(common.get("overview")) or None
-        homepage_raw = str(common.get("homepage") or "")
-        match = re.search(r'href="([^"]+)"', homepage_raw)
-        homepage_url = match.group(1) if match else (self._text(homepage_raw) or None)
-        return EventDetail(**summary.model_dump(), description=description, homepage_url=homepage_url)
+        return EventDetail(**summary.model_dump(), description=description,
+                           homepage_url=self._homepage_url(common.get("homepage")))
+
+    @staticmethod
+    def _homepage_url(value: Any) -> str | None:
+        """TourAPI homepage는 a 태그·설명문·URL이 섞여 온다. 첫 http(s) URL만 쓰고 없으면 링크를 생략한다."""
+        raw = str(value or "")
+        match = re.search(r'href="(https?://[^"]+)"', raw) or re.search(r"https?://[^\s\"'<>]+", raw)
+        if not match:
+            return None
+        url = (match.group(1) if match.re.groups else match.group(0)).rstrip(").,")
+        try:
+            TypeAdapter(HttpUrl).validate_python(url)
+        except ValueError:
+            return None
+        return url
 
     async def nearby_places(self, coordinates: Coordinates, radius_m: int = 5000) -> list[NearbyPlace]:
         items = await self._get_items(

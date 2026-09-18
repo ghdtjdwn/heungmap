@@ -484,3 +484,16 @@ export type Problem = {
   trace_id?: string;
   field_errors?: { field: string; message: string }[];
 };
+
+export type ModelStatus = {
+  status: "ready" | "stale" | "unavailable";
+  adopted: boolean;
+  checked_at: string;
+  model_version?: string;
+  data_end?: string;
+  created_at?: string;
+  last_predictable_target_date?: string;
+  days_until_stale?: number;
+  regions?: number;
+  reason?: string;
+};

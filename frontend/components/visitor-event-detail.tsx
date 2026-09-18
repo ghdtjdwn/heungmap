@@ -9,7 +9,8 @@ import { AppHeader } from "@/components/app-header";
 import { KakaoMapPreview } from "@/components/kakao-map-preview";
 import { ApiError, getEvent, getEventNearby, getEventPrediction } from "@/lib/api";
 import type { EventDetail, NearbyPlaceListResponse, Prediction } from "@/lib/types";
-import { predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
+import { HeungDiagnosis } from "@/components/heung-diagnosis";
+import { componentText, demandLevelText, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
 
 const PLACE_LABELS: Record<string, { icon: string; label: string }> = {
   parking: { icon: "P", label: "주차" },
@@ -168,15 +169,20 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
           {predictionData?.status === "unavailable" && <div className="unavailable-box"><strong>현재 예측을 제공할 수 없습니다</strong><p>{predictionData.message}</p>{predictionData.limitations.map((item) => <small key={item}>{item}</small>)}</div>}
           {predictionData?.status === "available" && <>
             <div className="visitor-score"><strong>{predictionData.primary_metric.unit === "people" ? Math.round(predictionValue(predictionData) ?? 0).toLocaleString("ko-KR") : predictionValue(predictionData)}</strong><span>{predictionData.primary_metric.unit === "percent_change" ? "%" : predictionData.primary_metric.unit === "people" ? "방문자-일" : "/ 100"}</span></div>
+            <HeungDiagnosis prediction={predictionData} role="visitor" />
             <p>{predictionSummary(predictionData)}</p>
+            {demandLevelText(predictionData) && <p>{demandLevelText(predictionData)}</p>}
             {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
             {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
-            {predictionData.components?.map(component => <p key={component.component_type}>{component.scope_description}</p>)}
+            {predictionData.components?.map(component => <p key={component.component_type}>{componentText(component)}</p>)}
             <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "MODEL MOCK" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
             <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
             <p>모델 버전 {predictionData.model_version}</p>
             {predictionData.factors.length > 0 && <ul className="factor-list">{predictionData.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>}
-            <div className="visitor-limitations"><strong>해석 한계</strong><ul>{predictionData.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            <details className="visitor-prediction-details"><summary>근거와 해석 한계 자세히 보기</summary>
+              {predictionData.evidence.length > 0 && <ul className="factor-list">{predictionData.evidence.map((item) => <li key={item.evidence_id}><span className="direction neutral">·</span><div><strong>{item.label}</strong><p>{item.display_value}</p>{item.limitation && <small>{item.limitation}</small>}</div></li>)}</ul>}
+              <div className="visitor-limitations"><strong>해석 한계</strong><ul>{predictionData.limitations.map((item) => <li key={item}>{item}</li>)}</ul></div>
+            </details>
           </>}
         </section>
 

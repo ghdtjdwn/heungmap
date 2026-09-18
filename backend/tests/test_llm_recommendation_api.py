@@ -1,6 +1,7 @@
 import asyncio
 import json
 from copy import deepcopy
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -375,3 +376,127 @@ def test_ollama_adapter_uses_local_structured_output(monkeypatch) -> None:
     assert "anyOf" not in schema_text
     assert "const" not in schema_text
     assert '"enum": [true]' in schema_text
+
+
+class FakeClaude:
+    """anthropic.AsyncAnthropic 대역. 네트워크 없이 요청 인자를 기록한다."""
+
+    def __init__(self, text=None, stop_reason="end_turn", blocks=None):
+        self.calls = []
+        response = SimpleNamespace(stop_reason=stop_reason, content=blocks if blocks is not None else [
+            SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=text)])
+
+        async def create(**kwargs):
+            self.calls.append(kwargs)
+            return response
+
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
+
+
+def claude_llm(monkeypatch, fake, model="claude-sonnet-5"):
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.setenv("LLM_MODEL", model)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    return PlannerLlmClient(anthropic_client=fake)
+
+
+def test_claude_adapter_uses_structured_output_and_shared_validation(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+
+    fake = FakeClaude(json.dumps(generated_content(), ensure_ascii=False))
+    result = asyncio.run(claude_llm(monkeypatch, fake).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    call = fake.calls[0]
+    assert result.recommendation.generation_mode == "llm" and result.meta.provider == "anthropic"
+    assert call["model"] == "claude-sonnet-5" and call["output_config"]["format"]["type"] == "json_schema"
+    assert call["output_config"]["effort"] == "high" and "fallbacks" not in call
+    assert "temperature" not in call and "thinking" not in call
+
+
+def test_claude_schema_drops_unsupported_constraints_but_keeps_field_names() -> None:
+    from app.services.llm_anthropic import planner_schema
+
+    serialized = json.dumps(planner_schema())
+    assert "minLength" not in serialized and "maxItems" not in serialized
+    priority = planner_schema()["$defs"]["PlannerRecommendationPriority"]
+    assert "title" in priority["properties"] and priority["additionalProperties"] is False
+
+
+def test_claude_top_models_opt_into_default_fallbacks(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+
+    fake = FakeClaude(json.dumps(generated_content(), ensure_ascii=False))
+    asyncio.run(claude_llm(monkeypatch, fake, "claude-fable-5-1").generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert fake.calls[0]["fallbacks"] == "default" and fake.calls[0]["betas"] == ["server-side-fallback-2026-07-01"]
+
+
+def test_claude_refusal_truncation_and_fabricated_evidence_fall_back(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+    from app.services.llm import LlmInvalidResponse
+
+    request = PlannerRecommendationRequest.model_validate(valid_request())
+    cases = [
+        (FakeClaude(stop_reason="refusal", blocks=[]), LlmUpstreamUnavailable),
+        (FakeClaude("{", stop_reason="max_tokens"), LlmInvalidResponse),
+        (FakeClaude(json.dumps(generated_content("ev_fabricated"), ensure_ascii=False)), LlmInvalidResponse),
+        (FakeClaude(blocks=[SimpleNamespace(type="thinking", thinking="")]), LlmInvalidResponse),
+    ]
+    for fake, error in cases:
+        try:
+            asyncio.run(claude_llm(monkeypatch, fake).generate(request))
+        except error:
+            continue
+        raise AssertionError(f"{error.__name__} expected")
+
+
+def test_claude_is_not_configured_without_any_credential(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "anthropic")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert PlannerLlmClient().configured is False
+    monkeypatch.setenv("LLM_API_KEY", "sk-ant-test")
+    assert PlannerLlmClient().configured is True and PlannerLlmClient().model == "claude-fable-5-1"
+
+
+class SequenceClaude(FakeClaude):
+    """호출마다 다른 응답을 돌려주는 대역."""
+
+    def __init__(self, texts):
+        self.calls = []
+        responses = iter(texts)
+
+        async def create(**kwargs):
+            self.calls.append(kwargs)
+            return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=next(responses))])
+
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
+
+
+def test_claude_drops_ungrounded_priorities_and_limits_evidence_ids(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+
+    content = generated_content()
+    content["priorities"].append({**content["priorities"][0], "id": "p_empty", "evidence_refs": []})
+    fake = FakeClaude(json.dumps(content, ensure_ascii=False))
+    result = asyncio.run(claude_llm(monkeypatch, fake).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert all(item.evidence_refs for item in result.recommendation.priorities) and len(fake.calls) == 1
+    refs = fake.calls[0]["output_config"]["format"]["schema"]["$defs"]["PlannerRecommendationPriority"]["properties"]["evidence_refs"]
+    assert refs["items"]["enum"] and "ev_fabricated" not in refs["items"]["enum"]
+
+
+def test_claude_retries_once_with_the_rejection_reason(monkeypatch) -> None:
+    from app.schemas import PlannerRecommendationRequest
+    from app.services.llm import LlmInvalidResponse
+
+    bad = json.dumps(generated_content("ev_fabricated"), ensure_ascii=False)
+    good = json.dumps(generated_content(), ensure_ascii=False)
+    fake = SequenceClaude([bad, good])
+    result = asyncio.run(claude_llm(monkeypatch, fake).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    assert result.recommendation.generation_mode == "llm" and len(fake.calls) == 2
+    assert "직전 응답은 다음 검증에서 거절됐습니다" in fake.calls[1]["messages"][0]["content"]
+    twice_bad = SequenceClaude([bad, bad, good])
+    try:
+        asyncio.run(claude_llm(monkeypatch, twice_bad).generate(PlannerRecommendationRequest.model_validate(valid_request())))
+    except LlmInvalidResponse:
+        assert len(twice_bad.calls) == 2
+    else:
+        raise AssertionError("two invalid responses must fall back")

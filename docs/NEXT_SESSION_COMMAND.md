@@ -1,59 +1,76 @@
 # 다음 세션 인계
 
-## 2026-09-15 종료 시점
+## 2026-09-18 종료 시점 (제출 2026-09-21)
 
-- 현재 서비스 기본 예측은 `regional-daily-1.0-3e0451e58b0c` D-30 지역 방문자-일 모델입니다.
-- 원본·학습표·모델 artifact는 Git 제외 경로에 있으며, 소스·계약·평가 문서·테스트만 GitHub로 전달합니다.
-- GitHub 전달 PR 번호와 병합 결과는 이번 종료 작업에서 확인해 아래 전달 상태에 기록합니다.
-- 기존 로컬 `frontend/next-env.d.ts`의 `.next/dev/types` 변경은 생성 파일이므로 이번 전달에서 제외해 보존합니다.
+- 서비스 모델: `regional-daily-1.0-ab975d661247` — `data/processed/daily-forecast-production-v6/`(Git 제외).
+  환경변수가 없으면 가장 번호가 큰 **채택** production 폴더를 자동 선택합니다.
+- 자료 기준일 2026-08-19 → 이 맥의 모델로는 **2026-10-18까지** 예측됩니다. 오라클 서버 `ssumcp`가 매일 한국 04:30에 새 자료를
+  받아 재학습하므로, 맥에서 최신 모델이 필요하면 `scripts/oracle/pull.sh ubuntu@100.97.34.28`로 가져옵니다.
+- 현재 모델 요약은 [MODEL_CARD.md](MODEL_CARD.md), 실행·평가·재현은 [MODEL_EVALUATION.md](MODEL_EVALUATION.md),
+  서버 재학습은 [ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md), 결정은 DECISION_LOG D30~D37.
+- 모든 작업은 `main`에 병합됐습니다(PR #35~#43 이후 제출 정리 PR).
 
-## 구현·데이터 범위
+## 이번에 끝낸 일
 
-- 한국관광공사 지역별 방문자 원본 471,355행을 검증해 완전한 지역·일 157,110행을 만들었습니다.
-- 목표일 60일 전까지의 이력, 전년도 같은 요일과 최근 연간 성장률 기준선, 최대40% LightGBM 잔차 보정으로
-  행사기간 시군구 방문자-일 합계와 p10/p50/p90 범위를 제공합니다.
-- 2026-08-01~15 시간 홀드아웃 3,510행에서 WAPE3.809%, 중앙 절대비율오차3.351%, ±20% 이내97.81%,
-  80% 구간 포함률78.21%를 관측해5개 채택 조건을 모두 통과했습니다.
-- 문체부 공식 지역축제 ZIP 2017~2026년10개·10,198행을 직접 수집했습니다. 축제별 관람객 후보 모델은
-  중앙 절대비율오차가 전년도 기준보다 나빠 미채택으로 봉인했고 제품에 연결하지 않았습니다.
-- 기획 분석·공개·방문객 상세는 같은 모델 버전·prediction ID·방문자-일 범위를 공유합니다. LLM은 모델
-  수치를 바꾸거나 지역 방문자-일을 축제 관람객으로 환산하지 않습니다.
+- 새 방문자 자료 08-16~19 수집, 동결 v3 전향 평가(WAPE 4.434% vs 기준선 4.977%)
+- 재학습 절차 고정(`refresh_daily_forecast.py`, 분할 자동, 새 폴더 강제) → v4 채택 → v5(지역별 신뢰도 메타데이터)
+- `GET /api/v1/system/model-status`, `verify_daily_model.py`
+- 지역별 신뢰도(홀드아웃 WAPE 5%/10%), 평소 대비 지역 방문수요 수준, TreeSHAP 요인 병합, 프론트 한 줄 표시
+- TourAPI 축제 일정 feature 실험 → 개선 없어 미채택(D31)
+- 문체부 보고 전년 방문객을 실제값 근거로 표시(TourAPI 2026 축제 32.8% 연결)
+- 모델 카드, 발표 Q&A(PLANNER_DEMO) 갱신, 역할 확정(모델: 홍성주, 검토: 박지성)
+- 기존 버그 수정: TourAPI homepage 설명문 때문에 행사 상세·예측이 500이던 문제
 
-## 실제 검증
+## 실제 검증 (2026-09-18)
 
-- backend 전체: `124 passed`(로컬 API 키를 차단한 격리 환경, 기존 deprecation 경고3건).
-- frontend: TypeScript 검사, ESLint, Next.js production build 통과.
-- Playwright desktop·mobile: `24 passed`.
-- 실제 채택 artifact와 격리 SQLite에서 체험 로그인 → 기획 분석200 → 공개200 → 방문객 예측 조회를 확인했습니다.
-- 문체부 수집 스크립트로 2026 ZIP을 재수집해 SHA-256이 기존 원본과 일치함을 확인했습니다.
-- 실제 Google 계정, Windows, 원격 CI와 운영 배포는 검증하지 않았습니다.
+- backend `147 passed`, frontend typecheck·lint·build 통과, Playwright `24 passed`
+- `verify_daily_model.py`(v6): ready, 원본 checksum 4/4, 홀드아웃 재계산 일치, 선택 가능 261개 시군구 모두 온라인 예측 가능
+- 실제 artifact + 격리 SQLite: 체험 로그인 → 기획 분석 200(강릉시, 신뢰도 보통, 문체부 81,266명) → 공개 200 →
+  방문객 예측에서 같은 prediction ID·모델 버전·범위 확인. 실제 TourAPI 행사 100건 예측 조회 500 없음
+  (available 30, 이미 시작·30일 초과 행사 등 설계상 unavailable 70). 화면 캡처 `docs/assets/submission-20260921/`.
+
+## 2026-09-18 추가 반영
+
+- Claude LLM(D32), 방문객 예측 구간 확대(실제 행사 30% → 88% 예측)와 흥행 진단 카드(D33). backend 157 passed, E2E 24 passed.
+
+- 행정구역 개편 이력 연결 v6(실제 행사 98% 예측), 광주·전남 필터 복구, 재학습 자동화 `scripts/model-refresh.sh`, 공개 행사 근거(D34).
+  서버 배포 시 cron 한 줄 등록이 필요합니다(MODEL_EVALUATION "재학습 절차").
+
+- 화면 점검 수정(D35): 예시가 실제 예측을 내도록 수정, 방문객 목록 순서·연도 표시, 달력 3개+더보기, 수요 카드 접기, 랜딩 문구.
+
+- Claude 보고서 안정화(D36): 실제 예시 4/4, 평가 5/5. `.env`의 `LLM_EFFORT=medium`.
+
+- 재학습 자동 실행(D37): **오라클 서버만** 매일 재학습합니다. 맥 launchd는 해제했습니다. 맥에서 최신 모델이 필요하면
+  `scripts/oracle/pull.sh ubuntu@100.97.34.28`.
+  오라클 서버 `ssumcp`에 설치 완료: `~/heungmap-model`, 매일 한국 04:30 자동 재학습([ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)).
+  확인 `ssh ubuntu@100.97.34.28 'tail -1 ~/heungmap-model/data/processed/model-refresh-log.jsonl'`, 새 모델 가져오기 `scripts/oracle/pull.sh ubuntu@100.97.34.28`.
+
+## 시연·제출 전 할 일
+
+0. LLM은 Claude(D32·D36). 지금 `.env`는 `claude-sonnet-5`, effort medium. 발표 직전 `LLM_MODEL=claude-fable-5-1`로 바꾸고
+   실제 예시 두 개를 브라우저에서 분석해 195초 안에 "LLM 기획 요약"이 나오는지 먼저 확인합니다(느리면 `LLM_EFFORT=low`). 이어서
+   `evaluate_llm.py`로 5개 시나리오·응답 시간을 다시 확인합니다. 채팅에 노출된 API 키는 제출 전 Console에서 새로 발급해 교체합니다.
+
+1. 시연 당일 `PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py`가 ready인지 확인.
+   샘플 행사는 오늘부터 30일 이내 시작, 신뢰도 높은 시군구(해운대구·제주시·수원시 등)로 고릅니다.
+2. 새 방문자 자료가 공개되면(약 30일 지연) `refresh_daily_forecast.py` → `verify_daily_model.py`. 2~3주 간격.
+   재학습 전에 `evaluate_frozen_daily_model.py --model-dir <현재 폴더>`로 전향 평가를 먼저 갱신합니다.
+3. 발표·최종심사 날짜가 정해지면 그 날짜가 `last_predictable_target_date` − 30일 이전인지 확인합니다.
+4. 서버 배포 시 Git 제외 artifact(production-v5, `mcst-attendance-lookup.csv`)를 복사하고 필요하면
+   `HEUNGMAP_DAILY_MODEL_DIR`, `HEUNGMAP_MCST_LOOKUP_PATH`를 설정합니다.
+
+## 남은 일 (제출 후)
+
+- Windows 재현(`PLANNER_DEMO.md` 체크리스트), artifact 포장·서버 전달, LLM 고정 제약 위반 방어(평가 5개 중 1개 실패)
+- 동료 PR #29(역할 문서, 현재 역할과 다름)·#30(v2 NO-GO 실험) 정리 — 사용자 확인 후 닫기
+- 비밀값·원본/가공 데이터·SQLite·모델·가상환경·캐시·빌드 결과는 계속 Git에서 제외합니다.
 
 ## 다음 세션 시작
 
-1. `AGENTS.md`, `docs/00_START_HERE.md`, 이 문서와 `docs/MODEL_EVALUATION.md`를 읽습니다.
-2. `git status --short --branch`, GitHub PR·Actions 상태와 병합된 commit을 다시 확인합니다.
-3. Git에서 제외된 `data/processed/daily-forecast-production-v3/`가 로컬에 있는지 확인합니다.
-4. 로컬 실행은 저장소 루트에서 backend, `frontend/`에서 frontend를 각각 시작합니다.
-
 ```bash
+git status --short --branch
+PYTHONPATH=backend .venv/bin/pytest -q backend/tests
+PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py
 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
-
-## 제출·운영 전 남은 일
-
-- 발표에서는 `축제 관람객 정확도`가 아니라 `D-30 시군구 방문자-일 최근 시간 홀드아웃`으로 설명합니다.
-- 실제 서버에는 Git에서 제외된 23MB 모델 artifact를 별도 복사하고 `HEUNGMAP_DAILY_MODEL_DIR`을 설정합니다.
-- 두 팀원의 공통 계약·표현 검토, Windows 재현, 새 날짜 전향 평가, 실제 Google 설정과 배포 smoke가 남았습니다.
-- 현재 원본으로 마지막 계산 가능한 목표일은 2026-10-14입니다. 새 방문자 자료가 공개되면 append-only 원본으로
-  수집하고 기존 결과 폴더를 덮어쓰지 않은 채 재학습합니다.
-- 비밀값·원본/가공 데이터·SQLite·모델·가상환경·캐시·빌드 결과는 계속 Git과 개인 작업 로그에서 제외합니다.
-
-## GitHub 전달 상태
-
-- 모델 변경: [PR #31](https://github.com/ghdtjdwn/heungmap/pull/31)이 `9f7778e`로 `main`에 병합됐습니다.
-  배포는 수행하지 않았으며 Git에서 제외된 모델 artifact의 서버 전달은 별도입니다.
-- 동료의 [PR #29](https://github.com/ghdtjdwn/heungmap/pull/29)와
-  [PR #30](https://github.com/ghdtjdwn/heungmap/pull/30)은 최신 `main`과 충돌해 열려 있습니다. #29의 역할 문서는
-  현재 역할·결정 번호와 대조해 재작성하고, #30의 v2 실험은 최종 시간 분할이 기준선보다 8.59% 나쁜 NO-GO
-  기록과 재사용할 감사 도구만 분리 검토합니다. 현재 D-30 제품 경로 위에 그대로 병합하지 않습니다.

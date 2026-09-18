@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 
 import { AppHeader } from "./app-header";
 import { MyPublications } from "./my-publications";
+import { getModelStatus } from "@/lib/api";
+import type { ModelStatus } from "@/lib/types";
 import { optionLabel } from "@/lib/options";
 import { importLegacyDrafts, readDrafts, removeDraft, sampleDraft, saveDraft } from "@/lib/drafts";
 import type { DraftRecord } from "@/lib/types";
@@ -68,7 +70,7 @@ export function PlannerDashboard() {
       <section className="status-grid" aria-label="기획 진행 현황">
         <article className="metric-card"><span><i aria-hidden="true">01</i> 작성 중</span><strong>{drafts.length - analyzed}<small>개</small></strong><p>이 브라우저에 저장된 초안</p></article>
         <article className="metric-card"><span><i aria-hidden="true">02</i> 분석 완료</span><strong>{analyzed}<small>개</small></strong><p>수요 범위와 기획 보고서 생성</p></article>
-        <article className="metric-card model-card"><span><i aria-hidden="true">03</i> 수요 모델</span><strong>D-30</strong><p>시군구 방문자-일 예측 · 관람객 수 아님</p></article>
+        <ModelStatusCard />
       </section>
 
       <section className="planner-storage-row" aria-label="초안 저장 안내">
@@ -128,4 +130,36 @@ export function PlannerDashboard() {
       )}
     </main>
   );
+}
+
+const STALE_WARNING_DAYS = 14;
+
+function shortDate(value?: string): string {
+  if (!value) return "-";
+  const [, month, day] = value.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
+/** 채택 수요 모델의 자료 기준일과 예측 가능 기간. 만료가 가까우면 재학습 안내를 보여 준다. */
+function ModelStatusCard() {
+  const [status, setStatus] = useState<ModelStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let active = true;
+    getModelStatus().then((value) => { if (active) setStatus(value); }).catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, []);
+  const label = <span><i aria-hidden="true">03</i> 수요 모델</span>;
+  if (failed || status?.status === "unavailable") {
+    return <article className="metric-card model-card warning">{label}<strong>확인 불가</strong><p>{status?.reason ?? "모델 상태를 불러오지 못했습니다. 기획 분석은 계속할 수 있습니다."}</p></article>;
+  }
+  if (!status) return <article className="metric-card model-card">{label}<strong>D-30</strong><p>시군구 방문자-일 예측 · 상태 확인 중</p></article>;
+  const soon = status.status === "stale" || (status.days_until_stale ?? 0) <= STALE_WARNING_DAYS;
+  return <article className={`metric-card model-card ${soon ? "warning" : ""}`}>
+    {label}
+    <strong>{status.status === "stale" ? "갱신 필요" : `~${shortDate(status.last_predictable_target_date)}`}{status.status !== "stale" && <small>예측</small>}</strong>
+    <p>{status.status === "stale"
+      ? "자료가 오래돼 예측을 제공하지 않습니다. 서버 재학습 상태를 확인하세요."
+      : `D-30 시군구 방문자-일 · 관람객 수 아님 · 자료 ${shortDate(status.data_end)}까지, ${status.days_until_stale}일 뒤 갱신${soon ? " (곧 만료)" : ""} · 시군구 ${status.regions ?? "-"}곳`}</p>
+  </article>;
 }

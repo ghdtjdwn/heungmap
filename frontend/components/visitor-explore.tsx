@@ -19,8 +19,12 @@ type LoadState =
   | { status: "error"; items: EventSummary[]; message: string; retryable: boolean };
 
 function formatDateRange(event: EventSummary): string {
-  const start = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", weekday: "short" }).format(new Date(`${event.start_date}T00:00:00`));
-  const end = new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", weekday: "short" }).format(new Date(`${event.end_date}T00:00:00`));
+  // 올해가 아니거나 해를 넘기는 기간은 연도를 붙여 "11월 1일"이 몇 년도인지 헷갈리지 않게 한다.
+  const thisYear = String(new Date().getFullYear());
+  const withYear = event.start_date.slice(0, 4) !== thisYear || event.end_date.slice(0, 4) !== thisYear;
+  const options: Intl.DateTimeFormatOptions = { ...(withYear ? { year: "numeric" } : {}), month: "short", day: "numeric", weekday: "short" };
+  const start = new Intl.DateTimeFormat("ko-KR", options).format(new Date(`${event.start_date}T00:00:00`));
+  const end = new Intl.DateTimeFormat("ko-KR", options).format(new Date(`${event.end_date}T00:00:00`));
   return event.start_date === event.end_date ? start : `${start} – ${end}`;
 }
 

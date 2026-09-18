@@ -40,6 +40,6 @@ export function Welcome({ onboarding = false }: { onboarding?: boolean }) {
       <article className="role-card visitor-role"><span className="role-card-kicker">FOR VISITORS</span><span className="role-card-symbol" aria-hidden="true">⌖</span><h3>이번 주말의 즐거움을<br />지도와 달력에서</h3><p>한국관광공사 축제와 기획자가 공개한 행사를 날짜·지역별로 발견합니다.</p><ul><li>목록·지도·달력</li><li>주변 관광·숙박</li><li>출처와 수요 범위</li></ul></article>
     </div></section>
     <section className="welcome-final-cta"><p className="eyebrow">READY WHEN YOU ARE</p><h2>다음 흥의 시작점을<br />함께 찾아볼까요?</h2><button className="button primary welcome-cta" disabled={busy} onClick={() => void run(session?.user?.role ? () => chooseRole(session.user!.role!) : login)}>지금 시작하기 <span aria-hidden="true">↗</span></button></section>
-    <footer className="welcome-footer"><BrandLink /><div><p>행사·관광정보: 한국관광공사 TourAPI · 지도: Kakao Maps</p><small>수요 지표는 행사기간 시군구 방문자-일 예측이며 특정 축제 관람객·티켓 수요·실제 혼잡이 아닙니다.</small></div><span>2026 Tourism Data Contest · Task 9</span></footer>
+    <footer className="welcome-footer"><BrandLink /><div><p>행사·관광정보: 한국관광공사 TourAPI · 지도: Kakao Maps</p><small>수요 지표는 한국관광공사 지역별 방문자 데이터로 학습·검증한 행사기간 시군구 방문자-일 예측이며 특정 축제 관람객·티켓 수요·실제 혼잡이 아닙니다.</small></div><span>2026 Tourism Data Contest · Task 9</span></footer>
   </main>;
 }
