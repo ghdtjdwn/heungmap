@@ -187,9 +187,9 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .hero-badges { display: flex; gap: 7px; margin-bottom: 13px; }
 .result-hero h1 { font-size: clamp(2rem, 4vw, 3.4rem); }
 .result-hero p { margin: 10px 0 0; color: var(--muted); }
-.score-card { width: 180px; flex: 0 0 auto; padding: 17px; border: 1px solid #9bcfc8; border-radius: 14px; background: var(--teal-soft); }
+.score-card { min-width: 180px; max-width: 320px; flex: 0 0 auto; padding: 17px; border: 1px solid #9bcfc8; border-radius: 14px; background: var(--teal-soft); }
 .score-card span, .score-card small { display: block; color: var(--teal-dark); font-size: 0.8rem; }
-.score-card strong { display: block; font-size: 2.8rem; line-height: 1.1; }
+.score-card strong { display: block; font-size: clamp(2rem, 3.2vw, 2.8rem); line-height: 1.1; white-space: nowrap; }
 .mock-alert { max-width: 1180px; margin: 0 auto 18px; display: flex; gap: 12px; padding: 12px 15px; border: 1px solid #edc384; border-radius: 10px; background: var(--amber-soft); color: #6d4b20; font-size: 0.86rem; }
 .mock-alert span { color: #856435; }
 .result-tabs { max-width: 1180px; margin: 0 auto 18px; display: flex; gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: white; }
