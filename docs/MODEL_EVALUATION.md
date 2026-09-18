@@ -247,10 +247,11 @@ v4 원본으로 마지막으로 계산 가능한 목표일은 2026-10-18입니�
 방법·데이터 근거: [한국관광공사 지역별 방문자수](https://www.data.go.kr/data/15101972/openapi.do),
 [LightGBM 공식 문서](https://lightgbm.readthedocs.io/en/stable/Parameters.html).
 
-## 이번 로컬 검증
+## 이번 로컬 검증 (2026-09-18)
 
-- backend: `124 passed`(로컬 API 키를 차단한 격리 환경, deprecation 경고 3건)
-- frontend: TypeScript 검사, ESLint, Next.js production build 통과
-- Playwright: desktop·mobile `24 passed`
-- 실제 채택 artifact + 격리된 임시 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서
-  동일 prediction ID·모델 버전·방문자-일 범위를 확인했습니다. 실계정·운영 DB·배포는 사용하지 않았습니다.
+- backend: `147 passed`(로컬 API 키·문체부 조회표를 차단한 격리 환경, deprecation 경고 3건)
+- frontend: TypeScript 검사, ESLint, Next.js production build 통과. Playwright desktop·mobile `24 passed`
+- `verify_daily_model.py`(v5): ready, 원본 checksum 4/4, 홀드아웃 300행 재계산 일치, 온라인 예측 가능 234/264 시군구
+- 실제 채택 artifact + 격리 SQLite: 체험 로그인 → 기획 분석 200 → 공개 200 → 방문객 예측 조회에서 동일 prediction ID·
+  모델 버전·방문자-일 범위 확인. 실제 TourAPI 행사 100건 예측 조회에서 500 없음(이 과정에서 homepage 설명문 500 버그를 고침).
+- 화면 캡처: `docs/assets/submission-20260921/` (기획 수요 진단, 근거·출처, 방문객 수요 지표)

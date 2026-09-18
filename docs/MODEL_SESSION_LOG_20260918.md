@@ -74,3 +74,19 @@
 
 - `docs/MODEL_CARD.md`: 대상·비대상, 버전(v3/v4/v5/실험), 구조, 입력, 자료, 분할·채택 기준, 후향·전향·규모별 성능,
   축제 실험, 신뢰도 규칙, 한계, 재학습 명령, 발표 표현 지침. 수치는 evaluation.json·forward-evaluation JSON에서 옮김.
+
+## Step 10. 문서·역할 정리
+
+- `TEAM_WORKFLOW.md`·`00_START_HERE.md` 역할: 예측 계약·AI 모델 홍성주, 통합 검토 박지성
+- `DECISION_LOG.md` D31, `MODEL_PLAN.md` 담당 확정, `NEXT_SESSION_COMMAND.md` 전면 갱신, WORK_PLAN 완료 표시
+- PR #29·#30 닫기는 [STOP] — 사용자 확인 대기
+
+## Step 11. 전체 검증
+
+- backend 147 passed, frontend typecheck·lint·build 통과, Playwright 24 passed
+- verify_daily_model(v5) ready, checksum 4/4, 재계산 일치, 온라인 234/264
+- 실제 artifact + 격리 SQLite 흐름: 분석 200(강릉시 p50 539,482 방문자-일, 신뢰도 보통, 수준 낮음, 문체부 81,266명) → 공개 200 →
+  방문객 예측 prediction ID·모델 버전·범위 일치(공개 시 근거는 기존 설계대로 비움)
+- 실제 TourAPI 행사 100건: 처음 1건이 500 → 원인은 기존 코드의 homepage 설명문 URL 검증 실패. 수정 후 500 없음,
+  available 30 / unavailable 70(이미 시작 58, 30일 초과 2, 광역 단위 10 — 모두 설계상 범위 밖)
+- 화면 캡처 3장 `docs/assets/submission-20260921/`

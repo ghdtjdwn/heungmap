@@ -8,6 +8,13 @@
 현재 상태의 근거는 [MODEL_EVALUATION.md](MODEL_EVALUATION.md)와 [DECISION_LOG.md](DECISION_LOG.md) D29·D30입니다.
 **구현은 [MODEL_IMPLEMENTATION_SPEC.md](MODEL_IMPLEMENTATION_SPEC.md)의 Step 0~12를 순서대로 따릅니다** (파일·함수·테스트·명령까지 지정).
 
+## ✅ 2026-09-18 실행 결과
+
+T1(재학습 절차·v4/v5) · T2(전향 평가) · T3(상태 endpoint) · T5(지역별 신뢰도·수요 수준) · T6(문체부 실제값) ·
+T7(요인 병합·TreeSHAP 표기) · T8(모델 카드) · T9(역할·문서, PR #29·#30 닫기는 사용자 확인 대기) 완료.
+T4(축제 feature)는 실험 완료 후 **미채택**. T10~T12는 제출 후. 결과는
+[MODEL_SESSION_LOG_20260918.md](MODEL_SESSION_LOG_20260918.md)와 [MODEL_CARD.md](MODEL_CARD.md) 참조.
+
 ## ⏰ 마감 기준 3일 일정 (제출 2026-09-21, 오늘 09-18)
 
 제출은 1차 기능심사용이고, 발표·심사는 그 뒤입니다. 따라서 3일 안에 (a) 제출본에서 모델이 확실히 돌아가고
