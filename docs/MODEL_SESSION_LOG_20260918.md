@@ -69,3 +69,8 @@
 - `PLANNER_DEMO.md` 발표 Q&A를 현재 모델 기준으로 갱신(옛 "학습 모델·SHAP 없음" 답변 교체, 정확도·축제 입력·노후화 질문 추가,
   시연 전 `verify_daily_model.py` 확인, 신뢰도 높은 시군구 예시는 v5 manifest로 확인)
 - `MODEL_PLAN.md` 권장 구조 위에 실제 채택 구조 안내
+
+## Step 9. 모델 카드
+
+- `docs/MODEL_CARD.md`: 대상·비대상, 버전(v3/v4/v5/실험), 구조, 입력, 자료, 분할·채택 기준, 후향·전향·규모별 성능,
+  축제 실험, 신뢰도 규칙, 한계, 재학습 명령, 발표 표현 지침. 수치는 evaluation.json·forward-evaluation JSON에서 옮김.
