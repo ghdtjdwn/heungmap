@@ -1,5 +1,19 @@
 # 다음 세션 인계
 
+## 2026-09-20 Windows 최신화·재현
+
+- PR #34(UI 디자인 개편)와 이후 PR #35~#44가 반영된 `main` `5260683`을 Windows 로컬에 동기화했습니다.
+- backend `172 passed`, frontend typecheck·lint·production build, Playwright desktop·mobile `24 passed`를 확인했습니다.
+- Windows 기본 CP949 때문에 UTF-8 모델 manifest fixture를 읽지 못하던 테스트 6개는 파일 인코딩을 명시해 수정했습니다.
+- 오라클 서버 SSH는 timeout으로 직접 동기화하지 못했습니다. 대신 공식 append-only 재학습 경로로 2026-08-13 이후
+  공개분 7,263행을 수집해 `regional-daily-1.0-123f612df871`을 로컬에서 채택했습니다. 자료 기준일은
+  2026-08-21, 마지막 예측 가능일은 2026-10-20이며 `verify_daily_model.py`에서 261개 시군구가 모두
+  `available`이었습니다.
+- 로컬 출력 폴더명 `daily-forecast-production-v1`의 번호는 이 Windows 환경 안에서만 증가합니다. 서버의 `v6`와
+  번호를 비교하지 않고 manifest의 `model_version`, `data_end`, checksum과 채택 상태를 기준으로 판별합니다.
+- 원본 추가분과 모델 artifact는 기존 정책대로 Git에서 제외합니다. 실제 Google 로그인·운영 배포·실제 Claude 재평가는
+  이번 Windows 검증에 포함하지 않았습니다.
+
 ## 2026-09-18 종료 시점 (제출 2026-09-21)
 
 - 서비스 모델: `regional-daily-1.0-ab975d661247` — `data/processed/daily-forecast-production-v6/`(Git 제외).
@@ -61,7 +75,7 @@
 
 ## 남은 일 (제출 후)
 
-- Windows 재현(`PLANNER_DEMO.md` 체크리스트), artifact 포장·서버 전달, LLM 고정 제약 위반 방어(평가 5개 중 1개 실패)
+- artifact 포장·서버 전달, LLM 고정 제약 위반 방어(평가 5개 중 1개 실패)
 - 동료 PR #29(역할 문서, 현재 역할과 다름)·#30(v2 NO-GO 실험) 정리 — 사용자 확인 후 닫기
 - 비밀값·원본/가공 데이터·SQLite·모델·가상환경·캐시·빌드 결과는 계속 Git에서 제외합니다.
 
