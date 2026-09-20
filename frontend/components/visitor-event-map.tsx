@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { EventSummary } from "@/lib/types";
 import { formatDateRange, safeImageUrl, statusLabel } from "@/lib/event-format";
@@ -25,10 +25,16 @@ type KakaoMaps = {
   load(callback: () => void): void;
   LatLng: new (latitude: number, longitude: number) => unknown;
   LatLngBounds: new () => { extend(point: unknown): void };
-  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void };
+  Map: new (container: HTMLElement, options: { center: unknown; level: number }) => KakaoMap;
   Marker: new (options: { map: unknown; position: unknown; title: string }) => KakaoMarker;
   CustomOverlay: new (options: { position: unknown; content: HTMLElement; yAnchor?: number; zIndex?: number }) => KakaoOverlay;
   event: { addListener(target: unknown, eventName: string, handler: () => void): void };
+};
+type KakaoMap = {
+  relayout(): void;
+  setBounds(bounds: unknown): void;
+  setCenter(point: unknown): void;
+  panBy(dx: number, dy: number): void;
 };
 type KakaoOverlay = {
   setMap(map: unknown | null): void;
@@ -113,7 +119,8 @@ export function VisitorEventMap({
   focus?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void } | null>(null);
+  const mapRef = useRef<KakaoMap | null>(null);
+  const popupRef = useRef<HTMLElement | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const overlayRef = useRef<KakaoOverlay | null>(null);
   const onSelectRef = useRef(onSelect);
@@ -140,6 +147,25 @@ export function VisitorEventMap({
     onSelectRef.current = onSelect;
   }, [onSelect]);
 
+  // 마커를 화면 중앙에 두더라도 말풍선은 위로 뻗어 지도 밖으로 잘릴 수 있다.
+  // 넘친 만큼 지도를 밀어 말풍선 전체가 보이게 한다.
+  const keepPopupInView = useCallback(() => {
+    const container = containerRef.current;
+    const popup = popupRef.current;
+    const map = mapRef.current;
+    if (!container || !popup || !map || !popup.isConnected) return;
+    const edge = 12;
+    const box = container.getBoundingClientRect();
+    const bubble = popup.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    if (bubble.top < box.top + edge) dy = bubble.top - (box.top + edge);
+    else if (bubble.bottom > box.bottom - edge) dy = bubble.bottom - (box.bottom - edge);
+    if (bubble.left < box.left + edge) dx = bubble.left - (box.left + edge);
+    else if (bubble.right > box.right - edge) dx = bubble.right - (box.right - edge);
+    if (dx || dy) map.panBy(dx, dy);
+  }, []);
+
   useEffect(() => {
     if (!key || !containerRef.current || points.length === 0) return;
     let disposed = false;
@@ -153,17 +179,23 @@ export function VisitorEventMap({
       const closePopup = () => {
         overlayRef.current?.setMap(null);
         overlayRef.current = null;
+        popupRef.current = null;
       };
       const openPopup = (point: MapEvent) => {
         closePopup();
+        const content = buildPopup(point, closePopup);
         const overlay = new maps.CustomOverlay({
           position: new maps.LatLng(point.latitude, point.longitude),
-          content: buildPopup(point, closePopup),
+          content,
           yAnchor: 1.3,
           zIndex: 30,
         });
         overlay.setMap(map);
         overlayRef.current = overlay;
+        popupRef.current = content;
+        // 사진이 늦게 로드돼 높이가 커지는 경우까지 반영하려면 배치가 끝난 뒤에 재어야 한다.
+        window.requestAnimationFrame(keepPopupInView);
+        content.querySelector("img")?.addEventListener("load", keepPopupInView, { once: true });
       };
       // 빈 곳을 누르면 닫는다.
       maps.event.addListener(map, "click", closePopup);
@@ -214,7 +246,7 @@ export function VisitorEventMap({
       markersRef.current = [];
       mapRef.current = null;
     };
-  }, [key, points]);
+  }, [key, points, keepPopupInView]);
 
   useEffect(() => {
     for (const entry of markersRef.current) {
@@ -224,9 +256,10 @@ export function VisitorEventMap({
       const kakao = getKakao();
       if (selected && kakao && mapRef.current) {
         mapRef.current.setCenter(new kakao.maps.LatLng(entry.point.latitude, entry.point.longitude));
+        window.requestAnimationFrame(keepPopupInView);
       }
     }
-  }, [selectedEventId, state]);
+  }, [selectedEventId, state, keepPopupInView]);
 
   if (points.length === 0) {
     return <div className="map-fallback"><strong>지도에 표시할 좌표가 없습니다</strong><p>행사 목록은 계속 확인할 수 있습니다.</p></div>;
