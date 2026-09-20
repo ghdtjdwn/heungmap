@@ -63,7 +63,9 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 UNIT
 sudo systemctl daemon-reload
-sudo systemctl enable --now heungmap-api
+sudo systemctl enable heungmap-api
+# 이미 돌고 있으면 enable --now는 재시작하지 않는다. .env·코드 변경을 반영하려면 restart가 필요하다.
+sudo systemctl restart heungmap-api
 sleep 5
 systemctl is-active heungmap-api || true
 if ! curl -sS --max-time 15 http://127.0.0.1:8000/api/v1/health; then

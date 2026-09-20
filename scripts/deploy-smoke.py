@@ -14,6 +14,7 @@ import argparse
 import json
 import urllib.request
 import urllib.error
+from urllib.parse import quote, unquote
 
 parser = argparse.ArgumentParser()
 parser.add_argument("base", help="예: https://heungmap.vercel.app")
@@ -45,6 +46,21 @@ def call(method: str, path: str, body=None, origin=True):
         return err.code, json.loads(err.read().decode() or "{}")
 
 
+def redirect_target(path: str):
+    """리다이렉트를 따라가지 않고 Location 헤더만 본다."""
+    class Keep(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *_args, **_kw):
+            return None
+    opener = urllib.request.build_opener(Keep)
+    req = urllib.request.Request(BASE + path)
+    req.add_header("Origin", ORIGIN)
+    try:
+        with opener.open(req, timeout=60) as resp:
+            return resp.status, resp.headers.get("Location", "")
+    except urllib.error.HTTPError as err:
+        return err.code, err.headers.get("Location", "")
+
+
 def show(label, ok, detail=""):
     print(f"  {'PASS' if ok else 'FAIL'}  {label}{(' — ' + detail) if detail else ''}")
     return ok
@@ -57,18 +73,33 @@ status, regions = call("GET", "/prediction/regions")
 region = next(r for r in regions if r.get("legal_dong_code"))
 results.append(show("지역 목록", status == 200 and len(regions) > 200, f"{len(regions)}개, 예: {region['display_name']}"))
 
-print("\n[2] Origin 검사 — 잘못된 출처는 막혀야 함")
-status, _ = call("POST", "/auth/mock", {}, origin=False)
-results.append(show("Origin 없는 로그인 차단", status == 403, f"HTTP {status}"))
+print("\n[2] 인증 모드 확인")
+mock_status, _ = call("POST", "/auth/mock", {})
+google_mode = mock_status == 404
+print(f"      · {'실제 Google 로그인(google)' if google_mode else '체험용 모의 로그인(mock)'}")
 
-print("\n[3] 모의 로그인 (Vercel과 동일한 Origin)")
-status, session = call("POST", "/auth/mock", {})
-results.append(show("로그인", status == 200, f"사용자 {session.get('user', {}).get('name')}"))
-results.append(show("세션 쿠키 발급", "heungmap_session" in cookies))
+if google_mode:
+    print("\n[3] Google 로그인 시작점")
+    status, location = redirect_target("/auth/google")
+    results.append(show("구글로 리다이렉트", status in (302, 303, 307) and "accounts.google.com" in location,
+                        f"HTTP {status}"))
+    for name, label in (("client_id", "클라이언트 ID"), ("redirect_uri", "콜백 주소"),
+                        ("code_challenge", "PKCE"), ("state", "state"), ("nonce", "nonce")):
+        results.append(show(label + " 포함", name + "=" in location))
+    want = quote(ORIGIN + "/api/v1/auth/google/callback", safe="")
+    results.append(show("콜백 주소가 공개 origin과 일치", want in location, unquote(want)))
+    print("\n[4] 로그인 필요한 기능은 실계정이 있어야 해 건너뜁니다")
+else:
+    results.append(show("Origin 없는 로그인 차단",
+                        call("POST", "/auth/mock", {}, origin=False)[0] == 403))
+    print("\n[3] 모의 로그인 (Vercel과 동일한 Origin)")
+    status, session = call("POST", "/auth/mock", {})
+    results.append(show("로그인", status == 200, f"사용자 {session.get('user', {}).get('name')}"))
+    results.append(show("세션 쿠키 발급", "heungmap_session" in cookies))
 
-print("\n[4] 역할 선택 — 기획자")
-status, session = call("POST", "/auth/role", {"role": "planner"})
-results.append(show("역할 설정", status == 200 and session.get("user", {}).get("role") == "planner"))
+    print("\n[4] 역할 선택 — 기획자")
+    status, session = call("POST", "/auth/role", {"role": "planner"})
+    results.append(show("역할 설정", status == 200 and session.get("user", {}).get("role") == "planner"))
 
 print("\n[5] 기획자 분석 (실제 모델 예측)")
 payload = {
@@ -100,21 +131,26 @@ payload = {
     },
     "requested_outputs": ["prediction", "nearby_places", "rule_recommendations"],
 }
-status, analysis = call("POST", "/planner/analyses", payload)
-prediction = analysis.get("prediction", {})
-results.append(show("분석 응답", status == 200, f"HTTP {status}"))
-results.append(show("예측 사용 가능", prediction.get("status") == "available",
-                    f"{prediction.get('prediction_type')} / method={prediction.get('method')}"))
-results.append(show("실제 모델 사용(규칙 아님)", prediction.get("is_mock") is False,
-                    f"is_mock={prediction.get('is_mock')}"))
+if google_mode:
+    print("      · 로그인 필요 — 건너뜁니다(실계정 로그인 뒤 화면에서 확인)")
+    status, analysis, prediction = 200, {}, {}
+else:
+    status, analysis = call("POST", "/planner/analyses", payload)
+    prediction = analysis.get("prediction", {})
+if not google_mode:
+    results.append(show("분석 응답", status == 200, f"HTTP {status}"))
+(None if google_mode else results.append(show("예측 사용 가능", prediction.get("status") == "available",
+                    f"{prediction.get('prediction_type')} / method={prediction.get('method')}")))
+(None if google_mode else results.append(show("실제 모델 사용(규칙 아님)", prediction.get("is_mock") is False,
+                    f"is_mock={prediction.get('is_mock')}")))
 rng = prediction.get("primary_metric") or {}
-results.append(show("p10·p50·p90 범위", all(rng.get(k) is not None for k in ("p10", "p50", "p90")),
+(None if google_mode else results.append(show("p10·p50·p90 범위", all(rng.get(k) is not None for k in ("p10", "p50", "p90")),
                     f"p10={rng.get('p10'):,} p50={rng.get('p50'):,} p90={rng.get('p90'):,} ({rng.get('unit') or ''})"
-                    if rng.get("p50") is not None else f"키: {list(rng.keys())}"))
+                    if rng.get("p50") is not None else f"키: {list(rng.keys())}")))
 factors = prediction.get("factors") or []
-results.append(show("SHAP 기여 요인", len(factors) > 0, f"{len(factors)}개"))
-results.append(show("규칙 권고", len(analysis.get("rule_recommendations") or []) > 0,
-                    f"{len(analysis.get('rule_recommendations') or [])}건"))
+(None if google_mode else results.append(show("SHAP 기여 요인", len(factors) > 0, f"{len(factors)}개")))
+(None if google_mode else results.append(show("규칙 권고", len(analysis.get("rule_recommendations") or []) > 0,
+                    f"{len(analysis.get('rule_recommendations') or [])}건")))
 
 print("\n[6] 방문객 — TourAPI 축제 목록")
 status, events = call("GET", "/events?page=1&size=5")
@@ -130,9 +166,9 @@ print("\n[8] 모델 상태 카드")
 status, model = call("GET", "/system/model-status")
 results.append(show("모델 상태", status == 200 and model.get("status") == "ready",
                     f"{model.get('model_version')} / {model.get('regions')}개 지역"))
-results.append(show("모델 버전 일치(분석 응답 ↔ 상태카드)",
+(None if google_mode else results.append(show("모델 버전 일치(분석 응답 ↔ 상태카드)",
                     prediction.get("model_version") == model.get("model_version"),
-                    str(prediction.get("model_version"))))
+                    str(prediction.get("model_version")))))
 
 print(f"\n{'=' * 60}")
 print(f"결과: {sum(results)}/{len(results)} 통과  ({BASE})")

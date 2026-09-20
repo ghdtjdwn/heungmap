@@ -41,13 +41,20 @@ ssh "$TARGET" "ln -sfn ~/$MODEL_DIR/data/processed ~/$DIR/data/processed"
 ssh "$TARGET" "ln -sfn ~/$MODEL_DIR/data/raw ~/$DIR/data/raw"
 
 # 3) 환경변수. 로컬 .env를 기준으로 배포용 값만 덮어쓴다.
-#    HEUNGMAP_AUTH_MODE=mock 은 HEUNGMAP_ENV=development 에서만 허용된다(auth.py).
-#    실제 Google 로그인은 이번 범위 밖이므로 mock을 유지한다.
+#    GOOGLE_CLIENT_ID·SECRET이 둘 다 있으면 실제 Google 로그인(google)으로, 없으면 체험용 모의
+#    로그인(mock)으로 올린다. mock은 HEUNGMAP_ENV=development 에서만 허용된다(auth.py).
+if grep -q '^GOOGLE_CLIENT_ID=.' .env && grep -q '^GOOGLE_CLIENT_SECRET=.' .env; then
+  AUTH_MODE=google; APP_ENV=production
+  case "$ORIGIN" in https://*) ;; *) echo "google 로그인은 https 주소여야 합니다: $ORIGIN" >&2; exit 1;; esac
+else
+  AUTH_MODE=mock; APP_ENV=development
+fi
+echo "인증 모드: $AUTH_MODE (HEUNGMAP_ENV=$APP_ENV)"
 {
   grep -v '^HEUNGMAP_PUBLIC_ORIGIN=' .env | grep -v '^HEUNGMAP_ENV=' | grep -v '^HEUNGMAP_AUTH_MODE='
   echo "HEUNGMAP_PUBLIC_ORIGIN=$ORIGIN"
-  echo "HEUNGMAP_ENV=development"
-  echo "HEUNGMAP_AUTH_MODE=mock"
+  echo "HEUNGMAP_ENV=$APP_ENV"
+  echo "HEUNGMAP_AUTH_MODE=$AUTH_MODE"
 } | ssh "$TARGET" "umask 077; cat > ~/$DIR/.env"
 
 # 4) 설치·구동
