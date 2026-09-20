@@ -12,6 +12,7 @@ Origin은 백엔드의 HEUNGMAP_PUBLIC_ORIGIN과 정확히 같아야 한다(auth
 
 import argparse
 import json
+import time
 import urllib.request
 import urllib.error
 from urllib.parse import quote, unquote
@@ -36,14 +37,33 @@ def call(method: str, path: str, body=None, origin=True):
         req.add_header("Origin", ORIGIN)
     if cookies:
         req.add_header("Cookie", "; ".join(f"{k}={v}" for k, v in cookies.items()))
-    try:
-        with urllib.request.urlopen(req, timeout=180) as resp:
-            for raw in resp.headers.get_all("Set-Cookie") or []:
-                name, _, rest = raw.partition("=")
-                cookies[name] = rest.split(";")[0]
-            return resp.status, json.loads(resp.read().decode() or "{}")
-    except urllib.error.HTTPError as err:
-        return err.code, json.loads(err.read().decode() or "{}")
+    # 배포 직후에는 엣지 전파가 끝나지 않아 502가 섞일 수 있다. 몇 번 다시 시도한다.
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                for raw in resp.headers.get_all("Set-Cookie") or []:
+                    name, _, rest = raw.partition("=")
+                    cookies[name] = rest.split(";")[0]
+                body = resp.read().decode()
+                try:
+                    return resp.status, json.loads(body or "{}")
+                except ValueError:
+                    return resp.status, {"_raw": body[:200]}
+        except urllib.error.HTTPError as err:
+            body = err.read().decode()
+            if err.code in (502, 503, 504) and attempt < 4:
+                time.sleep(3)
+                continue
+            try:
+                return err.code, json.loads(body or "{}")
+            except ValueError:
+                return err.code, {"_raw": body[:200]}
+        except urllib.error.URLError:
+            if attempt < 4:
+                time.sleep(3)
+                continue
+            raise
+    return 0, {}
 
 
 def redirect_target(path: str):
@@ -54,11 +74,16 @@ def redirect_target(path: str):
     opener = urllib.request.build_opener(Keep)
     req = urllib.request.Request(BASE + path)
     req.add_header("Origin", ORIGIN)
-    try:
-        with opener.open(req, timeout=60) as resp:
-            return resp.status, resp.headers.get("Location", "")
-    except urllib.error.HTTPError as err:
-        return err.code, err.headers.get("Location", "")
+    for attempt in range(5):
+        try:
+            with opener.open(req, timeout=60) as resp:
+                return resp.status, resp.headers.get("Location", "")
+        except urllib.error.HTTPError as err:
+            if err.code in (502, 503, 504) and attempt < 4:
+                time.sleep(3)
+                continue
+            return err.code, err.headers.get("Location", "")
+    return 0, ""
 
 
 def show(label, ok, detail=""):
@@ -70,6 +95,9 @@ results = []
 
 print("\n[1] 예측 가능 시군구 조회")
 status, regions = call("GET", "/prediction/regions")
+if not isinstance(regions, list) or not regions or not isinstance(regions[0], dict):
+    print("  FAIL  지역 목록 — 예상과 다른 응답:", str(regions)[:200])
+    raise SystemExit(1)
 region = next(r for r in regions if r.get("legal_dong_code"))
 results.append(show("지역 목록", status == 200 and len(regions) > 200, f"{len(regions)}개, 예: {region['display_name']}"))
 
