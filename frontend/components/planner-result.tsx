@@ -215,8 +215,6 @@ export function PlannerResult() {
       <nav className="result-tabs no-print" aria-label="분석 결과 메뉴">
         {(["overview", "report", "compare", "evidence"] as Tab[]).map((value) => <button className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{({ overview: "한눈에 보기", report: "기획 보고서", compare: "대안 비교", evidence: "근거·출처" })[value]}</button>)}
       </nav>
-      <PublicationPanel draft={draft} />
-
       {tab === "overview" && (
         <div className="result-content">
           {recommendationMeta?.warning ? <section className="warning-list"><strong>보고서 생성 안내</strong><p>{recommendationMeta.warning}</p></section> : null}
@@ -308,6 +306,9 @@ export function PlannerResult() {
           </section>
         </div>
       )}
+      {/* 공개 패널은 탭 내용 뒤에 둔다. 탭 위에 있으면 탭을 눌러도 이 패널만 보여
+          보고서가 생성되지 않은 것처럼 읽힌다. */}
+      <PublicationPanel draft={draft} />
     </main>
   );
 }

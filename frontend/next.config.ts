@@ -27,10 +27,18 @@ const nextConfig: NextConfig = {
     root: projectRoot,
   },
   async rewrites() {
+    // 목적지는 빌드 시점에 확정된다. 환경변수가 비면 호스트가 사라져 Vercel이 DNS_HOSTNAME_EMPTY를 낸다.
+    // 그래서 빈 문자열까지 걸러 내고(|| 사용), 배포 환경에서는 환경변수가 없어도 동작하도록 기본값을 둔다.
+    // 로컬 개발에서는 그대로 127.0.0.1 백엔드를 본다.
+    // lib/backend.ts 와 같은 규칙. next.config는 번들 밖에서 실행돼 import를 피한다.
+    const backend = (
+      process.env.HEUNGMAP_BACKEND_URL ||
+      (process.env.VERCEL ? "https://ssumcp.tail5e04bc.ts.net" : "http://127.0.0.1:8000")
+    ).replace(/\/+$/, "");
     return [
       {
         source: "/api/v1/:path*",
-        destination: (process.env.HEUNGMAP_BACKEND_URL ?? "http://127.0.0.1:8000") + "/api/v1/:path*",
+        destination: backend + "/api/v1/:path*",
       },
     ];
   },
