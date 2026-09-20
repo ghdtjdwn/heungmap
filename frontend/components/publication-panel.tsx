@@ -41,7 +41,7 @@ export function PublicationPanel({ draft }: { draft: DraftRecord }) {
     } catch (e) { setMessage((e as Error).message); } finally { setBusy(false); }
   }
   return <section className="panel publication-panel no-print">
-    <p className="eyebrow">CONNECT WITH VISITORS</p><h2>사용자에게 행사 소개하기</h2>
+    <h2>사용자에게 행사 소개하기</h2>
     <p>마지막으로 분석한 행사명·기간·지역·장소와 아래 소개문, 수요 예측 결과와 해석 한계가 공개됩니다. 예산, 내부 메모와 기획 보고서는 공개하지 않습니다.</p>
     <p><strong>{draft.analysis?.request_snapshot.working_title}</strong> · {draft.analysis?.request_snapshot.start_date ?? "일정 미정"} ~ {draft.analysis?.request_snapshot.end_date ?? "일정 미정"} · {draft.analysis?.request_snapshot.region?.display_name ?? "지역 미정"} · {draft.analysis?.request_snapshot.venue?.name ?? "장소 미정"}</p>
     {!loaded && !message && <p role="status">현재 공개 상태를 확인하고 있습니다…</p>}

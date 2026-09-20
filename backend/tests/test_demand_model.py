@@ -96,9 +96,9 @@ def test_missing_artifact_returns_explicit_unavailable(tmp_path, monkeypatch):
 
 def test_rejected_artifact_never_served(artifact):
     directory, *_ = artifact
-    manifest = json.loads((directory / "manifest.json").read_text())
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
     manifest["model_adopted"] = False
-    (directory / "manifest.json").write_text(json.dumps(manifest))
+    (directory / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     assert predict().reason_code == "model_unavailable"
     assert service.prediction_regions() == []
 
@@ -113,7 +113,7 @@ def test_cached_artifact_is_revalidated_after_corruption(artifact):
 
 def test_json_array_manifest_is_unavailable_not_server_error(artifact):
     directory, *_ = artifact
-    (directory / "manifest.json").write_text("[]")
+    (directory / "manifest.json").write_text("[]", encoding="utf-8")
     assert predict().reason_code == "model_unavailable"
 
 
@@ -147,9 +147,9 @@ def test_runs_cannot_overwrite_existing_results(artifact):
 def test_invalid_manifest_metadata_is_unavailable_not_server_error(artifact, missing):
     directory, *_ = artifact
     path = directory / "manifest.json"
-    manifest = json.loads(path.read_text())
+    manifest = json.loads(path.read_text(encoding="utf-8"))
     del manifest[missing]
-    path.write_text(json.dumps(manifest))
+    path.write_text(json.dumps(manifest), encoding="utf-8")
     assert predict().reason_code == "model_unavailable"
 
 
