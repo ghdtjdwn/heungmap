@@ -32,11 +32,19 @@ export function PlannerDashboard() {
   }
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
+    // requestAnimationFrame은 탭이 화면에 그려지지 않으면 실행되지 않는다(백그라운드 탭·최소화).
+    // 그때 목록이 "확인하고 있습니다"에서 멈춰 저장한 기획이 없는 것처럼 보이므로
+    // 타이머로도 한 번 더 시도한다. 먼저 도착한 쪽이 채우고 나머지는 무시한다.
+    let filled = false;
+    const fill = () => {
+      if (filled) return;
+      filled = true;
       setDrafts(readDrafts());
       setReady(true);
-    });
-    return () => window.cancelAnimationFrame(frame);
+    };
+    const frame = window.requestAnimationFrame(fill);
+    const timer = window.setTimeout(fill, 100);
+    return () => { window.cancelAnimationFrame(frame); window.clearTimeout(timer); };
   }, []);
 
   function startSample(kind: "independent" | "large") {
@@ -78,7 +86,6 @@ export function PlannerDashboard() {
         <button className="text-button" onClick={importPrevious}>이전 초안 가져오기 <span aria-hidden="true">→</span></button>
       </section>
       {importMessage && <p className="planner-inline-status" role="status">{importMessage}</p>}
-      <MyPublications />
 
       {!ready ? (
         <section className="panel loading-panel" aria-live="polite">저장한 기획을 확인하고 있습니다.</section>
@@ -128,6 +135,9 @@ export function PlannerDashboard() {
           </div>
         </section>
       )}
+      {/* 공개한 행사는 기획 목록 뒤에 둔다. 앞에 있으면 공개 전에는 빈 패널만 보여
+          방금 만든 기획이 없는 것처럼 읽힌다. */}
+      <MyPublications />
     </main>
   );
 }
