@@ -3,6 +3,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { setDraftOwner } from "@/lib/drafts";
+import { AppLoading } from "@/components/app-loading";
 
 type Role = "planner" | "visitor";
 type User = { id: string; name: string; role: Role | null; provider: "mock" | "google" };
@@ -76,7 +77,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     router.replace("/");
   }
   if (error) return <main className="page-shell"><section className="panel empty-panel" role="alert"><h1>연결을 확인해 주세요</h1><p>{error}</p><button className="button primary" onClick={() => void refresh()}>다시 시도</button></section></main>;
-  if (!session || (protectedPage && !session.user) || (session.user && !session.user.role && pathname !== "/onboarding")) return <main className="page-shell" role="status">로그인 상태를 확인하고 있습니다…</main>;
+  if (!session || (protectedPage && !session.user) || (session.user && !session.user.role && pathname !== "/onboarding")) return <AppLoading />;
   return <Context.Provider value={{ session, login, chooseRole, logout }}><Fragment key={session.user?.id ?? "guest"}>{children}</Fragment></Context.Provider>;
 }
 

@@ -387,7 +387,7 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .map-fallback p { margin: 6px 0 0; color: var(--muted); }
 .map-point-list { display: flex; align-items: flex-start; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
 .map-point-list button { width: 150px; min-width: 150px; height: 88px; border: 1px solid var(--line); border-radius: 10px; background: white; padding: 10px; text-align: left; color: inherit; cursor: pointer; }
-.map-point-list button.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.map-point-list button.selected { border-color: var(--teal); box-shadow: 0 0 0 2px color-mix(in srgb, var(--teal) 18%, transparent); }
 .map-point-list button strong, .map-point-list button span { display: block; }
 .map-point-list button strong { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .map-point-list button span, .map-source { margin-top: 4px; color: var(--muted); font-size: .78rem; }
@@ -683,8 +683,26 @@ button.role-card:focus-visible { outline: 4px solid rgba(200,220,114,.7); outlin
 .map-popup-close:hover { background: rgb(0 0 0 / 65%); }
 .map-popup-image { display: block; width: 100%; height: 106px; object-fit: cover; background: var(--surface-muted, #f2f4f3); }
 .map-popup-body { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 12px; }
-.map-popup-status { align-self: flex-start; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: 11px; font-weight: 600; }
+.map-popup-status { align-self: flex-start; padding: 1px 7px; border-radius: 999px; background: var(--teal-soft); color: var(--teal-dark); font-size: 11px; font-weight: 600; }
 .map-popup-body strong { font-size: 14px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .map-popup-body small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-popup-link { margin-top: 6px; color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none; }
+.map-popup-link { margin-top: 6px; color: var(--teal-dark); font-size: 12px; font-weight: 600; text-decoration: none; }
 .map-popup-link:hover { text-decoration: underline; }
+
+/* 전체 화면 대기(세션 확인 등) */
+.loading-shell { display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+.loading-card { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 44px 48px 40px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); }
+.loading-logo { width: 132px; height: auto; }
+.loading-bar { position: relative; width: 168px; height: 4px; border-radius: 999px; background: var(--teal-soft); overflow: hidden; }
+.loading-bar span { position: absolute; inset: 0 auto 0 0; width: 42%; border-radius: inherit; background: var(--teal); animation: loading-slide 1.15s ease-in-out infinite; }
+.loading-message { margin: 0; color: var(--muted); font-size: 0.95rem; }
+
+@keyframes loading-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(240%); }
+}
+
+/* 움직임 최소화를 설정한 사용자에게는 막대를 멈춘 상태로 보여 준다. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-bar span { animation: none; width: 100%; opacity: 0.55; }
+}
