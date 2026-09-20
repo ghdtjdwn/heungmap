@@ -7,6 +7,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { AppHeader } from "@/components/app-header";
 import { VisitorEventMap } from "@/components/visitor-event-map";
+import { formatDateRange, statusLabel } from "@/lib/event-format";
 import { VisitorCalendar } from "@/components/visitor-calendar";
 import { ApiError, listEvents } from "@/lib/api";
 import { REGIONS, regionFromCode } from "@/lib/options";
@@ -18,15 +19,6 @@ type LoadState =
   | { status: "ready"; items: EventSummary[]; page: number; pageSize: number; totalCount: number; warnings?: string[] }
   | { status: "error"; items: EventSummary[]; message: string; retryable: boolean };
 
-function formatDateRange(event: EventSummary): string {
-  // 올해가 아니거나 해를 넘기는 기간은 연도를 붙여 "11월 1일"이 몇 년도인지 헷갈리지 않게 한다.
-  const thisYear = String(new Date().getFullYear());
-  const withYear = event.start_date.slice(0, 4) !== thisYear || event.end_date.slice(0, 4) !== thisYear;
-  const options: Intl.DateTimeFormatOptions = { ...(withYear ? { year: "numeric" } : {}), month: "short", day: "numeric", weekday: "short" };
-  const start = new Intl.DateTimeFormat("ko-KR", options).format(new Date(`${event.start_date}T00:00:00`));
-  const end = new Intl.DateTimeFormat("ko-KR", options).format(new Date(`${event.end_date}T00:00:00`));
-  return event.start_date === event.end_date ? start : `${start} – ${end}`;
-}
 
 function filterSummary(filters: EventListQuery): string {
   const parts = [
@@ -47,7 +39,7 @@ function EventCard({ event, selected, onSelect }: { event: EventSummary; selecte
   const content = <>
     {event.thumbnail ? <Image className="visitor-card-image" src={event.thumbnail.url} alt={event.thumbnail.alt} width={180} height={120} unoptimized /> : <span className="visitor-card-image placeholder" aria-label="대표 이미지 없음">축제</span>}
     <span className="visitor-card-body">
-      <span className="card-topline"><b>{event.event_type === "festival" ? "축제" : event.event_type}</b><small>{event.event_status === "ongoing" ? "진행 중" : event.event_status === "scheduled" ? "예정" : "일정 확인"}</small></span>
+      <span className="card-topline"><b>{event.event_type === "festival" ? "축제" : event.event_type}</b><small>{statusLabel(event.event_status)}</small></span>
       <strong>{event.title}</strong><span>{formatDateRange(event)}</span><span>{event.venue?.address ?? event.region.display_name}</span>
       {!event.venue?.coordinates && <em>좌표 없음 · 목록에서만 확인 가능</em>}
       {event.prediction_summary?.status === "available" && <em>{event.prediction_summary.prediction_type === "regional_visit_demand" ? "지역 방문수요 예측 · 상세에서 확인" : `상대 수요 지수 ${event.prediction_summary.demand_score ?? "–"} · ${event.prediction_summary.is_mock ? "mock" : "예측"}`}</em>}
