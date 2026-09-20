@@ -61,7 +61,8 @@ if [ "${1:-}" = "--uninstall" ]; then
   echo "해제했습니다(crontab)."
   exit 0
 fi
-LINE="$MINUTE $HOUR * * * $SCRIPT >> $LOG 2>&1 $MARK"
+# 파일 실행 권한(+x)이 없어도 돌도록 /bin/sh로 부른다(rsync·Windows 체크아웃에서 권한이 빠질 수 있음).
+LINE="$MINUTE $HOUR * * * /bin/sh $SCRIPT >> $LOG 2>&1 $MARK"
 printf '%s\n%s\n' "$FILTERED" "$LINE" | sed '/^$/d' | crontab -
 echo "등록했습니다(crontab, 매일 $TIME, 서버 시계 $(date +%Z)):"
 crontab -l | grep "$MARK"
