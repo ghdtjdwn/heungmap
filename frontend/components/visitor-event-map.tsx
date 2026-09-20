@@ -45,6 +45,9 @@ type KakaoMap = {
   setBounds(bounds: unknown): void;
   setCenter(point: unknown): void;
   panBy(dx: number, dy: number): void;
+  // 배율 조작은 SDK에 따라 없을 수 있다(E2E의 가짜 SDK).
+  getLevel?(): number;
+  setLevel?(level: number): void;
 };
 type KakaoOverlay = {
   setMap(map: unknown | null): void;
@@ -66,6 +69,9 @@ function subscribeToRuntimeConfig(): () => void {
 }
 
 /** 묶음 마커 표시. 지도 SDK가 인라인 스타일로만 받아 CSS 대신 여기서 정한다. */
+/** 묶음이 풀려 낱개 마커가 보이는 배율. 클러스터러 minLevel(6)보다 한 단계 더 확대한다. */
+const FOCUS_LEVEL = 5;
+
 function clusterBubbleStyle(size: number): Record<string, string> {
   return {
     width: `${size}px`,
@@ -307,7 +313,12 @@ export function VisitorEventMap({
       entry.marker.setZIndex(selected ? 10 : 1);
       const kakao = getKakao();
       if (selected && kakao && mapRef.current) {
-        mapRef.current.setCenter(new kakao.maps.LatLng(entry.point.latitude, entry.point.longitude));
+        const map = mapRef.current;
+        map.setCenter(new kakao.maps.LatLng(entry.point.latitude, entry.point.longitude));
+        // 전국 배율에서는 이 마커가 묶음 안에 숨어 있다. 묶음이 풀릴 만큼 확대한다.
+        // 이미 더 확대해 둔 경우에는 그대로 둔다.
+        const level = map.getLevel?.();
+        if (typeof level === "number" && level > FOCUS_LEVEL) map.setLevel?.(FOCUS_LEVEL);
         // 목록에서 고른 경우 아직 말풍선이 없다. 마커 클릭으로 이미 열려 있으면 그대로 둔다.
         if (popupEventIdRef.current !== entry.eventId) openPopupRef.current?.(entry.point);
         window.requestAnimationFrame(keepPopupInView);
