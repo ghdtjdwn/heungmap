@@ -187,7 +187,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
     <main className="page-shell visitor-shell">
       <AppHeader detail="TourAPI 축제 탐색" />
       <section className="workspace-heading visitor-heading">
-        <div><p className="eyebrow">VISITOR MODE</p><h1>갈 만한 축제를 한눈에 찾아보세요</h1><p>검색 결과와 지도는 같은 TourAPI 행사 목록을 사용합니다.</p></div>
+        <div><h1>갈 만한 축제를 한눈에 찾아보세요</h1><p>검색 결과와 지도는 같은 TourAPI 행사 목록을 사용합니다.</p></div>
       </section>
 
       <form className="panel visitor-filter-panel" onSubmit={applyFilters} aria-label="축제 검색 필터">
@@ -200,7 +200,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
       {(formError || urlWarning) && <p className="form-error visitor-message" role="alert">{formError || urlWarning}</p>}
 
       <div className="visitor-result-heading">
-        <div><p className="eyebrow">DISCOVER EVENTS</p><h2>{view === "list" ? "목록으로 보는 축제" : view === "calendar" ? "달력으로 보는 축제" : "지도로 넓게 보는 축제"}</h2><span>{filterSummary(requestFilters)}</span></div>
+        <div><h2>{view === "list" ? "목록으로 보는 축제" : view === "calendar" ? "달력으로 보는 축제" : "지도로 넓게 보는 축제"}</h2><span>{filterSummary(requestFilters)}</span></div>
         <div className="visitor-result-actions">
           {result.status === "ready" && <strong>총 {result.totalCount}건</strong>}
           <nav className="visitor-view-switcher" aria-label="축제 보기 방식">
@@ -244,7 +244,7 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
         <div className="visitor-map-layout">
           <p className="visitor-map-scope">같은 조건의 행사를 페이지당 최대 100건을 한 지도에서 표시합니다. 아래 페이지 이동으로 나머지 행사도 확인할 수 있어요.</p>
           <section className="panel visitor-map-panel"><VisitorEventMap events={result.items} selectedEventId={selectedEventId} onSelect={selectEvent} focus /></section>
-          {selectedEvent && <section className="visitor-map-selection" aria-live="polite"><div><span className="eyebrow">SELECTED EVENT</span><strong>{selectedEvent.title}</strong><small>{formatDateRange(selectedEvent)} · {selectedEvent.venue?.address ?? selectedEvent.region.display_name}</small></div><Link className="button primary" href={`/visitor/${selectedEvent.event_id}`}>상세 보기</Link></section>}
+          {selectedEvent && <section className="visitor-map-selection" aria-live="polite"><div><span className="eyebrow">선택한 행사</span><strong>{selectedEvent.title}</strong><small>{formatDateRange(selectedEvent)} · {selectedEvent.venue?.address ?? selectedEvent.region.display_name}</small></div><Link className="button primary" href={`/visitor/${selectedEvent.event_id}`}>상세 보기</Link></section>}
         </div>
       )}
 

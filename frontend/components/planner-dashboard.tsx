@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { AppHeader } from "./app-header";
 import { MyPublications } from "./my-publications";
+import { ArrowRightIcon, ArrowUpRightIcon, BoltIcon, PinIcon, PlusIcon, SparkleIcon } from "./icons";
 import { getModelStatus } from "@/lib/api";
 import type { ModelStatus } from "@/lib/types";
 import { optionLabel } from "@/lib/options";
@@ -57,13 +58,13 @@ export function PlannerDashboard() {
       <AppHeader />
       <section className="workspace-heading compact-heading planner-dashboard-hero">
         <div className="planner-hero-copy">
-          <p className="eyebrow">PLANNING WORKSPACE · 나의 기획실</p>
+          <p className="eyebrow">나의 기획실</p>
           <h1>떠오른 아이디어를<br /><em>근거 있는 행사로.</em></h1>
           <p>조건을 하나씩 정리하고 지역 방문수요·장소·운영 위험을 같은 기준으로 점검하세요.</p>
         </div>
         <div className="planner-hero-action">
           <span>새로운 아이디어가 있나요?</span>
-          <Link href="/planner/new" className="button primary">새 기획 시작 <b aria-hidden="true">↗</b></Link>
+          <Link href="/planner/new" className="button primary">새 기획 시작 <b aria-hidden="true"><ArrowUpRightIcon /></b></Link>
         </div>
       </section>
 
@@ -74,8 +75,8 @@ export function PlannerDashboard() {
       </section>
 
       <section className="planner-storage-row" aria-label="초안 저장 안내">
-        <div><span aria-hidden="true">⌁</span><p><strong>초안은 현재 브라우저에 자동 저장됩니다.</strong><small>로그인 전에 만든 초안이 있다면 현재 계정으로 복사할 수 있어요.</small></p></div>
-        <button className="text-button" onClick={importPrevious}>이전 초안 가져오기 <span aria-hidden="true">→</span></button>
+        <div><span aria-hidden="true"><BoltIcon /></span><p><strong>초안은 현재 브라우저에 자동 저장됩니다.</strong><small>로그인 전에 만든 초안이 있다면 현재 계정으로 복사할 수 있어요.</small></p></div>
+        <button className="text-button" onClick={importPrevious}>이전 초안 가져오기 <span aria-hidden="true"><ArrowRightIcon /></span></button>
       </section>
       {importMessage && <p className="planner-inline-status" role="status">{importMessage}</p>}
       <MyPublications />
@@ -85,22 +86,22 @@ export function PlannerDashboard() {
       ) : drafts.length === 0 ? (
         <section className="panel empty-panel planner-empty-panel">
           <div className="planner-empty-main">
-            <span className="planner-empty-index">YOUR FIRST PLAN</span>
-            <div className="empty-icon" aria-hidden="true">＋</div>
+            <span className="planner-empty-index">첫 기획</span>
+            <div className="empty-icon" aria-hidden="true"><PlusIcon /></div>
             <h2>첫 번째 행사를<br />기획해 볼까요?</h2>
             <p>아직 모든 조건을 몰라도 괜찮아요. 7단계 질문을 따라가며 아이디어부터 정리할 수 있습니다.</p>
-            <Link href="/planner/new" className="button primary">빈 기획으로 시작 <span aria-hidden="true">↗</span></Link>
+            <Link href="/planner/new" className="button primary">빈 기획으로 시작 <span aria-hidden="true"><ArrowUpRightIcon /></span></Link>
           </div>
           <div className="planner-starters">
-            <header><span>QUICK START</span><strong>예시로 먼저 둘러보기</strong></header>
-            <button onClick={() => startSample("independent")}><span aria-hidden="true">✦</span><div><strong>소규모 독립 행사</strong><small>적은 예산·작은 팀으로 시작</small></div><b aria-hidden="true">→</b></button>
-            <button onClick={() => startSample("large")}><span aria-hidden="true">⌖</span><div><strong>대형 지역 축제</strong><small>수요·장소·운영 위험 점검</small></div><b aria-hidden="true">→</b></button>
+            <header><span>예시로 시작</span><strong>예시로 먼저 둘러보기</strong></header>
+            <button onClick={() => startSample("independent")}><span aria-hidden="true"><SparkleIcon /></span><div><strong>소규모 독립 행사</strong><small>적은 예산·작은 팀으로 시작</small></div><b aria-hidden="true"><ArrowRightIcon /></b></button>
+            <button onClick={() => startSample("large")}><span aria-hidden="true"><PinIcon /></span><div><strong>대형 지역 축제</strong><small>수요·장소·운영 위험 점검</small></div><b aria-hidden="true"><ArrowRightIcon /></b></button>
           </div>
         </section>
       ) : (
         <section className="draft-section">
           <div className="section-heading">
-            <div><p className="eyebrow">SAVED PLANS</p><h2>이어갈 기획</h2></div>
+            <div><h2>이어갈 기획</h2></div>
             <span>{drafts.length}개의 기획</span>
           </div>
           <div className="draft-grid">
