@@ -26,9 +26,18 @@ type KakaoMaps = {
   LatLng: new (latitude: number, longitude: number) => unknown;
   LatLngBounds: new () => { extend(point: unknown): void };
   Map: new (container: HTMLElement, options: { center: unknown; level: number }) => KakaoMap;
-  Marker: new (options: { map: unknown; position: unknown; title: string }) => KakaoMarker;
+  Marker: new (options: { map?: unknown; position: unknown; title: string }) => KakaoMarker;
   CustomOverlay: new (options: { position: unknown; content: HTMLElement; yAnchor?: number; zIndex?: number }) => KakaoOverlay;
+  // 클러스터러는 libraries=clusterer 로 함께 받은 경우에만 있다(E2E의 가짜 SDK에는 없다).
+  MarkerClusterer?: new (options: {
+    map: unknown; averageCenter?: boolean; minLevel?: number; minClusterSize?: number; gridSize?: number;
+    calculator?: number[]; styles?: Record<string, string>[];
+  }) => KakaoClusterer;
   event: { addListener(target: unknown, eventName: string, handler: () => void): void };
+};
+type KakaoClusterer = {
+  addMarkers(markers: KakaoMarker[]): void;
+  clear(): void;
 };
 type KakaoMap = {
   relayout(): void;
@@ -53,6 +62,23 @@ function getRuntimeKakaoMapKey(): string | undefined {
 
 function subscribeToRuntimeConfig(): () => void {
   return () => undefined;
+}
+
+/** 묶음 마커 표시. 지도 SDK가 인라인 스타일로만 받아 CSS 대신 여기서 정한다. */
+function clusterBubbleStyle(size: number): Record<string, string> {
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    borderRadius: "50%",
+    background: "rgba(22, 163, 74, 0.92)",
+    border: "2px solid rgba(255, 255, 255, 0.92)",
+    boxShadow: "0 6px 16px rgba(18, 130, 59, 0.35)",
+    color: "#ffffff",
+    textAlign: "center",
+    lineHeight: `${size - 4}px`,
+    fontSize: size >= 50 ? "15px" : size >= 42 ? "14px" : "13px",
+    fontWeight: "700",
+  };
 }
 
 /** 마커를 누르면 뜨는 말풍선. 외부 문자열은 textContent로만 넣는다(마크업 주입 방지). */
@@ -123,6 +149,7 @@ export function VisitorEventMap({
   const popupRef = useRef<HTMLElement | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const overlayRef = useRef<KakaoOverlay | null>(null);
+  const clustererRef = useRef<KakaoClusterer | null>(null);
   const onSelectRef = useRef(onSelect);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
   const runtimeKey = useSyncExternalStore(subscribeToRuntimeConfig, getRuntimeKakaoMapKey, () => undefined);
@@ -199,9 +226,18 @@ export function VisitorEventMap({
       };
       // 빈 곳을 누르면 닫는다.
       maps.event.addListener(map, "click", closePopup);
+      // 전국을 한눈에 보면 마커 100개가 서로 포개져 맨 위 하나만 눌린다.
+      // 클러스터러가 있으면 묶어서 보여 주고(누르면 확대), 없으면 예전처럼 낱개로 올린다.
+      const clusterer = maps.MarkerClusterer
+        ? new maps.MarkerClusterer({
+            map, averageCenter: true, minLevel: 6, minClusterSize: 2, gridSize: 70,
+            calculator: [10, 30], styles: [34, 42, 50].map(clusterBubbleStyle),
+          })
+        : null;
+      clustererRef.current = clusterer;
       markersRef.current = points.map((point) => {
         const marker = new maps.Marker({
-          map,
+          ...(clusterer ? {} : { map }),
           position: new maps.LatLng(point.latitude, point.longitude),
           title: point.title,
         });
@@ -211,6 +247,7 @@ export function VisitorEventMap({
         });
         return { eventId: point.eventId, marker, point };
       });
+      clusterer?.addMarkers(markersRef.current.map((entry) => entry.marker));
       setState("ready");
       window.requestAnimationFrame(() => {
         if (disposed) return;
@@ -232,7 +269,7 @@ export function VisitorEventMap({
       const script = existing ?? document.createElement("script");
       if (!existing) {
         script.dataset.heungmapKakaoMap = "true";
-        script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false`;
+        script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(key)}&autoload=false&libraries=clusterer`;
         document.head.appendChild(script);
       }
       script.addEventListener("load", render, { once: true });
@@ -242,6 +279,8 @@ export function VisitorEventMap({
       disposed = true;
       overlayRef.current?.setMap(null);
       overlayRef.current = null;
+      clustererRef.current?.clear();
+      clustererRef.current = null;
       markersRef.current.forEach(({ marker }) => marker.setMap(null));
       markersRef.current = [];
       mapRef.current = null;
