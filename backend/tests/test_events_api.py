@@ -376,7 +376,7 @@ def test_nearby_keeps_tourapi_results_when_kakao_fails(monkeypatch) -> None:
     response = client.get("/api/v1/events/evt_tourapi_123/nearby")
     assert response.status_code == 200
     assert response.json()["items"][0]["name"] == "TourAPI 숙박시설"
-    assert "TourAPI 결과만 제공합니다" in response.json()["meta"]["warnings"][0]
+    assert "한국관광공사 결과만 제공합니다" in response.json()["meta"]["warnings"][0]
 
 
 def test_detail_intro_timeout_is_not_reported_as_missing_event(monkeypatch) -> None:

@@ -284,6 +284,7 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .result-tabs button { flex: 1; min-height: 42px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; font-weight: 800; }
 .result-tabs button.active { background: var(--navy); color: white; }
 .result-content { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+.result-grid { align-items: start; }
 .warning-list { padding: 14px 17px; border: 1px solid #edc384; border-radius: var(--radius-sm); background: var(--amber-soft); }
 .warning-list p { margin: 4px 0 0; color: #765329; font-size: 0.86rem; }
 .result-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
@@ -349,7 +350,7 @@ h1 { margin: 0; max-width: 760px; font-size: clamp(2rem, 4vw, 3.4rem); line-heig
 .comparison-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
 .compare-card { min-height: 330px; padding: 24px; }
 .compare-card > span, .compare-card > small { display: block; color: var(--muted); }
-.compare-card > strong { display: block; margin: 15px 0 0; font-size: 3.5rem; line-height: 1; }
+.compare-card > strong { display: block; margin: 15px 0 0; font-size: clamp(2rem, 6vw, 3.5rem); line-height: 1; overflow-wrap: anywhere; }
 .compare-card > small { min-height: 45px; margin-top: 6px; }
 .compare-card.alternative { border: 1px solid #72bcb3; background: var(--teal-soft); }
 .compare-card.placeholder { border-style: dashed; box-shadow: none; }
@@ -457,6 +458,22 @@ button.visitor-card-select:hover { background: #f4faf5; }
 .visitor-pagination { max-width: 1180px; margin: 20px auto 0; display: flex; align-items: center; justify-content: center; gap: 14px; }
 .visitor-pagination span { color: var(--muted); font-size: .88rem; }
 .visitor-pagination .button:disabled { cursor: not-allowed; opacity: .45; }
+
+/* 노트북 반쪽 창(약 900~1080px)에서 3~4열 배치가 찌그러지거나 넘치던 것을 한 단계 먼저 접는다. */
+@media (max-width: 1080px) {
+  .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .draft-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .context-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .result-grid, .compare-layout, .evidence-layout { grid-template-columns: minmax(0, 1fr); }
+  .report-layout { grid-template-columns: 180px minmax(0, 1fr); }
+  .visitor-filter-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .visitor-filter-actions { grid-column: 1 / -1; }
+  .visitor-list-layout .visitor-event-list { grid-template-columns: minmax(0, 1fr); }
+  .welcome-hero { grid-template-columns: minmax(0, 1fr) minmax(320px, .9fr); gap: 42px; }
+  .welcome-flow { gap: 48px; }
+  .planner-empty-panel { grid-template-columns: minmax(0, 1fr); }
+}
 
 @media (max-width: 720px) {
   .page-shell { padding: 0 18px 40px; }

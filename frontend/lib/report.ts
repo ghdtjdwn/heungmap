@@ -31,8 +31,8 @@ export function buildReport(
     {
       title: "추천 우선순위",
       body: recommendation?.generation_mode === "llm"
-        ? "실제 LLM이 입력 Context와 기존 규칙 근거를 재구성한 실행안입니다. 모든 항목은 사람의 확인이 필요합니다."
-        : "LLM을 사용할 수 없어 같은 입력과 근거를 규칙으로 정리한 실행안입니다.",
+        ? "입력한 조건과 확인된 근거만으로 정리한 실행안입니다. 모든 항목은 사람의 확인이 필요합니다."
+        : "같은 입력과 근거로 정리한 간략 실행안입니다.",
       checks: recommendation?.priorities.map((item) => `${item.title}: ${item.action}`)
         ?? analysis.rule_recommendations.map((item) => `${item.title}: ${item.action}`),
     },
@@ -71,7 +71,7 @@ export function buildReport(
     {
       title: "접근성·주변 연계",
       body: details.accessibility_plan || "접근성 계획이 아직 입력되지 않았습니다.",
-      checks: [details.audience_accessibility_needs || "무단차 동선·화장실·휴게 공간 확인", details.local_partnership_plan || "지역 상권·관광 연계 방식 확인", "TourAPI 주변 장소 결과와 현장 정보를 교차 확인"],
+      checks: [details.audience_accessibility_needs || "무단차 동선·화장실·휴게 공간 확인", details.local_partnership_plan || "지역 상권·관광 연계 방식 확인", "한국관광공사 주변 장소 결과와 현장 정보를 교차 확인"],
     },
     {
       title: "허가·지속가능성",
@@ -115,8 +115,8 @@ export function reportAsMarkdown(
     "",
     `> ${predictionNotice(analysis.prediction)}`,
     recommendation?.generation_mode === "llm"
-      ? "> 기획 문장은 설정된 실제 LLM이 구조화 계약에 맞춰 생성했으며 사람의 확인이 필요합니다."
-      : "> 실제 LLM을 사용할 수 없어 기획 문장을 규칙 fallback으로 생성했습니다.",
+      ? "> 기획 문장은 입력한 근거만으로 작성했으며 사람의 확인이 필요합니다."
+      : "> 기획 문장을 간략본으로 작성했습니다.",
     "",
     ...sections.flatMap((section) => [
       `## ${section.title}`,

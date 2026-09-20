@@ -15,7 +15,7 @@ export function predictionLabel(prediction: Prediction): string {
 export function predictionSummary(prediction: Prediction): string {
   if (prediction.status !== "available") return prediction.message;
   const metric = prediction.primary_metric;
-  if (metric.metric_name === "relative_demand_score") return `상대 수요점수 ${metric.value}/100${prediction.is_mock ? " (학습 모델 연결 전 mock)" : ""}`;
+  if (metric.metric_name === "relative_demand_score") return `상대 수요점수 ${metric.value}/100${prediction.is_mock ? " (예시 값)" : ""}`;
   const unit = metric.unit === "percent_change" ? "%" : " 방문자-일";
   const format = (value: number) => metric.unit === "people" ? Math.round(value).toLocaleString("ko-KR") : value.toFixed(1);
   const day = (value: string) => { const [, month, date] = value.split("-"); return `${Number(month)}/${Number(date)}`; };

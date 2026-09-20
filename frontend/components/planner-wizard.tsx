@@ -354,10 +354,10 @@ export function PlannerWizard() {
         model: "planner-rule-fallback-1.0",
         prompt_version: "planner-recommendation-1.0",
         is_fallback: true,
-        warning: "실제 LLM을 사용할 수 없어 규칙 보고서로 생성했습니다.",
+        warning: "보고서를 간략본으로 생성했습니다.",
       };
       try {
-        setSubmissionPhase("AI 보고서 작성 중");
+        setSubmissionPhase("기획 보고서 작성 중");
         llmAbort.current = new AbortController();
         setCanCancelLlm(true);
         const generated = await generatePlannerRecommendation({
@@ -370,13 +370,13 @@ export function PlannerWizard() {
         }, llmAbort.current.signal);
         setSubmissionPhase("결과 검증 중");
         const validation = validateStructuredRecommendation(generated.recommendation);
-        if (!validation.valid) throw new ApiError(`LLM 결과 계약 검증 실패: ${validation.errors.join(" ")}`);
+        if (!validation.valid) throw new ApiError(`보고서 검증에 실패했습니다: ${validation.errors.join(" ")}`);
         recommendation = generated.recommendation;
         recommendationMeta = { ...generated.meta, is_fallback: false };
       } catch (recommendationError) {
         recommendationMeta.warning = recommendationError instanceof ApiError
-          ? `${recommendationError.message} 규칙 보고서로 안전하게 전환했습니다.`
-          : "LLM 결과를 사용할 수 없어 규칙 보고서로 안전하게 전환했습니다.";
+          ? `${recommendationError.message} 간략본으로 안전하게 전환했습니다.`
+          : "보고서를 간략본으로 안전하게 전환했습니다.";
       }
       llmAbort.current = null;
       setCanCancelLlm(false);
@@ -529,7 +529,7 @@ export function PlannerWizard() {
                 {event.schedule_selection_mode === "fixed" && <DatePair label="확정 일정" value={{ start_date: event.start_date ?? "", end_date: event.end_date ?? "" }} onChange={(value) => { updateEvent("start_date", value.start_date); updateEvent("end_date", value.end_date); }} />}
                 {event.schedule_selection_mode === "candidates" && (event.date_candidates ?? []).map((candidate, index) => <DatePair key={index} label={`후보 ${index + 1}`} value={candidate} onChange={(value) => { const candidates = [...(event.date_candidates ?? [])]; candidates[index] = value; updateEvent("date_candidates", candidates); }} />)}
               </FormBlock>
-              <FormBlock title="어느 지역에서 열 계획인가요?" description="지역 코드는 TourAPI 근거 조회에 사용합니다.">
+              <FormBlock title="어느 지역에서 열 계획인가요?" description="지역 코드는 한국관광공사 관광정보 조회에 사용합니다.">
                 <Field label="지역 상태" required>
                   <select value={event.region_selection_mode} onChange={(e) => {
                     const mode = e.target.value as EventDraft["region_selection_mode"];
@@ -559,7 +559,7 @@ export function PlannerWizard() {
           {step === 4 && (
             <div className="form-stack">
               <FormBlock title="장소가 정해졌나요?" description="정해졌다면 검색해 자동 입력하세요. 아직이면 비워두어도 분석 결과에서 필요한 규모·접근성·시설 조건과 후보 확인 순서를 추천합니다.">
-                <Field label="장소명" hint="선택·TourAPI 검색" full group help="비워두면 목표 인원과 운영 조건을 기준으로 장소 선택 기준을 추천합니다.">
+                <Field label="장소명" hint="선택·한국관광공사 검색" full group help="비워두면 목표 인원과 운영 조건을 기준으로 장소 선택 기준을 추천합니다.">
                   <div className="search-control"><input aria-label="장소명" value={event.venue?.name ?? ""} onChange={(e) => { updateVenue("name", e.target.value); updateDetails("venue_search_source", undefined); setVenueMatches([]); setVenueSearchMessage(""); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void runVenueSearch(); } }} placeholder="예: 서울문화비축기지" /><button type="button" className="button secondary" onClick={() => void runVenueSearch()} disabled={searchingVenue}>{searchingVenue ? "검색 중…" : "관광정보 검색"}</button></div>
                   {venueSearchMessage && <p className="search-message" role="status">{venueSearchMessage}</p>}
                   {venueMatches.length > 0 && <ul className="search-results">{venueMatches.map((item) => <li key={item.venue.venue_id}><button type="button" onClick={() => chooseVenue(item)}><strong>{item.venue.name}</strong><span>{item.venue.address || "주소 정보 없음"}{item.category ? ` · ${item.category}` : ""}</span></button></li>)}</ul>}
@@ -569,7 +569,7 @@ export function PlannerWizard() {
                   {addressSearchMessage && <p className="search-message" role="status">{addressSearchMessage}</p>}
                   {addressMatches.length > 0 && <ul className="search-results">{addressMatches.map((item, index) => <li key={`${item.address_name}-${index}`}><button type="button" onClick={() => chooseAddress(item)}><strong>{item.road_address_name || item.address_name}</strong>{item.jibun_address_name && item.jibun_address_name !== item.road_address_name && <span>지번 {item.jibun_address_name}</span>}</button></li>)}</ul>}
                 </Field>
-                <Field label="공식 수용인원" hint="선택" suffix="명" help="TourAPI에는 공식 수용인원이 없습니다. 확인 전에는 비워두면 목표 인원 기준의 필요 규모를 추천합니다."><input type="number" min="1" inputMode="numeric" value={event.venue?.capacity ?? ""} onChange={(e) => updateVenue("capacity", numericValue(e.target.value))} /></Field>
+                <Field label="공식 수용인원" hint="선택" suffix="명" help="한국관광공사 관광정보에는 공식 수용인원이 없습니다. 확인 전에는 비워두면 목표 인원 기준의 필요 규모를 추천합니다."><input type="number" min="1" inputMode="numeric" value={event.venue?.capacity ?? ""} onChange={(e) => updateVenue("capacity", numericValue(e.target.value))} /></Field>
                 <Field label="공간 유형" required>
                   <select value={event.indoor_outdoor} onChange={(e) => updateEvent("indoor_outdoor", e.target.value as EventDraft["indoor_outdoor"])}><option value="undecided">아직 모름</option><option value="indoor">실내</option><option value="outdoor">실외</option><option value="mixed">실내·실외 혼합</option></select>
                 </Field>
@@ -640,7 +640,7 @@ export function PlannerWizard() {
                 <Field label="기타 고려사항" hint="선택" full><textarea rows={4} maxLength={3000} value={event.other_notes ?? ""} onChange={(e) => updateEvent("other_notes", e.target.value)} /></Field>
               </FormBlock>
               <ReviewSummary event={event} details={details} />
-              <div className="model-notice"><span>지역 수요 예측</span><div><strong>확정한 일정과 시군구를 기준으로 지역 방문수요를 분석합니다.</strong><p>현재부터 30일 안에 시작하는 1~30일 행사와 검증된 지역 자료가 필요합니다. 자료나 모델이 준비되지 않았으면 예측 불가 사유를 표시합니다. 특정 행사 관람객 수는 예측하지 않습니다.</p><p>설정된 경우 기획 Context는 실제 LLM에 전달되며, 사용할 수 없으면 규칙 보고서로 자동 전환됩니다.</p></div></div>
+              <div className="model-notice"><span>지역 수요 예측</span><div><strong>확정한 일정과 시군구를 기준으로 지역 방문수요를 분석합니다.</strong><p>현재부터 30일 안에 시작하는 1~30일 행사와 검증된 지역 자료가 필요합니다. 자료가 준비되지 않았으면 예측 불가 사유를 표시합니다. 특정 행사 관람객 수는 예측하지 않습니다.</p></div></div>
             </div>
           )}
 
@@ -649,7 +649,7 @@ export function PlannerWizard() {
             <button type="button" className="button secondary" onClick={previousStep} disabled={step === 0}>이전</button>
             <div className="footer-right">
               <span>{formatSaved(savedAt)}</span>
-              {step < 6 ? <button type="button" className="button primary" onClick={nextStep}>다음</button> : <><button type="button" className="button primary analyze-button" onClick={submitAnalysis} disabled={submitting}>{submitting ? submissionPhase || "분석·보고서 생성 중…" : "분석·보고서 생성"}</button>{submitting && canCancelLlm ? <button type="button" className="button secondary" onClick={cancelLlm}>AI 보고서 취소</button> : null}</>}
+              {step < 6 ? <button type="button" className="button primary" onClick={nextStep}>다음</button> : <><button type="button" className="button primary analyze-button" onClick={submitAnalysis} disabled={submitting}>{submitting ? submissionPhase || "분석·보고서 생성 중…" : "분석·보고서 생성"}</button>{submitting && canCancelLlm ? <button type="button" className="button secondary" onClick={cancelLlm}>보고서 생성 취소</button> : null}</>}
             </div>
           </footer>
         </section>

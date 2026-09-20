@@ -121,36 +121,36 @@ class TourApiClient:
                 self.upstream_calls += 1
                 response = await client.get(f"{BASE_URL}/{operation}", params=query)
                 if response.status_code == 429:
-                    raise TourApiUnavailable("TourAPI 호출 한도에 도달했습니다.", reason="quota")
+                    raise TourApiUnavailable("한국관광공사 조회 한도에 도달했습니다.", reason="quota")
                 if response.status_code in {401, 403}:
-                    raise TourApiUnavailable("TourAPI 활용 권한을 확인해 주세요.", reason="permission")
+                    raise TourApiUnavailable("한국관광공사 조회 권한을 확인해 주세요.", reason="permission")
                 if response.status_code >= 500:
-                    raise TourApiUnavailable("TourAPI가 일시적인 서버 오류를 반환했습니다.", reason="upstream")
+                    raise TourApiUnavailable("한국관광공사 서비스가 일시적인 오류를 반환했습니다.", reason="upstream")
                 response.raise_for_status()
                 payload = response.json()
         except httpx.TimeoutException as exc:
-            raise TourApiUnavailable("TourAPI 응답 시간이 초과됐습니다.", reason="timeout") from exc
+            raise TourApiUnavailable("한국관광공사 응답 시간이 초과됐습니다.", reason="timeout") from exc
         except TourApiUnavailable:
             raise
         except (httpx.HTTPError, ValueError, TypeError) as exc:
-            raise TourApiUnavailable("한국관광공사 TourAPI를 불러오지 못했습니다.", reason="upstream") from exc
+            raise TourApiUnavailable("한국관광공사 관광정보를 불러오지 못했습니다.", reason="upstream") from exc
 
         try:
             header = payload["response"]["header"]
             result_code = str(header.get("resultCode", ""))
             if result_code not in {"0", "00", "0000"}:
                 reason = "quota" if result_code in {"22", "23"} else "permission" if result_code in {"20", "30", "31"} else "upstream"
-                raise TourApiUnavailable("한국관광공사 TourAPI가 오류를 반환했습니다.", reason=reason)
+                raise TourApiUnavailable("한국관광공사 서비스가 오류를 반환했습니다.", reason=reason)
             raw_items = payload["response"]["body"].get("items") or {}
             items = raw_items.get("item") or []
         except (KeyError, AttributeError, TypeError) as exc:
-            raise TourApiUnavailable("한국관광공사 TourAPI 응답 형식을 해석하지 못했습니다.") from exc
+            raise TourApiUnavailable("한국관광공사 응답 형식을 해석하지 못했습니다.") from exc
         if isinstance(items, dict):
             result = [items]
             self.cache.set(cache_key, result)
             return result
         if not isinstance(items, list):
-            raise TourApiUnavailable("한국관광공사 TourAPI 행사 목록 형식이 올바르지 않습니다.")
+            raise TourApiUnavailable("한국관광공사 행사 목록 형식이 올바르지 않습니다.")
         result = [item for item in items if isinstance(item, dict)]
         self.cache.set(cache_key, result)
         return result
@@ -249,7 +249,7 @@ class TourApiClient:
             items.extend(page_items)
             if len(page_items) < fetch_page_size:
                 return items
-        raise TourApiUnavailable("TourAPI 축제 목록의 페이지 범위가 비정상적으로 큽니다.")
+        raise TourApiUnavailable("축제 목록의 페이지 범위가 비정상적으로 큽니다.")
 
     async def competing_festival_count(
         self,
@@ -280,7 +280,7 @@ class TourApiClient:
             provider_name="한국관광공사",
             dataset_name="국문 관광정보 서비스 searchFestival2",
             retrieved_at=now,
-            limitation="같은 지역·기간의 TourAPI 행사 수이며 경쟁 강도나 관람객 수를 뜻하지 않습니다.",
+            limitation="같은 지역·기간의 행사 수이며 경쟁 강도나 관람객 수를 뜻하지 않습니다.",
         )
         return len(items), source
 
@@ -348,7 +348,7 @@ class TourApiClient:
             dataset_name="국문 관광정보 서비스 searchFestival2",
             source_record_id=content_id,
             retrieved_at=now,
-            limitation="TourAPI 축제 정보이며 실제 운영 여부와 관람객 수는 보장하지 않습니다.",
+            limitation="한국관광공사 축제 정보이며 실제 운영 여부와 관람객 수는 보장하지 않습니다.",
         )
         return EventSummary(
             event_id=f"evt_tourapi_{content_id}",
@@ -372,7 +372,7 @@ class TourApiClient:
                 completeness="medium" if (coordinates and address) else "low",
                 warnings=[
                     *([] if coordinates else ["좌표 정보가 제공되지 않았습니다."]),
-                    *([] if (raw_area_code or legal_area_code) else ["TourAPI가 지역 코드를 제공하지 않아 주소 기반으로 지역명을 표시합니다."]),
+                    *([] if (raw_area_code or legal_area_code) else ["지역 코드가 없어 주소를 기준으로 지역명을 표시합니다."]),
                 ],
                 is_mock=False,
             ),

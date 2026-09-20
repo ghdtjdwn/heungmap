@@ -100,11 +100,11 @@ test("지역 방문수요 감소 범위와 실제 모델 Context를 유지한다
   for (let i = 3; i < 6; i++) await page.getByRole("button", { name: "다음" }).click();
   await page.getByRole("button", { name: "분석·보고서 생성" }).click();
   await expect(page).toHaveURL(/\/planner\/result\?draft=/);
-  await expect(page.getByText("AI 지역 수요 예측", { exact: true })).toBeVisible();
+  await expect(page.getByText("지역 방문수요 예측", { exact: true })).toBeVisible();
   await expect(page.locator(".score-card")).toContainText("-5%");
   await expect(page.getByText(/예측 범위 -20.0~10.0%/)).toBeVisible();
-  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("학습 범위를 벗어난 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("예시 데이터", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("과거 자료로 설명하기 어려운 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
   await page.getByText("예측 해석 한계 확인", { exact: true }).click();
   await expect(page.locator(".demand-panel details")).toContainText("지역 방문수요이며 특정 행사 관람객 수가 아닙니다.");
   expect(capturedContext?.generation).toMatchObject({ model_mock: false });
@@ -131,7 +131,7 @@ test("수요 예측 불가를 mock 점수 없이 표시하고 보고서를 유�
   await analyzeSample(page);
   await expect(page.getByText("수요 예측 불가", { exact: true })).toBeVisible();
   await expect(page.locator(".score-card")).toHaveCount(0);
-  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("예시 데이터", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "기획 보고서", exact: true }).click();
   await expect(page.locator(".report-document")).toContainText("검증을 통과한 모델이 아직 없습니다.");
 });
@@ -139,7 +139,7 @@ test("수요 예측 불가를 mock 점수 없이 표시하고 보고서를 유�
 test("대형·소규모 sample 분석과 Ollama 구조화 결과", async ({ page }) => {
   for (const sample of ["large", "independent"]) {
     await analyzeSample(page, sample);
-    await expect(page.getByText("LLM REPORT")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "기획 요약" })).toBeVisible();
     await expect(page.getByText("실제 행사 관람객 수가 아닙니다.")).toBeVisible();
     await expect(page.getByText("지도 위치 미정")).toBeVisible();
   }
@@ -148,10 +148,10 @@ test("대형·소규모 sample 분석과 Ollama 구조화 결과", async ({ page
 test("완료 뒤 자동 저장이 분석과 보고서를 덮어쓰지 않는다", async ({ page }) => {
   await page.clock.install();
   await analyzeSample(page);
-  await expect(page.getByText("LLM REPORT")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기획 요약" })).toBeVisible();
   await page.clock.fastForward(1000);
   await page.reload();
-  await expect(page.getByText("LLM REPORT")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기획 요약" })).toBeVisible();
   await expect(page.getByText("분석 v1")).toBeVisible();
 });
 
@@ -190,7 +190,7 @@ test("validation 오류와 외부 API·Ollama fallback", async ({ page }) => {
   await page.getByRole("button", { name: "다음" }).click();
   await page.getByRole("button", { name: "분석·보고서 생성" }).click();
   await expect(page).toHaveURL(/\/planner\/result\?draft=/);
-  await expect(page.getByText("RULE FALLBACK")).toBeVisible();
+  await expect(page.locator(".warning-list").first()).toContainText("보고서 생성 안내");
   await expect(page.getByText(/Ollama를 사용할 수 없습니다/)).toBeVisible();
 });
 

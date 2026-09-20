@@ -16,7 +16,9 @@ declare global { interface Window { kakao?: { maps: KakaoMaps } } }
 
 export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: NearbyResult }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ setCenter(point: unknown): void } | null>(null);
+  const mapRef = useRef<{ setCenter(point: unknown): void; relayout(): void } | null>(null);
+  // 창 크기가 바뀌면 컨테이너만 커지고 타일은 예전 크기로 남는다. 다시 맞추려면 이 함수를 부른다.
+  const fitRef = useRef<(() => void) | null>(null);
   const markersRef = useRef<Array<{ setMap(map: unknown | null): void }>>([]);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
   const [selectedId, setSelectedId] = useState("venue");
@@ -41,7 +43,9 @@ export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: Near
       mapRef.current = map;
       markersRef.current = points.map((point) => new maps.Marker({ map, position: new maps.LatLng(point.latitude, point.longitude), title: point.name }));
       setState("ready");
-      window.requestAnimationFrame(() => { if (!disposed) { map.relayout(); map.setCenter(center); } });
+      const fit = () => { map.relayout(); map.setCenter(center); };
+      fitRef.current = fit;
+      window.requestAnimationFrame(() => { if (!disposed) fit(); });
     });
     if (window.kakao?.maps) render();
     else {
@@ -62,6 +66,22 @@ export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: Near
     };
   }, [key, points]);
 
+  // 창을 반으로 줄였다 되돌리면 컨테이너만 넓어지고 지도는 예전 크기로 남아 한쪽이 빈다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => fitRef.current?.());
+    });
+    observer.observe(container);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
+
   function select(point: MapPoint) {
     setSelectedId(point.id);
     if (window.kakao && mapRef.current) mapRef.current.setCenter(new window.kakao.maps.LatLng(point.latitude, point.longitude));
@@ -73,8 +93,8 @@ export function KakaoMapPreview({ venue, nearby }: { venue?: Venue; nearby: Near
     <div ref={containerRef} className={`map-canvas ${visibleState === "missing_key" || visibleState === "failed" ? "hidden" : ""}`} aria-label="선택 행사장과 주변 관광정보 지도" />
     {visibleState === "loading" && <div className="map-fallback" role="status">지도 불러오는 중…</div>}
     {visibleState === "missing_key" && <div className="map-fallback"><strong>지도 SDK 키 미설정</strong><p>목록과 거리 정보는 계속 사용할 수 있습니다. KAKAO_JAVASCRIPT_KEY와 localhost 도메인을 설정하면 지도가 표시됩니다.</p></div>}
-    {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>아래 TourAPI 목록은 그대로 유지됩니다.</p></div>}
+    {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>아래 장소 목록은 그대로 유지됩니다.</p></div>}
     <div className="map-point-list" aria-label="지도 장소 목록">{points.map((point) => <button type="button" className={selectedId === point.id ? "selected" : ""} onClick={() => select(point)} key={point.id}><strong>{point.name}</strong><span>{point.category}{point.distance !== undefined ? ` · ${point.distance.toLocaleString("ko-KR")}m` : ""}</span></button>)}</div>
-    <small className="map-source">지도: Kakao Maps · 장소·거리: 한국관광공사 TourAPI</small>
+    <small className="map-source">지도: Kakao Maps · 장소·거리: 출처 ⓒ한국관광공사</small>
   </div>;
 }

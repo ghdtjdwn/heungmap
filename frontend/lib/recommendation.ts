@@ -24,7 +24,7 @@ export function buildRuleFallbackRecommendation(
   const details = draft.details;
   const axes = [
     event.schedule_selection_mode !== "fixed" ? "후보 날짜를 확정해 비교" : "날짜를 유지하고 운영 시간을 조정",
-    event.region_selection_mode !== "fixed" ? "후보 지역을 좁혀 TourAPI 근거 비교" : "지역을 유지하고 후보 장소 수용인원 비교",
+    event.region_selection_mode !== "fixed" ? "후보 지역을 좁혀 한국관광공사 근거 비교" : "지역을 유지하고 후보 장소 수용인원 비교",
     event.target_attendance ? `목표 인원 ${Math.max(1, Math.round(event.target_attendance * 0.8)).toLocaleString("ko-KR")}명 축소안 비교` : "목표 인원 보수안 입력",
     event.budget_max_krw ? "최대예산 20% 변동안 비교" : "예산 상한 입력",
     event.indoor_outdoor !== "indoor" ? "실내 대체안 비교" : "현재 실내안 유지",
@@ -35,7 +35,7 @@ export function buildRuleFallbackRecommendation(
     prompt_version: "planner-recommendation-1.0",
     generation_mode: "rule_fallback",
     generated_at: analysis.meta.generated_at,
-    executive_summary: `${event.working_title || "이름 없는 행사"}는 ${optionLabel(event.purpose)} 목적의 ${optionLabel(event.event_type)}이며 주요 이용객은 ${event.target_audience.map(audienceLabel).join(", ") || "미정"}입니다. 현재 추천 문장은 LLM을 사용하지 않는 규칙 fallback입니다. 수요 예측의 사용 가능 여부와 계산 방식은 별도로 표시합니다.`,
+    executive_summary: `${event.working_title || "이름 없는 행사"}는 ${optionLabel(event.purpose)} 목적의 ${optionLabel(event.event_type)}이며 주요 이용객은 ${event.target_audience.map(audienceLabel).join(", ") || "미정"}입니다. 수요 예측을 사용할 수 있는지는 아래 수요 진단에서 확인할 수 있습니다.`,
     priorities: analysis.rule_recommendations.map((item) => ({
       id: item.recommendation_id,
       priority: item.priority,
@@ -58,7 +58,7 @@ export function buildRuleFallbackRecommendation(
       id: `alternative_${index + 1}`,
       title: `대안 ${index + 1}`,
       changes: [change],
-      verify: ["What-if를 실행해 같은 예측 종류·단위·모델 버전으로 비교", "현장·기관·견적 근거를 확인"],
+      verify: ["조건을 바꿔 같은 기준으로 다시 비교", "현장·기관·견적 근거를 확인"],
     })),
     roadmap: [
       { phase: "지금", actions: analysis.rule_recommendations.filter((item) => item.priority === "high").map((item) => item.action).slice(0, 3) },
@@ -67,7 +67,7 @@ export function buildRuleFallbackRecommendation(
     ],
     missing_information: context.missing_information,
     limitations: [
-      "외부 LLM을 호출하지 않았으며 규칙 template으로 생성했습니다.",
+      "입력한 조건과 확인된 근거만으로 정리했습니다.",
       ...analysis.prediction.limitations,
       "장소·비용·법률·안전 적합성은 담당자와 전문가가 확인해야 합니다.",
     ],

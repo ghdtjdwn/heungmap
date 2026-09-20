@@ -91,7 +91,7 @@ async def build_event_list(
             if not local_items:
                 raise
             items = []
-            warnings.append("TourAPI 조회에 실패해 기획자가 공개한 행사만 표시합니다. 잠시 뒤 다시 조회해 주세요.")
+            warnings.append("한국관광공사 조회에 실패해 기획자가 공개한 행사만 표시합니다. 잠시 뒤 다시 조회해 주세요.")
     range_start = start_date or date.today()
     range_end = end_date or (range_start + timedelta(days=90))
     items = [event for event in [*items, *local_items]
@@ -146,11 +146,11 @@ async def build_event_nearby(
             )
         except KakaoPlacesUnavailable:
             warnings.append(
-                "Kakao Local 주차·숙박 정보를 불러오지 못해 TourAPI 결과만 제공합니다."
+                "Kakao Local 주차·숙박 정보를 불러오지 못해 한국관광공사 결과만 제공합니다."
             )
     else:
         warnings.append(
-            "KAKAO_REST_API_KEY가 없어 주차장 보강을 생략했습니다. 숙박은 TourAPI 결과만 제공합니다."
+            "주차장 보강을 생략했습니다. 숙박은 한국관광공사 결과만 제공합니다."
         )
     places.sort(key=lambda place: (place.distance_m is None, place.distance_m or 0, place.name))
     return NearbyPlaceListResponse(
@@ -243,7 +243,7 @@ async def _attach_same_period_festivals(prediction: AvailablePrediction, event: 
         return
     prediction.sources.append(source)
     prediction.evidence.append(Evidence(
-        evidence_id="ev_tourapi_same_period", value_type="verified_fact", label="같은 지역·기간 다른 TourAPI 축제",
+        evidence_id="ev_tourapi_same_period", value_type="verified_fact", label="같은 지역·기간 다른 축제",
         display_value=f"{count}건", numeric_value=count, unit="events", as_of=source.retrieved_at, confidence="medium",
         source_refs=[source.source_id], limitation="검색 건수이며 실제 경쟁 강도나 관람객 수가 아닙니다."))
 
@@ -304,11 +304,11 @@ async def _build_event_prediction(
         )
         prediction_sources.append(competition_source)
         if competing_count >= 5:
-            add_factor("mock_competition_high", "동시기 지역 행사", -6, f"같은 지역·기간에 TourAPI 행사 {competing_count}건이 검색됩니다.")
+            add_factor("mock_competition_high", "동시기 지역 행사", -6, f"같은 지역·기간에 행사 {competing_count}건이 검색됩니다.")
         elif competing_count >= 2:
-            add_factor("mock_competition_some", "동시기 지역 행사", -3, f"같은 지역·기간에 TourAPI 행사 {competing_count}건이 검색됩니다.")
+            add_factor("mock_competition_some", "동시기 지역 행사", -3, f"같은 지역·기간에 행사 {competing_count}건이 검색됩니다.")
         else:
-            add_factor("mock_competition_low", "동시기 지역 행사", 0, f"같은 지역·기간의 TourAPI 행사 검색 결과는 {competing_count}건입니다.")
+            add_factor("mock_competition_low", "동시기 지역 행사", 0, f"같은 지역·기간의 행사 검색 결과는 {competing_count}건입니다.")
     except TourApiUnavailable:
         pass
 

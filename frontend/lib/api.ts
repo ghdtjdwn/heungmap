@@ -76,14 +76,14 @@ export async function generatePlannerRecommendation(
     });
     if (response.ok) return response.json() as Promise<PlannerRecommendationResponse>;
     const problem = await response.json().catch(() => ({})) as Problem;
-    throw new ApiError(problem.detail || "LLM 기획 보고서를 생성하지 못했습니다.", problem);
+    throw new ApiError(problem.detail || "기획 보고서를 생성하지 못했습니다.", problem);
   } catch (error) {
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
-      if (externalSignal?.aborted) throw new ApiError("AI 보고서 생성을 취소했습니다.");
-      throw new ApiError("LLM 보고서 생성 시간이 초과되어 규칙 보고서로 전환합니다.");
+      if (externalSignal?.aborted) throw new ApiError("보고서 생성을 취소했습니다.");
+      throw new ApiError("보고서 생성 시간이 초과되어 간략본으로 전환합니다.");
     }
-    throw new ApiError("LLM 서비스에 연결하지 못해 규칙 보고서로 전환합니다.");
+    throw new ApiError("보고서 생성에 연결하지 못해 간략본으로 전환합니다.");
   } finally {
     window.clearTimeout(timer);
     externalSignal?.removeEventListener("abort", cancel);

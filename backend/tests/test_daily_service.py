@@ -138,7 +138,7 @@ def test_regional_demand_level_needs_a_year_of_history_and_legacy_stays_unknown(
 def test_prediction_merges_same_label_factors_and_explains_demand_level(artifact):
     result = predict()
     labels = [factor.label for factor in result.factors]
-    assert len(labels) == len(set(labels)) and all("TreeSHAP" in factor.explanation for factor in result.factors)
+    assert len(labels) == len(set(labels)) and all("기여했습니다" in factor.explanation for factor in result.factors)
     assert result.indicators.congestion_level in {"low", "medium", "high", "very_high"}
     assert result.indicators.ticket_demand_level == "unknown"
     assert any(item.evidence_id == "ev_daily_demand_level" for item in result.evidence)
