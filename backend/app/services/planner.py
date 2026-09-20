@@ -254,7 +254,7 @@ def build_recommendations(draft: EventDraft) -> list[Recommendation]:
     if draft.schedule_selection_mode in {"unknown", "recommend"}:
         add("demand", "medium", "후보 일정 두 개를 만드세요", "주말·공휴일, 경쟁 행사, 준비기간과 기상 위험을 기준으로 최소 두 일정을 비교하세요.", "행사 일정이 아직 정해지지 않았습니다.", ["ev_planner_schedule"])
     if draft.region_selection_mode in {"unknown", "recommend"}:
-        add("tourism", "medium", "후보 지역을 좁히세요", "목표 이용객 접근성, 장소 비용, 주변 관광자원과 같은 기간 행사를 기준으로 두 지역을 비교하세요.", "지역이 미정이라 TourAPI 근거를 조회하지 못했습니다.", ["ev_planner_region"])
+        add("tourism", "medium", "후보 지역을 좁히세요", "목표 이용객 접근성, 장소 비용, 주변 관광자원과 같은 기간 행사를 기준으로 두 지역을 비교하세요.", "지역이 미정이라 한국관광공사 근거를 조회하지 못했습니다.", ["ev_planner_region"])
     if "family" in draft.target_audience:
         add("accessibility", "medium", "가족 방문 편의를 점검하세요", "유모차 동선, 수유·휴게 공간, 가족 화장실, 아동 실종 대응과 보호자 안내를 확인하세요.", "목표 이용객에 가족이 포함됩니다.", [])
     add("marketing", "low", "홍보 기준일과 측정값을 정하세요", "홍보 시작일, 핵심 채널, 관심등록·예매·방문 중 추적할 KPI를 하나씩 정하세요.", "다시 분석할 때 같은 기준으로 변화를 비교하기 위해 필요합니다.", [])
@@ -281,7 +281,7 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
                     Evidence(
                         evidence_id="ev_tourapi_same_period",
                         value_type="verified_fact",
-                        label="같은 지역·기간 TourAPI 행사",
+                        label="같은 지역·기간 행사",
                         display_value=f"{count}건",
                         numeric_value=count,
                         unit="events",
@@ -292,7 +292,7 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
                     )
                 )
             except TourApiUnavailable:
-                warnings.append("한국관광공사 TourAPI 행사 근거를 불러오지 못했습니다.")
+                warnings.append("한국관광공사 행사 근거를 불러오지 못했습니다.")
         else:
             warnings.append("TOURAPI_SERVICE_KEY가 없어 실제 관광 근거 조회를 건너뛰었습니다.")
 
@@ -302,7 +302,7 @@ async def build_analysis(request: PlannerAnalysisRequest, tourapi: TourApiClient
     elif not draft.venue or not draft.venue.coordinates:
         nearby = NearbyUnavailable(status="unavailable", reason_code="missing_coordinates", message="장소 좌표를 입력하면 한국관광공사 주변 관광정보를 확인할 수 있습니다.", retryable=False, is_mock=False)
     elif not tourapi.configured:
-        nearby = NearbyUnavailable(status="unavailable", reason_code="upstream_unavailable", message="TourAPI 키가 없어 주변 장소를 조회하지 못했습니다.", retryable=False, is_mock=False)
+        nearby = NearbyUnavailable(status="unavailable", reason_code="upstream_unavailable", message="한국관광공사 관광정보를 조회하지 못했습니다.", retryable=False, is_mock=False)
     else:
         try:
             places = await tourapi.nearby_places(draft.venue.coordinates)

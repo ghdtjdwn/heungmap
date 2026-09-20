@@ -186,9 +186,9 @@ export function buildPlanningContext(
       factors: prediction(analysis.prediction.status === "available" ? analysis.prediction.factors : []),
     },
     tourism_and_local_evidence: {
-      nearby_places: verified(nearby, "TourAPI 조회 결과이며 현장 운영 가능 여부는 별도 확인이 필요합니다."),
+      nearby_places: verified(nearby, "한국관광공사 조회 결과이며 현장 운영 가능 여부는 별도 확인이 필요합니다."),
       evidence: verified(analysis.evidence),
-      venue_search_source: verified(details.venue_search_source ?? null, "TourAPI 장소 후보를 직접 선택한 경우에만 기록됩니다."),
+      venue_search_source: verified(details.venue_search_source ?? null, "한국관광공사 장소 후보를 직접 선택한 경우에만 기록됩니다."),
       address_search_source: verified(details.address_search_source ?? null, "Kakao 주소 검색 결과를 직접 선택한 경우에만 기록됩니다."),
     },
     fixed_constraints: event.fixed_constraints,
@@ -199,7 +199,7 @@ export function buildPlanningContext(
       mode: "context_only",
       llm_used: false,
       model_mock: result.is_mock,
-      limitation: "이 객체는 LLM 입력용 Context입니다. 추천 생성 방식은 별도 응답 metadata에서 확인합니다.",
+      limitation: "보고서 작성에 넘기는 입력 묶음입니다.",
     },
   };
 }

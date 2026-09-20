@@ -117,7 +117,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
         <AppHeader detail={event.notFound ? "행사 없음" : "일시적 오류"} />
         <section className="panel visitor-detail-missing">
           <div className="empty-icon">!</div><h1>{heading}</h1><p>{event.message}</p>
-          {!event.notFound && <p>mock 목록으로 바꾸지 않았습니다. 잠시 뒤 실제 TourAPI 상태를 다시 확인해 주세요.</p>}
+          {!event.notFound && <p>임의의 예시 목록으로 바꾸지 않았습니다. 잠시 뒤 다시 확인해 주세요.</p>}
           <div className="button-row"><Link href="/visitor" className="button primary">축제 목록으로</Link><button type="button" className="button secondary" onClick={retry}>다시 확인</button></div>
         </section>
       </main>
@@ -173,11 +173,10 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
             <p>{predictionSummary(predictionData)}</p>
             {demandLevelText(predictionData) && <p>{demandLevelText(predictionData)}</p>}
             {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
-            {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
+            {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>과거 자료로 설명하기 어려운 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
             {predictionData.components?.map(component => <p key={component.component_type}>{componentText(component)}</p>)}
-            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "모의 모델" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
-            <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
-            <p>모델 버전 {predictionData.model_version}</p>
+            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "예시 데이터" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
+            <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
             {predictionData.factors.length > 0 && <ul className="factor-list">{predictionData.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>}
             <details className="visitor-prediction-details"><summary>근거와 해석 한계 자세히 보기</summary>
               {predictionData.evidence.length > 0 && <ul className="factor-list">{predictionData.evidence.map((item) => <li key={item.evidence_id}><span className="direction neutral">·</span><div><strong>{item.label}</strong><p>{item.display_value}</p>{item.limitation && <small>{item.limitation}</small>}</div></li>)}</ul>}

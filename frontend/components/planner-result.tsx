@@ -12,7 +12,7 @@ import { analyzePlanner, ApiError, getPredictionRegions } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, findDraft } from "@/lib/drafts";
 import { optionLabel, regionFromCode, REGIONS } from "@/lib/options";
 import { buildPlanningContext } from "@/lib/planning-context";
-import { buildRecommendationPrompt, buildRuleFallbackRecommendation, validateStructuredRecommendation } from "@/lib/recommendation";
+import { buildRuleFallbackRecommendation, validateStructuredRecommendation } from "@/lib/recommendation";
 import { buildReport, reportAsMarkdown } from "@/lib/report";
 import { HeungDiagnosis } from "@/components/heung-diagnosis";
 import { componentText, demandLevelText, predictionLabel, predictionNotice, predictionSummary, predictionValue } from "@/lib/prediction";
@@ -110,7 +110,6 @@ export function PlannerResult() {
     && prediction.primary_metric.unit === comparison.prediction.primary_metric.unit
     && prediction.prediction_type === comparison.prediction.prediction_type
     && prediction.model_version === comparison.prediction.model_version;
-  const recommendationMode = structuredRecommendation?.generation_mode ?? "rule_fallback";
   const recommendationMeta = currentDraft.recommendation_meta;
   const sortedRecommendations = [...(structuredRecommendation?.priorities ?? [])].sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.priority] - { high: 0, medium: 1, low: 2 }[b.priority]));
   const allSources: SourceRef[] = [...prediction.sources];
@@ -174,10 +173,6 @@ export function PlannerResult() {
     downloadFile(`${safeName}-analysis.json`, JSON.stringify({ draft: currentDraft, analysis, planning_context: planningContext, structured_recommendation: structuredRecommendation, recommendation_validation: recommendationValidation }, null, 2), "application/json;charset=utf-8");
   }
 
-  function exportContext() {
-    const safeName = (currentDraft.event.working_title || "heungmap-plan").replace(/[\\/:*?"<>|]/g, "-");
-    downloadFile(`${safeName}-planning-context.json`, JSON.stringify({ planning_context: planningContext, llm_handoff: { prompt_version: "planner-recommendation-1.0", prompt: planningContext ? buildRecommendationPrompt(planningContext) : null }, structured_fallback: structuredRecommendation, validation: recommendationValidation }, null, 2), "application/json;charset=utf-8");
-  }
 
   async function copySummary() {
     const summary = `${currentDraft.event.working_title || "이름 없는 기획"}\n${currentDraft.event.region?.display_name || "지역 미정"} · 목표 ${amount(currentDraft.event.target_attendance, "명")} · 최대예산 ${amount(currentDraft.event.budget_max_krw, "원")}\n${predictionSummary(prediction)}\n${predictionNotice(prediction)}\n우선 확인: ${sortedRecommendations.slice(0, 3).map((item) => item.title).join(", ")}`;
@@ -204,14 +199,14 @@ export function PlannerResult() {
 
       <section className="result-hero">
         <div>
-          <div className="hero-badges"><span className="status-pill analyzed">분석 v{draft.version}</span><span className={prediction.is_mock ? "mock-badge" : "status-pill analyzed"}>{prediction.is_mock ? "모의 모델" : prediction.status === "available" ? "AI 지역 수요 예측" : "수요 예측 불가"}</span><span className="status-pill analyzed">{recommendationMode === "llm" ? "LLM 보고서" : "규칙 기반"}</span></div>
+          <div className="hero-badges"><span className="status-pill analyzed">분석 v{draft.version}</span><span className={prediction.is_mock ? "mock-badge" : "status-pill analyzed"}>{prediction.is_mock ? "예시 데이터" : prediction.status === "available" ? "지역 방문수요 예측" : "수요 예측 불가"}</span></div>
           <h1>{draft.event.working_title || "이름 없는 기획"}</h1>
           <p>{optionLabel(draft.event.event_type)} · {draft.event.region?.display_name || "지역 미정"} · {draft.event.target_attendance === undefined ? "목표 미정" : `목표 ${draft.event.target_attendance.toLocaleString("ko-KR")}명`}</p>
         </div>
         {score !== undefined && <div className="score-card"><span>{predictionLabel(prediction)}</span><strong>{scoreDisplay}{regional ? regionalPeople ? "" : "%" : ""}</strong><small>{regional ? regionalPeople ? "방문자-일 · 중앙 예측값" : "평상시 대비 · 중앙 예측값" : "/ 100 · 실제 예측 아님"}</small></div>}
       </section>
 
-      <div className="mock-alert"><strong>{prediction.is_mock ? "현재 점수는 학습된 자체 AI 모델의 결과가 아닙니다." : prediction.status === "available" ? regionalPeople ? "행사기간 지역 방문자-일을 예측했습니다." : "평상시 대비 지역 방문수요를 예측했습니다." : "현재 조건에서는 수요 예측을 제공할 수 없습니다."}</strong><span>{predictionNotice(prediction)}</span></div>
+      <div className="mock-alert"><strong>{prediction.is_mock ? "현재 점수는 예시 값이며 실제 예측 결과가 아닙니다." : prediction.status === "available" ? regionalPeople ? "행사기간 지역 방문자-일을 예측했습니다." : "평상시 대비 지역 방문수요를 예측했습니다." : "현재 조건에서는 수요 예측을 제공할 수 없습니다."}</strong><span>{predictionNotice(prediction)}</span></div>
 
       <nav className="result-tabs no-print" aria-label="분석 결과 메뉴">
         {(["overview", "report", "compare", "evidence"] as Tab[]).map((value) => <button className={tab === value ? "active" : ""} key={value} onClick={() => setTab(value)}>{({ overview: "한눈에 보기", report: "기획 보고서", compare: "대안 비교", evidence: "근거·출처" })[value]}</button>)}
@@ -220,7 +215,7 @@ export function PlannerResult() {
         <div className="result-content">
           {recommendationMeta?.warning ? <section className="warning-list"><strong>보고서 생성 안내</strong><p>{recommendationMeta.warning}</p></section> : null}
           {analysis.meta.warnings?.length ? <section className="warning-list"><strong>확인하지 못한 외부 근거</strong>{analysis.meta.warnings.map((warning) => <p key={warning}>{warning}</p>)}</section> : null}
-          {structuredRecommendation && <section className="result-panel full-span"><div className="panel-title"><div><h2>{recommendationMode === "llm" ? "LLM 기획 요약" : "규칙 기반 기획 요약"}</h2></div></div><p>{structuredRecommendation.executive_summary}</p></section>}
+          {structuredRecommendation && <section className="result-panel full-span"><div className="panel-title"><div><h2>기획 요약</h2></div></div><p>{structuredRecommendation.executive_summary}</p></section>}
           <section className="result-grid">
             <article className="result-panel demand-panel">
               <div className="panel-title"><div><h2>수요 진단</h2></div><span className="confidence">신뢰도 {prediction.status === "available" ? ({ low: "낮음", medium: "보통", high: "높음" })[prediction.confidence] : "확인 불가"}</span></div>
@@ -229,8 +224,8 @@ export function PlannerResult() {
                   <div className="score-scale"><span style={{ width: `${prediction.primary_metric.value}%` }} /><i style={{ left: `${prediction.primary_metric.value}%` }} /></div>
                   <div className="scale-labels"><span>낮음</span><span>중간</span><span>높음</span></div>
                 </> : <><HeungDiagnosis prediction={prediction} evidence={analysis.evidence} role="planner" /><p>{predictionSummary(prediction)}</p>{demandLevelText(prediction) && <p>{demandLevelText(prediction)}</p>}<p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>{prediction.components?.map(component => <p key={component.component_type}>{componentText(component)}</p>)}</>}
-                {prediction.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
-                <p>기준 시각 {new Date(prediction.as_of).toLocaleString("ko-KR")} · {prediction.method === "machine_learning" ? "학습 모델" : "규칙 기반"}</p>
+                {prediction.out_of_distribution && <div className="warning-list" role="status"><strong>과거 자료로 설명하기 어려운 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
+                <p>기준 시각 {new Date(prediction.as_of).toLocaleString("ko-KR")}</p>
                 <ul className="factor-list">{prediction.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? <ArrowUpIcon /> : factor.direction === "down" ? <ArrowDownIcon /> : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>
                 <details><summary>예측 해석 한계 확인</summary><ul>{prediction.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}</ul></details>
               </> : <p>{prediction.message}</p>}
@@ -252,7 +247,7 @@ export function PlannerResult() {
         <div className="result-content report-layout">
           <aside className="report-index no-print"><strong>보고서 구성</strong>{report.map((section, index) => <a key={section.title} href={`#report-${index}`}>{index + 1}. {section.title}</a>)}</aside>
           <article className="report-document">
-            <header><p>흥할지도 기획 점검 보고서</p><h2>{draft.event.working_title || "이름 없는 기획"}</h2><span>{new Date(structuredRecommendation?.generated_at ?? analysis.meta.generated_at).toLocaleString("ko-KR")} · 계약 {analysis.contract_version} · {recommendationMode === "llm" ? `LLM ${recommendationMeta?.model ?? "configured model"}` : "규칙 fallback"} · schema {recommendationValidation.valid ? "통과" : "확인 필요"}</span></header>
+            <header><p>흥할지도 기획 점검 보고서</p><h2>{draft.event.working_title || "이름 없는 기획"}</h2><span>{new Date(structuredRecommendation?.generated_at ?? analysis.meta.generated_at).toLocaleString("ko-KR")} · {draft.event.region?.display_name || "지역 미정"}</span></header>
             {report.map((section, index) => <section id={`report-${index}`} key={section.title}><span>{String(index + 1).padStart(2, "0")}</span><h3>{section.title}</h3><p>{section.body}</p><ul>{section.checks.map((check) => <li key={check}><i />{check}</li>)}</ul></section>)}
             <footer><strong>해석 한계</strong>{[...new Set([...prediction.limitations, ...(structuredRecommendation?.limitations ?? [])])].map((item) => <p key={item}>{item}</p>)}</footer>
           </article>
@@ -263,7 +258,7 @@ export function PlannerResult() {
         <div className="result-content compare-layout">
           <section className="result-panel scenario-form">
             <div className="panel-title"><div><h2>조건을 바꿔 비교</h2></div></div>
-            <p>원본 기획은 바뀌지 않습니다. 변경한 조건으로 새 분석을 실행합니다. 지역 방문수요 모델은 일정·지역과 과거 방문 패턴을 사용하므로 예산·목표 인원 변경을 수요 증가로 계산하지 않습니다.</p>
+            <p>원본 기획은 바뀌지 않습니다. 변경한 조건으로 새 분석을 실행합니다. 지역 방문수요는 일정·지역과 과거 방문 패턴으로 계산하므로 예산·목표 인원을 바꿔도 수요가 따라 늘지 않습니다.</p>
             <label><span>목표 인원</span><div className="input-with-suffix"><input type="number" min="1" value={scenario.attendance ?? ""} onChange={(e) => setScenario({ ...scenario, attendance: Number(e.target.value) || undefined })} /><b>명</b></div></label>
             <label><span>최대 예산</span><div className="input-with-suffix"><input type="number" min="0" value={scenario.budget ?? ""} onChange={(e) => setScenario({ ...scenario, budget: e.target.value === "" ? undefined : Number(e.target.value) })} /><b>원</b></div></label>
             <label><span>공간 유형</span><select value={scenario.environment} onChange={(e) => setScenario({ ...scenario, environment: e.target.value as EventDraft["indoor_outdoor"] })}><option value="undecided">미정</option><option value="indoor">실내</option><option value="outdoor">실외</option><option value="mixed">혼합</option></select></label>
@@ -292,12 +287,12 @@ export function PlannerResult() {
           <section className="result-panel">
             <div className="panel-title"><div><h2>출처·버전</h2></div><button className="text-button no-print" onClick={exportJson}>전체 JSON 저장</button></div>
             <div className="source-list">{allSources.map((source) => <article key={source.source_id}><span className={`source-icon ${source.source_type}`}>{source.source_type === "tourapi" ? "관" : "흥"}</span><div><strong>{source.provider_name}</strong><p>{source.dataset_name}</p><small>조회 {new Date(source.retrieved_at).toLocaleString("ko-KR")}</small>{source.limitation && <em>{source.limitation}</em>}</div></article>)}</div>
-            <dl className="version-list"><div><dt>계약</dt><dd>{analysis.contract_version}</dd></div><div><dt>모델 인터페이스</dt><dd>{prediction.status === "available" ? prediction.model_version : "사용 불가"}</dd></div><div><dt>보고서 생성</dt><dd>{recommendationMode === "llm" ? `${recommendationMeta?.provider ?? "LLM"} · ${recommendationMeta?.model ?? "configured model"}` : "로컬 규칙 fallback"}</dd></div><div><dt>prompt</dt><dd>{structuredRecommendation?.prompt_version ?? "planner-recommendation-1.0"}</dd></div><div><dt>분석 ID</dt><dd>{analysis.analysis_id}</dd></div></dl>
+            <dl className="version-list"><div><dt>분석 ID</dt><dd>{analysis.analysis_id}</dd></div><div><dt>분석 시각</dt><dd>{new Date(analysis.meta.generated_at).toLocaleString("ko-KR")}</dd></div></dl>
           </section>
           <section className="result-panel full-span">
-            <div className="panel-title"><div><h2>구조화된 기획 Context</h2></div><button className="text-button no-print" onClick={exportContext}>Context JSON 저장</button></div>
-            <p className="context-description">원본 form과 분석 결과를 역할별 항목으로 정리했습니다. 이번 보고서는 {recommendationMode === "llm" ? "설정된 실제 LLM이 구조화 계약에 맞춰 생성했습니다." : "LLM 실패에도 사용할 수 있는 로컬 규칙으로 생성했습니다."}</p>
-            <div className="context-summary"><article><strong>{planningContext?.missing_information.length ?? 0}</strong><span>추가 확인 정보</span></article><article><strong>{currentDraft.event.fixed_constraints.length}</strong><span>고정 제약</span></article><article><strong>{structuredRecommendation?.alternatives.length ?? 0}</strong><span>구조화 대안</span></article><article><strong>{recommendationValidation.valid ? "Valid" : "Check"}</strong><span>추천 schema</span></article></div>
+            <div className="panel-title"><div><h2>입력 점검</h2></div></div>
+            <p className="context-description">입력한 내용과 분석에 쓰인 조건을 항목별로 정리했습니다.</p>
+            <div className="context-summary"><article><strong>{planningContext?.missing_information.length ?? 0}</strong><span>추가 확인 정보</span></article><article><strong>{currentDraft.event.fixed_constraints.length}</strong><span>고정 제약</span></article><article><strong>{structuredRecommendation?.alternatives.length ?? 0}</strong><span>검토 대안</span></article><article><strong>{currentDraft.event.theme_keywords.length}</strong><span>테마 키워드</span></article></div>
             {planningContext?.missing_information.length ? <div className="missing-list"><strong>추가로 확인하면 좋은 정보</strong><p>{planningContext.missing_information.join(" · ")}</p></div> : <div className="missing-list complete"><strong>핵심 입력이 채워졌습니다</strong><p>현장·기관 확인 후 새 버전으로 다시 분석하세요.</p></div>}
             {!recommendationValidation.valid && <div className="form-error" role="alert">{recommendationValidation.errors.join(" ")}</div>}
           </section>

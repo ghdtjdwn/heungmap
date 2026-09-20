@@ -151,7 +151,7 @@ function shortDate(value?: string): string {
   return `${Number(month)}/${Number(day)}`;
 }
 
-/** 채택 수요 모델의 자료 기준일과 예측 가능 기간. 만료가 가까우면 재학습 안내를 보여 준다. */
+/** 지금 예측할 수 있는 마지막 행사일. 기한이 가까우면 경고를 보여 준다. */
 function ModelStatusCard() {
   const [status, setStatus] = useState<ModelStatus | null>(null);
   const [failed, setFailed] = useState(false);
@@ -160,17 +160,17 @@ function ModelStatusCard() {
     getModelStatus().then((value) => { if (active) setStatus(value); }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
   }, []);
-  const label = <span><i aria-hidden="true">03</i> 수요 모델</span>;
+  const label = <span><i aria-hidden="true">03</i> 예측 가능 기간</span>;
   if (failed || status?.status === "unavailable") {
-    return <article className="metric-card model-card warning">{label}<strong>확인 불가</strong><p>{status?.reason ?? "모델 상태를 불러오지 못했습니다. 기획 분석은 계속할 수 있습니다."}</p></article>;
+    return <article className="metric-card model-card warning">{label}<strong>확인 불가</strong><p>{status?.reason ?? "예측 가능 기간을 불러오지 못했습니다. 기획 분석은 계속할 수 있습니다."}</p></article>;
   }
-  if (!status) return <article className="metric-card model-card">{label}<strong>D-30</strong><p>시군구 방문자-일 예측 · 상태 확인 중</p></article>;
+  if (!status) return <article className="metric-card model-card">{label}<strong>D-30</strong><p>시군구 방문자-일 예측 · 확인 중</p></article>;
   const soon = status.status === "stale" || (status.days_until_stale ?? 0) <= STALE_WARNING_DAYS;
   return <article className={`metric-card model-card ${soon ? "warning" : ""}`}>
     {label}
     <strong>{status.status === "stale" ? "갱신 필요" : `~${shortDate(status.last_predictable_target_date)}`}{status.status !== "stale" && <small>예측</small>}</strong>
     <p>{status.status === "stale"
-      ? "자료가 오래돼 예측을 제공하지 않습니다. 서버 재학습 상태를 확인하세요."
-      : `D-30 시군구 방문자-일 · 관람객 수 아님 · 자료 ${shortDate(status.data_end)}까지, ${status.days_until_stale}일 뒤 갱신${soon ? " (곧 만료)" : ""} · 시군구 ${status.regions ?? "-"}곳`}</p>
+      ? "자료가 오래돼 예측을 제공하지 않습니다. 잠시 뒤 다시 확인해 주세요."
+      : `시군구 방문자-일 · 관람객 수 아님 · ${status.days_until_stale}일 뒤 갱신${soon ? " (곧 만료)" : ""} · 전국 ${status.regions ?? "-"}개 시군구`}</p>
   </article>;
 }

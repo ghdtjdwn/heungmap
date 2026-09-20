@@ -153,6 +153,8 @@ export function VisitorEventMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<KakaoMap | null>(null);
+  // 창 크기가 바뀌면 지도 컨테이너만 커지고 타일은 예전 크기로 남는다. 다시 맞추려면 이 함수를 부른다.
+  const fitRef = useRef<(() => void) | null>(null);
   const popupRef = useRef<HTMLElement | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const overlayRef = useRef<KakaoOverlay | null>(null);
@@ -184,6 +186,23 @@ export function VisitorEventMap({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  // 창을 반으로 줄였다 되돌리면 컨테이너만 넓어지고 지도는 예전 크기로 남아 한쪽이 빈다.
+  // 컨테이너 크기가 바뀔 때마다 지도를 다시 그려 채운다.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => fitRef.current?.());
+    });
+    observer.observe(container);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, []);
 
   // 마커를 화면 중앙에 두더라도 말풍선은 위로 뻗어 지도 밖으로 잘릴 수 있다.
   // 넘친 만큼 지도를 밀어 말풍선 전체가 보이게 한다.
@@ -265,8 +284,7 @@ export function VisitorEventMap({
       });
       clusterer?.addMarkers(markersRef.current.map((entry) => entry.marker));
       setState("ready");
-      window.requestAnimationFrame(() => {
-        if (disposed) return;
+      const fitToPoints = () => {
         map.relayout();
         if (points.length === 1) {
           map.setCenter(center);
@@ -275,6 +293,11 @@ export function VisitorEventMap({
           points.forEach((point) => bounds.extend(new maps.LatLng(point.latitude, point.longitude)));
           map.setBounds(bounds);
         }
+      };
+      fitRef.current = fitToPoints;
+      window.requestAnimationFrame(() => {
+        if (disposed) return;
+        fitToPoints();
       });
     });
 
@@ -336,7 +359,7 @@ export function VisitorEventMap({
       <div ref={containerRef} className={`map-canvas ${visibleState === "missing_key" || visibleState === "failed" ? "hidden" : ""}`} aria-label="검색된 축제 위치 지도" />
       {visibleState === "loading" && <div className="map-fallback" role="status">축제 위치 지도를 불러오는 중…</div>}
       {visibleState === "missing_key" && <div className="map-fallback"><strong>지도 SDK 키 미설정</strong><p>목록 탐색은 계속 사용할 수 있습니다. Kakao JavaScript 키를 설정하면 위치가 표시됩니다.</p></div>}
-      {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>TourAPI 행사 목록에서 축제를 계속 선택할 수 있습니다.</p></div>}
+      {visibleState === "failed" && <div className="map-fallback" role="status"><strong>지도를 표시하지 못했습니다</strong><p>아래 행사 목록에서 축제를 계속 선택할 수 있습니다.</p></div>}
       <div className="map-point-list" aria-label="지도에 표시된 행사 목록">
         {points.map((point) => (
           <button key={point.eventId} type="button" className={selectedEventId === point.eventId ? "selected" : ""} onClick={() => onSelect(point.eventId)}>
@@ -345,7 +368,7 @@ export function VisitorEventMap({
         ))}
       </div>
       {missingCoordinateCount > 0 && <p className="map-coordinate-note">좌표 없는 행사 {missingCoordinateCount}건은 지도에 표시되지 않습니다.</p>}
-      <small className="map-source">행사·좌표: 한국관광공사 TourAPI · 지도: Kakao Maps</small>
+      <small className="map-source">행사·좌표: 출처 ⓒ한국관광공사 · 지도: Kakao Maps</small>
     </div>
   );
 }

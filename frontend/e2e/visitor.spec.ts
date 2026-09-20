@@ -135,9 +135,9 @@ test("responsive 방문객에게 지역 수요 감소 범위를 점수로 바꾸
   await page.goto("/visitor/evt_tourapi_123");
   await expect(page.locator(".visitor-score")).toContainText("-5%");
   await expect(page.getByText(/예측 범위 -20.0~10.0%/)).toBeVisible();
-  await expect(page.getByText("MODEL MOCK", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("예시 데이터", { exact: true })).toHaveCount(0);
   await expect(page.locator(".visitor-score")).not.toContainText("100");
-  await expect(page.getByText("학습 범위를 벗어난 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("과거 자료로 설명하기 어려운 조건이 포함되어 있습니다.", { exact: true })).toBeVisible();
   await expect(page.getByText("하늘공원")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

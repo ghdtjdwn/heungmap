@@ -177,9 +177,9 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
 
   return (
     <main className="page-shell visitor-shell">
-      <AppHeader detail="TourAPI 축제 탐색" />
+      <AppHeader detail="축제 탐색" />
       <section className="workspace-heading visitor-heading">
-        <div><h1>갈 만한 축제를 한눈에 찾아보세요</h1><p>검색 결과와 지도는 같은 TourAPI 행사 목록을 사용합니다.</p></div>
+        <div><h1>갈 만한 축제를 한눈에 찾아보세요</h1><p>검색 결과와 지도는 같은 행사 목록을 사용합니다. 출처 ⓒ한국관광공사</p></div>
       </section>
 
       <form className="panel visitor-filter-panel" onSubmit={applyFilters} aria-label="축제 검색 필터">
@@ -206,11 +206,11 @@ function VisitorExploreView({ searchParamsValue, selectedEventId, view }: { sear
       {result.status === "ready" && result.warnings?.map(warning => <p role="status" key={warning}>{warning}</p>)}
       {result.status === "ready" && view === "calendar" && <VisitorCalendar events={result.items} month={calendarMonth} selectedDate={selectedCalendarDate} onMonth={changeMonth} onDate={selectCalendarDate} />}
 
-      {result.status === "loading" && <section className="panel loading-panel" aria-live="polite"><strong>TourAPI 축제 결과를 불러오는 중입니다</strong><p>목록과 지도에 같은 결과를 준비하고 있어요.</p></section>}
+      {result.status === "loading" && <section className="panel loading-panel" aria-live="polite"><strong>축제 정보를 불러오는 중입니다</strong><p>목록과 지도에 같은 결과를 준비하고 있어요.</p></section>}
 
       {result.status === "error" && (
         <section className="panel visitor-state-panel" role="alert">
-          <div className="empty-icon">!</div><h2>실제 축제 정보를 불러오지 못했습니다</h2><p>{result.message}</p><p>mock 목록으로 바꾸지 않았습니다. 잠시 뒤 실제 TourAPI 상태를 다시 확인해 주세요.</p>
+          <div className="empty-icon">!</div><h2>실제 축제 정보를 불러오지 못했습니다</h2><p>{result.message}</p><p>임의의 예시 목록으로 바꾸지 않았습니다. 잠시 뒤 다시 확인해 주세요.</p>
           <button className="button primary" type="button" onClick={() => { setResult({ status: "loading", items: [] }); setRetryKey((value) => value + 1); }}>다시 시도</button>
           {!result.retryable && <small>API 키와 서버 설정을 먼저 확인해야 할 수 있습니다.</small>}
         </section>

@@ -287,7 +287,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
     partial = (window_start, window_end) != (start_date, end_date)
     sources = [
         SourceRef(source_id="src_daily_model", source_type="heungmap_model", provider_name="흥할지도",
-                  dataset_name=manifest["model_version"], retrieved_at=created,
+                  dataset_name="지역 방문수요 예측", retrieved_at=created,
                   limitation="2026년 8월 미래 홀드아웃을 통과한 지역 방문자-일 예측입니다."),
         SourceRef(source_id="src_daily_visitors", source_type="kto_datalab", provider_name="한국관광공사",
                   dataset_name="지역별 방문자수", source_url="https://www.data.go.kr/data/15101972/openapi.do",
@@ -323,7 +323,7 @@ def predict_demand(*, event_id: str, start_date: date, end_date: date, region: R
         effect = float(np.expm1(value) * 100)
         factors.append(PredictionFactor(factor_id=f"daily_{feature}", label=label,
             direction="up" if effect > 0 else "down" if effect < 0 else "neutral", importance=abs(effect),
-            explanation=f"LightGBM TreeSHAP 기여도 기준 지역 계절 기준선 대비 약 {effect:+.2f}%입니다. 인과효과는 아닙니다.",
+            explanation=f"지역 계절 기준선 대비 약 {effect:+.2f}% 기여했습니다. 인과효과는 아닙니다.",
             evidence_refs=["ev_daily_baseline"]))
     fingerprint = f"{manifest['model_version']}:{event_id}:{code}:{window_start}:{window_end}:{now.date()}"
     return AvailablePrediction(status="available", prediction_id="pred_daily_" + hashlib.sha256(fingerprint.encode()).hexdigest()[:24],

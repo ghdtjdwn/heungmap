@@ -49,7 +49,7 @@ export function HeungDiagnosis({ prediction, evidence = [], role }: { prediction
       <dl>
         <div><dt>방문 시기</dt><dd>{demand ? demand.display_value : LEVEL_LABELS[level] ?? "판단할 자료 부족"}</dd></div>
         <div><dt>지난 회차 규모</dt><dd>{prior ? `${prior.display_value} · 문체부` : "문체부 보고 실적 없음(신규이거나 보고되지 않은 축제)"}</dd></div>
-        <div><dt>같은 기간 축제</dt><dd>{rivals ? `${rivals.display_value} · 한국관광공사 TourAPI` : "확인하지 못함"}</dd></div>
+        <div><dt>같은 기간 축제</dt><dd>{rivals ? `${rivals.display_value} · 출처 ⓒ한국관광공사` : "확인하지 못함"}</dd></div>
         <div><dt>예측 신뢰도</dt><dd>{CONFIDENCE_LABELS[prediction.confidence]}{holdout ? ` · 과거 오차 ${holdout.display_value}` : ""}</dd></div>
       </dl>
       <small>이미 확인한 근거를 묶은 해석이며 축제 관람객 수 예측이 아닙니다.</small>
