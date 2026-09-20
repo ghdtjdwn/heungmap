@@ -159,11 +159,11 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
         </div>
       </section>
 
-      {(detail.description || detail.program_summary) && <section className="panel visitor-detail-description"><p className="eyebrow">EVENT INFO</p><h2>행사 소개</h2>{detail.description && <p>{detail.description}</p>}{detail.program_summary && <p><strong>프로그램</strong><br />{detail.program_summary}</p>}</section>}
+      {(detail.description || detail.program_summary) && <section className="panel visitor-detail-description"><h2>행사 소개</h2>{detail.description && <p>{detail.description}</p>}{detail.program_summary && <p><strong>프로그램</strong><br />{detail.program_summary}</p>}</section>}
 
       <div className="visitor-detail-grid">
         <section className="result-panel visitor-demand-card" aria-labelledby="visitor-demand-heading">
-          <div className="panel-title"><div><span className="eyebrow">DEMAND INDEX</span><h2 id="visitor-demand-heading">수요 지표</h2></div>{predictionData?.status === "available" && <span className="confidence">신뢰도 {CONFIDENCE_LABELS[predictionData.confidence]}</span>}</div>
+          <div className="panel-title"><div><h2 id="visitor-demand-heading">수요 지표</h2></div>{predictionData?.status === "available" && <span className="confidence">신뢰도 {CONFIDENCE_LABELS[predictionData.confidence]}</span>}</div>
           {prediction.status === "loading" && <div className="unavailable-box" role="status">수요 지표를 불러오는 중…</div>}
           {prediction.status === "error" && <div className="unavailable-box"><strong>수요 지표 조회 실패</strong><p>{prediction.message}</p><button type="button" className="text-button" onClick={retry}>다시 시도</button></div>}
           {predictionData?.status === "unavailable" && <div className="unavailable-box"><strong>현재 예측을 제공할 수 없습니다</strong><p>{predictionData.message}</p>{predictionData.limitations.map((item) => <small key={item}>{item}</small>)}</div>}
@@ -175,7 +175,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
             {predictionData.primary_metric.metric_name === "regional_visit_demand" && <p>과거 검증 오차로 보정한 예측 범위이며 실제 포함률은 달라질 수 있습니다.</p>}
             {predictionData.out_of_distribution && <div className="warning-list" role="status"><strong>학습 범위를 벗어난 조건이 포함되어 있습니다.</strong><p>예측 오차가 커질 수 있으므로 확정 판단에 사용하지 마세요.</p></div>}
             {predictionData.components?.map(component => <p key={component.component_type}>{componentText(component)}</p>)}
-            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "MODEL MOCK" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
+            <div className="mock-alert visitor-mock-alert"><strong>{predictionData.is_mock ? "모의 모델" : "지역 방문수요 예측"}</strong><span>{predictionNotice(predictionData)}</span></div>
             <dl className="visitor-prediction-meta"><div><dt>기준 시각</dt><dd>{new Date(predictionData.as_of).toLocaleString("ko-KR")}</dd></div><div><dt>계산 방식</dt><dd>{predictionData.method === "rules" ? "규칙 기반" : predictionData.method}</dd></div><div><dt>데이터 충분성</dt><dd>{predictionData.data_sufficiency === "limited" ? "제한적" : "충분"}</dd></div></dl>
             <p>모델 버전 {predictionData.model_version}</p>
             {predictionData.factors.length > 0 && <ul className="factor-list">{predictionData.factors.map((factor) => <li key={factor.factor_id}><span className={`direction ${factor.direction}`}>{factor.direction === "up" ? "↑" : factor.direction === "down" ? "↓" : "–"}</span><div><strong>{factor.label}</strong><p>{factor.explanation}</p></div></li>)}</ul>}
@@ -187,7 +187,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
         </section>
 
         <section className="result-panel" aria-labelledby="visitor-nearby-heading">
-          <div className="panel-title"><div><span className="eyebrow">TOURAPI NEARBY</span><h2 id="visitor-nearby-heading">주변 정보</h2></div>{nearby.status === "ready" && <span className="source-state available">반경 {nearby.data.radius_m.toLocaleString("ko-KR")}m</span>}</div>
+          <div className="panel-title"><div><h2 id="visitor-nearby-heading">주변 정보</h2></div>{nearby.status === "ready" && <span className="source-state available">반경 {nearby.data.radius_m.toLocaleString("ko-KR")}m</span>}</div>
           {nearby.status === "loading" && <div className="unavailable-box" role="status">주변 관광정보를 불러오는 중…</div>}
           {nearby.status === "error" && <div className="unavailable-box"><strong>주변 정보 조회 실패</strong><p>{nearby.message}</p><p>행사 기본 정보와 수요 지표는 계속 확인할 수 있습니다.</p><button type="button" className="text-button" onClick={retry}>다시 시도</button></div>}
           {nearby.status === "ready" && <>
@@ -206,7 +206,7 @@ export function VisitorEventDetail({ eventId }: { eventId: string }) {
         <KakaoMapPreview venue={detail.venue} nearby={nearby.status === "ready"
           ? { status: "available", items: nearby.data.items, radius_m: nearby.data.radius_m, is_mock: false }
           : { status: "unavailable", reason_code: "upstream_unavailable", message: "주변 정보를 확인하지 못했습니다.", retryable: true, is_mock: false }} />
-        <p className="eyebrow">PROVENANCE</p><h2>행사·예측 정보 출처</h2>
+        <h2>행사·예측 정보 출처</h2>
         <div className="source-list">{sources.map((source) => <article key={source.source_id}><span className={`source-icon ${source.source_type}`}>{source.source_type === "tourapi" || source.source_type === "kto_datalab" ? "관" : "흥"}</span><div><strong>{source.provider_name}</strong><p>{source.dataset_name}</p><small>조회 {new Date(source.retrieved_at).toLocaleString("ko-KR")}{source.source_record_id ? ` · 원본 ID ${source.source_record_id}` : ""}</small>{source.limitation && <em>{source.limitation}</em>}</div></article>)}</div>
         {detail.data_quality.warnings.length > 0 && <div className="warning-list"><strong>제공 정보 확인 필요</strong>{detail.data_quality.warnings.map((warning) => <p key={warning}>{warning}</p>)}</div>}
       </section>

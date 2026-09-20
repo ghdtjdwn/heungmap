@@ -32,6 +32,9 @@ Python 가상환경에서 backend/requirements-dev.txt를 설치합니다(Authli
 backend는 PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000,
 frontend는 cd frontend 후 npm run dev로 실행합니다.
 Windows는 .venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --port 8000을 사용할 수 있습니다.
+Windows에서 두 서버를 한 번에 실행하려면 저장소 루트에서 `.\scripts\start-local.ps1`, 종료하려면
+`.\scripts\stop-local.ps1`을 사용합니다. 두 서버는 `127.0.0.1`에만 바인딩되며 상태·로그는
+`$env:TEMP\heungmap-local`에서 확인합니다.
 
 frontend의 API 요청은 같은 origin을 사용합니다. 장시간 LLM 요청은 전용 Next.js route로 전달하며
 브라우저에 backend 주소·provider secret을 노출하지 않습니다. backend 주소를 변경할 때는 frontend

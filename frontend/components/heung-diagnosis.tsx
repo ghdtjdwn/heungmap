@@ -44,7 +44,7 @@ export function HeungDiagnosis({ prediction, evidence = [], role }: { prediction
 
   return (
     <section className="heung-diagnosis" aria-labelledby={`heung-diagnosis-${role}`}>
-      <div className="heung-diagnosis-head"><span className="eyebrow">HEUNG CHECK</span><h3 id={`heung-diagnosis-${role}`}>흥행 진단</h3></div>
+      <div className="heung-diagnosis-head"><h3 id={`heung-diagnosis-${role}`}>흥행 진단</h3></div>
       {sentences.length > 0 && <p className="heung-diagnosis-summary">{sentences.join(" ")}</p>}
       <dl>
         <div><dt>방문 시기</dt><dd>{demand ? demand.display_value : LEVEL_LABELS[level] ?? "판단할 자료 부족"}</dd></div>

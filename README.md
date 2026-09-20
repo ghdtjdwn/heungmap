@@ -71,6 +71,19 @@ flowchart LR
 
 Python 3.11 이상, Node.js 20.9 이상. 두 터미널에서 실행합니다.
 
+Windows에서는 의존성과 로컬 모델이 준비된 뒤 저장소 루트에서 다음 한 명령으로 backend·frontend를
+로컬 전용 주소에 실행하고 브라우저를 열 수 있습니다.
+
+```powershell
+.\scripts\start-local.ps1
+# 종료할 때
+.\scripts\stop-local.ps1
+```
+
+PowerShell 실행 정책이 로컬 스크립트를 막는 경우 현재 터미널에서만
+`Set-ExecutionPolicy -Scope Process Bypass`를 실행한 뒤 다시 시작합니다. 로그는
+`$env:TEMP\heungmap-local`에 저장되며 화면 주소는 `http://127.0.0.1:3000`입니다.
+
 ```bash
 cp .env.example .env            # TOURAPI_SERVICE_KEY, VISITOR_API_SERVICE_KEY, KAKAO_*, LLM_* 입력
 python3 -m venv .venv

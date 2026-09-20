@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { AppHeader } from "./app-header";
+import { CheckIcon } from "./icons";
 import { analyzePlanner, ApiError, generatePlannerRecommendation, getPredictionRegions, searchAddresses, searchVenues } from "@/lib/api";
 import { cleanEventForApi, duplicateDraft, emptyDraft, findDraft, sampleDraft, saveDraft } from "@/lib/drafts";
 import {
@@ -408,7 +409,7 @@ export function PlannerWizard() {
             {STEP_TITLES.map((title, index) => (
               <li key={title} className={index === step ? "active" : index < step ? "done" : ""}>
                 <button type="button" onClick={() => index <= step && setStep(index)} disabled={index > step}>
-                  <span>{index < step ? "✓" : index + 1}</span>{title}
+                  <span>{index < step ? <CheckIcon /> : index + 1}</span>{title}
                 </button>
               </li>
             ))}

@@ -24,7 +24,7 @@ export function MyPublications() {
       setMessage("행사 공개를 철회했습니다.");
     } catch (e) { setMessage((e as Error).message); }
   }
-  return <section className="panel publication-panel planner-publication-panel"><header><div><span className="eyebrow">LIVE EVENTS</span><h2>방문객에게 공개한 행사</h2></div><span className="publication-count">{items.length}개 공개 중</span></header><p>공개 행사는 방문객 목록·지도·달력에 표시됩니다. 초안 삭제와 공개 철회는 별도로 관리됩니다.</p>
+  return <section className="panel publication-panel planner-publication-panel"><header><div><h2>방문객에게 공개한 행사</h2></div><span className="publication-count">{items.length}개 공개 중</span></header><p>공개 행사는 방문객 목록·지도·달력에 표시됩니다. 초안 삭제와 공개 철회는 별도로 관리됩니다.</p>
     {items.length ? <div className="publication-list">{items.map(item => <div className="button-row" key={item.event_id}><Link href={"/visitor/" + item.event_id}>{item.title}<span aria-hidden="true">↗</span></Link><button className="text-button" onClick={() => void withdraw(item.event_id)}>공개 철회</button></div>)}</div> : <div className="publication-empty"><span aria-hidden="true">◎</span><p><strong>아직 공개한 행사가 없습니다.</strong><small>분석 결과에서 공개할 정보를 확인한 뒤 방문객 화면에 소개할 수 있어요.</small></p></div>}
     {message && <p role="status">{message}</p>}
   </section>;
