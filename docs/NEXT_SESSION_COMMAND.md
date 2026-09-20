@@ -1,5 +1,40 @@
 # 다음 세션 인계
 
+## 2026-09-20 종료 시점 (제출 2026-09-21)
+
+**서비스가 실제로 배포돼 동작합니다.** 구조·실행 절차·겪은 함정은 [DEPLOY_RUNBOOK.md](DEPLOY_RUNBOOK.md)에 있습니다.
+
+- 프론트는 Vercel, 백엔드(FastAPI)는 오라클 서버의 systemd 서비스(`heungmap-api`, 127.0.0.1:8000, worker 1개)입니다.
+  서버에 공인 IP가 없어 Tailscale Funnel로 공개 HTTPS를 받고, 프론트의 `rewrites`가 `/api/v1/*`를 그쪽으로 넘깁니다.
+- **실제 Google 로그인**이 켜져 있습니다(`HEUNGMAP_AUTH_MODE=google`). 운영에서 모의 로그인은 404로 막힙니다.
+  `.env`에 `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`이 있으면 `deploy-web.sh`가 자동으로 google 모드로 올립니다.
+- 서비스의 `data/processed`·`data/raw`는 재학습 폴더를 심볼릭 링크로 공유합니다.
+  매일 새벽 재학습한 새 모델이 서비스에 자동 반영됩니다(백엔드는 번호가 가장 큰 채택본을 고릅니다).
+- 재학습 cron이 실행 권한 문제로 이틀 연속 실패하던 것을 고쳤습니다. cron 줄이 `/bin/sh`를 거쳐 호출합니다.
+
+### 이번에 끝낸 일
+
+- 백엔드·프론트 배포 스크립트(`scripts/oracle/deploy-web.sh`, `setup-web.sh`)와 배포 점검(`scripts/deploy-smoke.py`)
+- 보고서 생성이 백엔드에 닿지 못하던 문제 수정(빈 문자열 환경변수를 `??`가 거르지 못해 목적지 호스트가 사라짐)
+- 결과·목록 화면 순서 정리, 세션 확인 로딩 화면 추가
+- 방문객 지도: 마커 말풍선(사진·기간·장소·상세 링크), 마커 묶음 표시, 목록 선택 시 확대와 말풍선 열기
+- 정의되지 않은 CSS 토큰 `--accent` 사용 3곳 수정
+
+### 검증 (2026-09-20)
+
+- `python3 scripts/deploy-smoke.py <공개 주소>` → 11/11 통과
+- Playwright e2e 24개, 서버 `pytest backend/tests` 172개(로컬과 동일), `verify_daily_model.py` 261개 시군구 전부 예측 가능
+
+### 남은 일
+
+1. **실제 계정으로 로그인해 기획자 분석 → 보고서 → 공개까지 화면 전체 흐름 확인.**
+   자동 점검은 로그인이 필요한 구간에 닿지 못합니다.
+2. 발표 직전 `LLM_MODEL=claude-fable-5-1` 교체 후 응답 시간 확인 (`sudo systemctl restart heungmap-api`)
+3. 노출된 적 있는 API 키 재발급
+4. 이 저장소는 공개입니다. 백엔드 주소가 `frontend/next.config.ts`·`frontend/lib/backend.ts`·`DEPLOY_RUNBOOK.md`에
+   들어가 있어 정리 여부를 정해야 합니다.
+5. 원격에 동료의 UI 개편 브랜치가 올라와 있어 병합 충돌 정리가 필요할 수 있습니다.
+
 ## 2026-09-20 Windows 최신화·재현
 
 - PR #34(UI 디자인 개편)와 이후 PR #35~#44가 반영된 `main` `5260683`을 Windows 로컬에 동기화했습니다.
