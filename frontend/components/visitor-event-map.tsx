@@ -3,12 +3,18 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import type { EventSummary } from "@/lib/types";
+import { formatDateRange, safeImageUrl, statusLabel } from "@/lib/event-format";
 
 type MapEvent = {
   eventId: string;
   title: string;
   latitude: number;
   longitude: number;
+  status: string;
+  period: string;
+  place: string;
+  thumbnailUrl?: string;
+  thumbnailAlt?: string;
 };
 type KakaoMarker = {
   setMap(map: unknown | null): void;
@@ -21,7 +27,12 @@ type KakaoMaps = {
   LatLngBounds: new () => { extend(point: unknown): void };
   Map: new (container: HTMLElement, options: { center: unknown; level: number }) => { relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void };
   Marker: new (options: { map: unknown; position: unknown; title: string }) => KakaoMarker;
+  CustomOverlay: new (options: { position: unknown; content: HTMLElement; yAnchor?: number; zIndex?: number }) => KakaoOverlay;
   event: { addListener(target: unknown, eventName: string, handler: () => void): void };
+};
+type KakaoOverlay = {
+  setMap(map: unknown | null): void;
+  setPosition(position: unknown): void;
 };
 type KakaoWindow = { kakao?: { maps: KakaoMaps }; __HEUNGMAP_E2E_KAKAO_MAP_KEY__?: string };
 
@@ -38,6 +49,58 @@ function subscribeToRuntimeConfig(): () => void {
   return () => undefined;
 }
 
+/** 마커를 누르면 뜨는 말풍선. 외부 문자열은 textContent로만 넣는다(마크업 주입 방지). */
+function buildPopup(point: MapEvent, onClose: () => void): HTMLElement {
+  const root = document.createElement("div");
+  root.className = "map-popup";
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "map-popup-close";
+  close.setAttribute("aria-label", "닫기");
+  close.textContent = "×";
+  close.addEventListener("click", onClose);
+  root.appendChild(close);
+
+  if (point.thumbnailUrl) {
+    const image = document.createElement("img");
+    image.className = "map-popup-image";
+    image.src = point.thumbnailUrl;
+    image.alt = point.thumbnailAlt ?? point.title;
+    image.loading = "lazy";
+    // 사진을 못 받아도 말풍선은 그대로 뜨게 한다.
+    image.addEventListener("error", () => image.remove(), { once: true });
+    root.appendChild(image);
+  }
+
+  const body = document.createElement("div");
+  body.className = "map-popup-body";
+
+  const status = document.createElement("span");
+  status.className = "map-popup-status";
+  status.textContent = point.status;
+  body.appendChild(status);
+
+  const title = document.createElement("strong");
+  title.textContent = point.title;
+  body.appendChild(title);
+
+  for (const text of [point.period, point.place]) {
+    const line = document.createElement("small");
+    line.textContent = text;
+    body.appendChild(line);
+  }
+
+  const link = document.createElement("a");
+  link.className = "map-popup-link";
+  link.href = `/visitor/${encodeURIComponent(point.eventId)}`;
+  link.textContent = "상세 보기 →";
+  body.appendChild(link);
+
+  root.appendChild(body);
+  return root;
+}
+
 export function VisitorEventMap({
   events,
   selectedEventId,
@@ -52,6 +115,7 @@ export function VisitorEventMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ relayout(): void; setBounds(bounds: unknown): void; setCenter(point: unknown): void } | null>(null);
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
+  const overlayRef = useRef<KakaoOverlay | null>(null);
   const onSelectRef = useRef(onSelect);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
   const runtimeKey = useSyncExternalStore(subscribeToRuntimeConfig, getRuntimeKakaoMapKey, () => undefined);
@@ -63,6 +127,11 @@ export function VisitorEventMap({
       title: event.title,
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
+      status: statusLabel(event.event_status),
+      period: formatDateRange(event),
+      place: event.venue?.address ?? event.venue?.name ?? event.region.display_name,
+      thumbnailUrl: safeImageUrl(event.thumbnail?.url),
+      thumbnailAlt: event.thumbnail?.alt ?? event.title,
     }] : [];
   }), [events]);
   const missingCoordinateCount = events.length - points.length;
@@ -81,13 +150,33 @@ export function VisitorEventMap({
       const center = new maps.LatLng(points[0].latitude, points[0].longitude);
       const map = new maps.Map(containerRef.current, { center, level: 8 });
       mapRef.current = map;
+      const closePopup = () => {
+        overlayRef.current?.setMap(null);
+        overlayRef.current = null;
+      };
+      const openPopup = (point: MapEvent) => {
+        closePopup();
+        const overlay = new maps.CustomOverlay({
+          position: new maps.LatLng(point.latitude, point.longitude),
+          content: buildPopup(point, closePopup),
+          yAnchor: 1.3,
+          zIndex: 30,
+        });
+        overlay.setMap(map);
+        overlayRef.current = overlay;
+      };
+      // 빈 곳을 누르면 닫는다.
+      maps.event.addListener(map, "click", closePopup);
       markersRef.current = points.map((point) => {
         const marker = new maps.Marker({
           map,
           position: new maps.LatLng(point.latitude, point.longitude),
           title: point.title,
         });
-        maps.event.addListener(marker, "click", () => onSelectRef.current(point.eventId));
+        maps.event.addListener(marker, "click", () => {
+          openPopup(point);
+          onSelectRef.current(point.eventId);
+        });
         return { eventId: point.eventId, marker, point };
       });
       setState("ready");
@@ -119,6 +208,8 @@ export function VisitorEventMap({
     }
     return () => {
       disposed = true;
+      overlayRef.current?.setMap(null);
+      overlayRef.current = null;
       markersRef.current.forEach(({ marker }) => marker.setMap(null));
       markersRef.current = [];
       mapRef.current = null;

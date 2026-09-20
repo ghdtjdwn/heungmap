@@ -675,3 +675,16 @@ button.role-card:focus-visible { outline: 4px solid rgba(200,220,114,.7); outlin
 @media (max-width: 720px) { .calendar-more { font-size: 10px; } }
 .visitor-prediction-details { margin-top: 12px; }
 .visitor-prediction-details > summary { cursor: pointer; padding: 10px 0; color: var(--teal-dark); font-weight: 700; }
+
+/* 지도 마커 말풍선 */
+.map-popup { position: relative; width: 232px; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 28px rgb(0 0 0 / 16%); overflow: hidden; }
+.map-popup::after { content: ""; position: absolute; left: 50%; bottom: -7px; width: 12px; height: 12px; background: white; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
+.map-popup-close { position: absolute; top: 6px; right: 6px; z-index: 1; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgb(0 0 0 / 45%); color: white; font-size: 15px; line-height: 1; cursor: pointer; }
+.map-popup-close:hover { background: rgb(0 0 0 / 65%); }
+.map-popup-image { display: block; width: 100%; height: 106px; object-fit: cover; background: var(--surface-muted, #f2f4f3); }
+.map-popup-body { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 12px; }
+.map-popup-status { align-self: flex-start; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); font-size: 11px; font-weight: 600; }
+.map-popup-body strong { font-size: 14px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.map-popup-body small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-popup-link { margin-top: 6px; color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none; }
+.map-popup-link:hover { text-decoration: underline; }
