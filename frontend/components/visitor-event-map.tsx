@@ -27,7 +27,8 @@ type KakaoMaps = {
   LatLngBounds: new () => { extend(point: unknown): void };
   Map: new (container: HTMLElement, options: { center: unknown; level: number }) => KakaoMap;
   Marker: new (options: { map?: unknown; position: unknown; title: string }) => KakaoMarker;
-  CustomOverlay: new (options: { position: unknown; content: HTMLElement; yAnchor?: number; zIndex?: number }) => KakaoOverlay;
+  // 말풍선도 SDK에 따라 없을 수 있다(E2E의 가짜 SDK). 없으면 말풍선 없이 선택만 동작한다.
+  CustomOverlay?: new (options: { position: unknown; content: HTMLElement; yAnchor?: number; zIndex?: number }) => KakaoOverlay;
   // 클러스터러는 libraries=clusterer 로 함께 받은 경우에만 있다(E2E의 가짜 SDK에는 없다).
   MarkerClusterer?: new (options: {
     map: unknown; averageCenter?: boolean; minLevel?: number; minClusterSize?: number; gridSize?: number;
@@ -150,6 +151,10 @@ export function VisitorEventMap({
   const markersRef = useRef<Array<{ eventId: string; marker: KakaoMarker; point: MapEvent }>>([]);
   const overlayRef = useRef<KakaoOverlay | null>(null);
   const clustererRef = useRef<KakaoClusterer | null>(null);
+  // 목록에서 고른 경우에도 마커를 누른 것과 같게 말풍선을 열기 위해 지도 쪽 동작을 보관한다.
+  const openPopupRef = useRef<((point: MapEvent) => void) | null>(null);
+  const closePopupRef = useRef<(() => void) | null>(null);
+  const popupEventIdRef = useRef<string | null>(null);
   const onSelectRef = useRef(onSelect);
   const [state, setState] = useState<"loading" | "ready" | "missing_key" | "failed">("loading");
   const runtimeKey = useSyncExternalStore(subscribeToRuntimeConfig, getRuntimeKakaoMapKey, () => undefined);
@@ -207,9 +212,11 @@ export function VisitorEventMap({
         overlayRef.current?.setMap(null);
         overlayRef.current = null;
         popupRef.current = null;
+        popupEventIdRef.current = null;
       };
       const openPopup = (point: MapEvent) => {
         closePopup();
+        if (!maps.CustomOverlay) return;
         const content = buildPopup(point, closePopup);
         const overlay = new maps.CustomOverlay({
           position: new maps.LatLng(point.latitude, point.longitude),
@@ -220,10 +227,13 @@ export function VisitorEventMap({
         overlay.setMap(map);
         overlayRef.current = overlay;
         popupRef.current = content;
+        popupEventIdRef.current = point.eventId;
         // 사진이 늦게 로드돼 높이가 커지는 경우까지 반영하려면 배치가 끝난 뒤에 재어야 한다.
         window.requestAnimationFrame(keepPopupInView);
         content.querySelector("img")?.addEventListener("load", keepPopupInView, { once: true });
       };
+      openPopupRef.current = openPopup;
+      closePopupRef.current = closePopup;
       // 빈 곳을 누르면 닫는다.
       maps.event.addListener(map, "click", closePopup);
       // 전국을 한눈에 보면 마커 100개가 서로 포개져 맨 위 하나만 눌린다.
@@ -279,6 +289,8 @@ export function VisitorEventMap({
       disposed = true;
       overlayRef.current?.setMap(null);
       overlayRef.current = null;
+      openPopupRef.current = null;
+      closePopupRef.current = null;
       clustererRef.current?.clear();
       clustererRef.current = null;
       markersRef.current.forEach(({ marker }) => marker.setMap(null));
@@ -288,6 +300,7 @@ export function VisitorEventMap({
   }, [key, points, keepPopupInView]);
 
   useEffect(() => {
+    if (!selectedEventId && popupEventIdRef.current) closePopupRef.current?.();
     for (const entry of markersRef.current) {
       const selected = entry.eventId === selectedEventId;
       entry.marker.setOpacity(selectedEventId && !selected ? 0.55 : 1);
@@ -295,6 +308,8 @@ export function VisitorEventMap({
       const kakao = getKakao();
       if (selected && kakao && mapRef.current) {
         mapRef.current.setCenter(new kakao.maps.LatLng(entry.point.latitude, entry.point.longitude));
+        // 목록에서 고른 경우 아직 말풍선이 없다. 마커 클릭으로 이미 열려 있으면 그대로 둔다.
+        if (popupEventIdRef.current !== entry.eventId) openPopupRef.current?.(entry.point);
         window.requestAnimationFrame(keepPopupInView);
       }
     }
