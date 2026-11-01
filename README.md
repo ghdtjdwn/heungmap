@@ -1,3 +1,9 @@
+<p align="center">
+  <img src="docs/assets/heungmap-readme-logo.png" width="320" alt="흥할지도" />
+</p>
+
+<h3 align="center">🏅 2026 관광데이터 활용 공모전 우수상</h3>
+
 # 흥할지도 (HeungMap)
 
 **한국관광공사 OpenAPI와 지역 방문자 빅데이터로 축제의 흥행 여건을 예측하고, 같은 예측을 기획자와 방문객 모두에게 연결하는
