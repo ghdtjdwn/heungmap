@@ -1,6 +1,7 @@
 # 배포 실행 기록 (2026-09-20)
 
-[DEPLOYMENT.md](DEPLOYMENT.md)는 계획 문서이고, 이 문서는 **실제로 실행한 것과 남은 것**입니다.
+이 문서는 2026-09-20 배포 때 **실제로 실행한 것과 겪은 함정**입니다. 서버 주소·계정은 `<서버>`로 적습니다
+(평소 `ssh`에 쓰는 대상, 예: `~/.ssh/config` 별칭). 백엔드 공개 주소는 Vercel 환경변수 `HEUNGMAP_BACKEND_URL`에만 둡니다.
 
 ## 구조
 
@@ -12,10 +13,10 @@ Vercel (Next.js)              ← 프론트. next.config.ts의 rewrites가
    │ /api/v1/*                  /api/v1/* 를 백엔드로 서버측 프록시한다.
    │                            (브라우저에는 같은 origin으로 보여 CORS·쿠키 문제가 없다)
    ▼
-https://ssumcp.tail5e04bc.ts.net   ← Tailscale Funnel. 서버에 공인 IP가 없어
+https://<백엔드 Funnel 호스트>      ← Tailscale Funnel. 서버에 공인 IP가 없어
    │                                 아웃바운드 연결만으로 공개 HTTPS를 받는다.
    ▼
-오라클 서버 ssumcp (FastAPI 127.0.0.1:8000)
+오라클 서버 (FastAPI 127.0.0.1:8000)
    ├─ 모델: ~/heungmap-model/data/processed (재학습 폴더를 심볼릭 링크로 공유)
    └─ SQLite: ~/heungmap-web/data/heungmap.sqlite3
 ```
@@ -39,7 +40,7 @@ crontab이 스크립트를 실행 파일로 직접 불렀는데 `scripts/model-r
 ### 2. 백엔드 배포 (오라클 서버)
 
 ```bash
-scripts/oracle/deploy-web.sh ubuntu@100.97.34.28 https://heungmap.vercel.app
+scripts/oracle/deploy-web.sh <서버> https://heungmap.vercel.app
 ```
 
 - 폴더 `~/heungmap-web` 하나. 전용 Python 3.12 가상환경(재학습 폴더의 uv·libgomp 공유)
@@ -49,7 +50,7 @@ scripts/oracle/deploy-web.sh ubuntu@100.97.34.28 https://heungmap.vercel.app
 - `data/processed` → `~/heungmap-model/data/processed` 심볼릭 링크.
   백엔드가 번호가 가장 큰 채택본을 고르므로 **매일 새벽 재학습 결과가 자동 반영**됩니다.
 - `.env`는 로컬 것을 기준으로 `HEUNGMAP_PUBLIC_ORIGIN`·`HEUNGMAP_ENV`·`HEUNGMAP_AUTH_MODE`만 덮어씁니다.
-  실제 Google 로그인은 범위 밖이므로 `HEUNGMAP_AUTH_MODE=mock`, 이는 `HEUNGMAP_ENV=development`에서만 허용됩니다(`auth.py`).
+  이 단계에서는 Google 연결 전이라 `HEUNGMAP_AUTH_MODE=mock`으로 올렸고(§6에서 google로 전환), mock은 `HEUNGMAP_ENV=development`에서만 허용됩니다(`auth.py`).
 
 서버에서 확인한 동작: `/api/v1/health` ok, `/api/v1/system/model-status` ready
 (`regional-daily-1.0-ab975d661247`, 예측 가능 ~2026-10-18), `/api/v1/events` TourAPI 실응답,
@@ -71,15 +72,16 @@ scripts/oracle/deploy-web.sh ubuntu@100.97.34.28 https://heungmap.vercel.app
 
 ```bash
 cd frontend
-vercel link --yes --project heungmap --scope akftjdwn-9388s-projects
+vercel link --yes --project heungmap --scope <Vercel 팀>
 vercel env add KAKAO_JAVASCRIPT_KEY production
+vercel env add HEUNGMAP_BACKEND_URL production   # 백엔드 Funnel 주소. 없으면 빌드가 실패한다
 vercel --prod --yes
 ```
 
 - 공개 주소 **https://heungmap.vercel.app** (HTTP 200, 제목 `흥할지도 · 만드는 즐거움, 찾아가는 설렘`)
 - 리포 루트 `.env`가 없는 Vercel 환경에서 빌드됩니다. `next.config.ts`가 `KAKAO_JAVASCRIPT_KEY`를
   환경변수에서 먼저 읽고 없을 때만 `../.env`를 보기 때문입니다.
-- 백엔드 주소(`HEUNGMAP_BACKEND_URL`)는 아직 미설정이라 `/api/v1/*`가 404입니다. 아래가 마지막 단계입니다.
+- 백엔드 주소(`HEUNGMAP_BACKEND_URL`)를 넣기 전에는 `/api/v1/*`가 404였습니다. 아래가 마지막 단계입니다.
 
 ### 5. 배포된 백엔드 실사용 흐름 검증 — 15/15 통과
 
@@ -87,7 +89,7 @@ vercel --prod --yes
 (같은 `Origin` 헤더)으로 검증할 수 있습니다. `scripts/deploy-smoke.py`가 그 점검입니다.
 
 ```bash
-ssh -f -N -L 18000:127.0.0.1:8000 ubuntu@100.97.34.28
+ssh -f -N -L 18000:127.0.0.1:8000 <서버>
 .venv/bin/python scripts/deploy-smoke.py http://127.0.0.1:18000 --origin https://heungmap.vercel.app
 ```
 
@@ -111,7 +113,7 @@ python3 scripts/deploy-smoke.py https://heungmap.vercel.app
 
 ## 5. 공개 통로 — Tailscale Funnel
 
-오라클 VNIC에 **공인 IP가 없습니다**(사설 `10.0.0.9`만). `168.110.104.199`는 아웃바운드 NAT 주소라
+오라클 VNIC에 **공인 IP가 없습니다**(사설 IP만). 바깥에서 보이는 주소는 아웃바운드 NAT라
 외부에서 들어올 수 없습니다. Caddy로 `sslip.io` 자동 HTTPS를 시도했으나 Let's Encrypt 검증 요청이
 Caddy에 **한 번도 도착하지 않아** 실패했고, 확인 후 Caddy는 제거했습니다(80/443 반환).
 
@@ -124,7 +126,7 @@ sudo tailscale funnel --bg 8000
 
 공개 DNS 레코드가 문서상 10분 안에 올라와야 하는데 35분이 지나도 생기지 않았습니다.
 권위 서버(DNSimple)에 직접 질의해 NODATA를 확인한 뒤 **tailscaled를 재시작**하니 바로 등록됐습니다
-(`103.84.155.217`, Funnel 릴레이). 같은 증상이면 재등록이 해법입니다.
+(Funnel 릴레이 주소). 같은 증상이면 재등록이 해법입니다.
 
 ```bash
 ssh <서버> 'sudo systemd-run --no-block --on-active=2 --unit=ts-restart systemctl restart tailscaled'
@@ -137,7 +139,7 @@ ssh <서버> 'sudo systemd-run --no-block --on-active=2 --unit=ts-restart system
 
 ```bash
 # .env 에 GOOGLE_CLIENT_ID·GOOGLE_CLIENT_SECRET 을 넣고
-scripts/oracle/deploy-web.sh ubuntu@100.97.34.28 https://heungmap.vercel.app
+scripts/oracle/deploy-web.sh <서버> https://heungmap.vercel.app
 ```
 
 `deploy-web.sh`가 두 값이 있으면 `HEUNGMAP_AUTH_MODE=google`·`HEUNGMAP_ENV=production`으로 올립니다.
@@ -175,15 +177,15 @@ python3 scripts/deploy-smoke.py https://heungmap.vercel.app
   `setup-web.sh`에 `restart`를 명시했습니다.
 - **리라이트 목적지**: `next.config.ts`의 `rewrites()`는 **빌드 시점**에 값이 박힙니다.
   환경변수가 빈 문자열이면 `??`가 걸러 내지 못해 호스트가 사라지고 Vercel이 `DNS_HOSTNAME_EMPTY`를 냅니다.
-  `||`로 바꾸고 배포 환경 기본값을 둬서 환경변수가 없어도 동작하게 했습니다.
+  `||`로 바꿔 빈 값을 걸러 내고, Vercel 빌드에서 `HEUNGMAP_BACKEND_URL`이 없으면 바로 실패하게 했습니다.
 - **배포 직후**: 엣지 전파가 끝나기 전 몇 분은 이전 빌드가 섞여 502가 간헐적으로 납니다.
   `deploy-smoke.py`가 5xx를 재시도합니다.
 
 ## 운영 명령
 
 ```bash
-ssh ubuntu@100.97.34.28 'systemctl is-active heungmap-api'
-ssh ubuntu@100.97.34.28 'sudo journalctl -u heungmap-api -n 50 --no-pager'
-ssh ubuntu@100.97.34.28 'sudo systemctl restart heungmap-api'
-ssh ubuntu@100.97.34.28 'tail -1 ~/heungmap-model/data/processed/model-refresh-log.jsonl'
+ssh <서버> 'systemctl is-active heungmap-api'
+ssh <서버> 'sudo journalctl -u heungmap-api -n 50 --no-pager'
+ssh <서버> 'sudo systemctl restart heungmap-api'
+ssh <서버> 'tail -1 ~/heungmap-model/data/processed/model-refresh-log.jsonl'
 ```

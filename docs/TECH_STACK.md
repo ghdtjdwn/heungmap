@@ -17,21 +17,21 @@ application 스택을 확정합니다. 학습 model과 LLM은 데이터·품질 
 | 설명 생성 | 공급자 중립 내부 계약 + Ollama `qwen3.5:9b` 기본 adapter | 로컬 structured output, timeout·idempotency·검증·fallback 제공; OpenAI는 선택 adapter |
 | 공통 계약 | OpenAPI 3.1.0·JSON Schema 2020-12 | Python·TypeScript 사이 단일 API schema |
 | 초기 저장 | SQLite + 계정별 localStorage | 계정·세션·분석·공개 행사는 서버, 기획 초안은 브라우저 |
-| 서버 | Ubuntu·Nginx·systemd | 단일 개인 서버, 같은 origin으로 frontend·API 제공 |
+| 운영 | Vercel(frontend) + 오라클 VM의 systemd FastAPI, Tailscale Funnel | frontend rewrites가 `/api/v1/*`를 백엔드로 프록시해 같은 origin 유지 |
 | 협업 | GitHub | branch와 pull request 기반 검토 |
 
 ### Next.js를 선택한 이유
 
 - 캘린더·지도 marker·filter·URL 상태를 EVENT-US 공개 동작에 가깝게 구현하기 쉽습니다.
 - 기획자 form과 사용자 탐색을 같은 design system과 routing에서 유지할 수 있습니다.
-- TypeScript client를 OpenAPI에서 생성해 두 담당자의 response type 중복을 줄일 수 있습니다.
+- 공통 OpenAPI 계약을 TypeScript 타입(`frontend/lib/types.ts`)으로 그대로 옮겨 두 화면의 response type 중복을 줄입니다.
 - Streamlit은 data spike와 내부 model demo에는 빠르지만 목표 UI·반응형·상태 동기화의 제약이 커서 제품
   frontend에서는 제외합니다.
 
-공통 schema는 [`SHARED_SPEC.md`](SHARED_SPEC.md), 개인 서버 배포 조건은
-[`DEPLOYMENT.md`](DEPLOYMENT.md)를 따릅니다.
+공통 schema는 [`SHARED_SPEC.md`](SHARED_SPEC.md), 실제 배포 구조는
+[`DEPLOY_RUNBOOK.md`](DEPLOY_RUNBOOK.md)를 따릅니다.
 
-## 목표 폴더 구조
+## 폴더 구조
 
 ```text
 heungmap/
@@ -41,14 +41,12 @@ heungmap/
 ├─ data/
 │  ├─ raw/              # API 원본, Git 제외
 │  └─ processed/        # 학습표, Git 제외
-├─ scripts/             # 데이터 수집·조립
-├─ model/               # 학습·평가·추론
-├─ backend/             # FastAPI
+├─ scripts/             # 서버 배포·재학습 설치(oracle/), 배포 smoke, 로컬 실행
+├─ backend/             # FastAPI, 데이터 수집·학습·추론(app/demand, app/attendance, scripts/)
 └─ frontend/            # Next.js App Router·TypeScript
 ```
 
-현재 backend·frontend·수집 및 모델 평가 script와 테스트가 구현되어 있습니다. 통합 실행과
-인증·저장 경계는 [통합 안내](SERVICE_INTEGRATION.md), 전달 상태는 [세션 인계](NEXT_SESSION_COMMAND.md)를 따릅니다.
+통합 실행과 인증·저장 경계는 [통합 안내](SERVICE_INTEGRATION.md), 배포 구조는 [배포 기록](DEPLOY_RUNBOOK.md)을 따릅니다.
 
 ## 로컬 환경 기준
 
