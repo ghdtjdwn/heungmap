@@ -4,6 +4,12 @@
 
 <h3 align="center">🏅 2026 관광데이터 활용 공모전 우수상</h3>
 
+<p align="center">
+  <a href="https://github.com/ghdtjdwn/heungmap/actions/workflows/ci.yml"><img src="https://github.com/ghdtjdwn/heungmap/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" /></a>
+  &nbsp;·&nbsp; 한국어 | <a href="README.en.md">English</a>
+</p>
+
 # 흥할지도 (HeungMap)
 
 **한국관광공사 OpenAPI와 지역 방문자 빅데이터로 축제의 흥행 여건을 예측하고, 같은 예측을 기획자와 방문객 모두에게 연결하는
@@ -12,6 +18,7 @@
 - 팀: 경사하강단
 - 서비스: [heungmap.vercel.app](https://heungmap.vercel.app)
 - 모델 한눈에 보기: [모델 카드](docs/MODEL_CARD.md) · 시연 순서와 예상 질문: [3분 시연](docs/PLANNER_DEMO.md)
+- 바로 보기: 방문객 화면([/visitor](https://heungmap.vercel.app/visitor?view=map))은 로그인 없이 열리고, 기획자 분석은 Google 로그인 뒤 쓸 수 있습니다.
 
 ## 해결하는 문제
 
@@ -22,6 +29,17 @@
 | --- | --- | --- |
 | 기획자(지자체·기획사·독립 기획자) | 행사명·일정(또는 후보)·시군구·규모·예산·제약을 단계별로 입력 | 행사기간 지역 방문수요 예측 범위, 흥행 진단, 우선 보완 항목, Claude가 쓴 기획 보고서, What-if 비교, 행사 공개 |
 | 방문객 | TourAPI 축제를 목록·지도·달력으로 탐색 | 흥행 진단(평소 대비 방문수요·지난 회차 규모·같은 기간 축제), 예측 범위, 주변 관광지·주차·숙박 |
+
+## 화면
+
+| 기획자: 행사기간 방문수요 예측 범위 | 기획자: 흥행 진단 |
+| --- | --- |
+| <img src="docs/assets/readme/10-result-overview.png" alt="기획자 분석 결과의 p10·p50·p90 예측 범위" width="440" /> | <img src="docs/assets/readme/11-result-diagnosis.png" alt="흥행 진단 카드" width="440" /> |
+| **기획자: TreeSHAP 기여 요인** | **방문객: 축제 지도** |
+| <img src="docs/assets/readme/13-result-factors-shap.png" alt="LightGBM TreeSHAP 기여 요인" width="440" /> | <img src="docs/assets/readme/21-visitor-map.png" alt="방문객 축제 지도와 말풍선" width="440" /> |
+
+실제 백엔드·실제 모델(`regional-daily-1.0-ab975d661247`)·실제 TourAPI 응답을 띄운 상태에서 2026-09-20에 Playwright로 촬영한
+화면이며 목업이 아닙니다. 전체 30장은 [docs/assets/submission-20260921/final](docs/assets/submission-20260921/final/README.md)에 있습니다.
 
 ## 무엇을 예측하나 (정직한 정의)
 
@@ -72,7 +90,8 @@ flowchart LR
 - 모델: pandas·LightGBM, 채택 artifact는 checksum·채택 조건을 검증한 뒤에만 불러옵니다.
 - LLM: Claude(개발 `claude-sonnet-5`, 발표 `claude-fable-5-1`). 입력에 없는 숫자·근거·고정 제약 위반을 서버가 검사하고,
   통과하지 못하면 규칙 보고서로 전환합니다.
-- 운영: 방문자 자료가 약 30일 늦게 공개되므로 오라클 서버가 매일 새 자료를 받아 재학습합니다([오라클 재학습](docs/ORACLE_MODEL_REFRESH.md)).
+- 운영: 프론트는 Vercel, 백엔드는 자체 서버(오라클 VM)의 systemd FastAPI이며 Tailscale Funnel로 공개 HTTPS를 받습니다([배포 기록](docs/DEPLOY_RUNBOOK.md)).
+  방문자 자료가 약 30일 늦게 공개되므로 같은 서버가 매일 새 자료를 받아 재학습합니다([오라클 재학습](docs/ORACLE_MODEL_REFRESH.md)).
 
 ## 실행
 
@@ -92,7 +111,7 @@ PowerShell 실행 정책이 로컬 스크립트를 막는 경우 현재 터미�
 `$env:TEMP\heungmap-local`에 저장되며 화면 주소는 `http://127.0.0.1:3000`입니다.
 
 ```bash
-cp .env.example .env            # TOURAPI_SERVICE_KEY, VISITOR_API_SERVICE_KEY, KAKAO_*, LLM_* 입력
+cp .env.example .env            # TOURAPI_SERVICE_KEY, VISITOR_API_SERVICE_KEY, KAKAO_* 입력. LLM 기본값은 로컬 Ollama(qwen3.5:9b), Claude는 LLM_PROVIDER=anthropic으로 선택
 python3 -m venv .venv
 brew install libomp             # macOS에서 LightGBM 실행에 필요
 .venv/bin/pip install -r backend/requirements-dev.txt -r backend/requirements-model.txt
@@ -100,7 +119,7 @@ PYTHONPATH=backend .venv/bin/uvicorn app.main:app --reload --port 8000
 ```
 
 ```bash
-cd frontend && npm install && npm run dev      # http://localhost:3000 → 로그인(체험 계정) → 역할 선택
+cd frontend && npm install && npm run dev      # http://localhost:3000 → 모의 로그인(HEUNGMAP_AUTH_MODE=mock) → 역할 선택
 ```
 
 기획자 화면의 **대형 축제 예시·소규모 행사 예시**는 날짜가 오늘 기준으로 계산돼 언제 열어도 실제 모델 예측이 나옵니다.
@@ -110,10 +129,11 @@ cd frontend && npm install && npm run dev      # http://localhost:3000 → 로�
 ## 검증
 
 ```bash
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q          # 172 passed (외부 API 호출 없이 격리)
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q          # 172 passed (외부 API 호출 없이 격리, CI에서도 실행)
 PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py  # 모델 상태·checksum·재계산·온라인 예측
 PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py --output data/processed/llm-eval.json
-cd frontend && npm run typecheck && npm run lint && npm run build && npm run e2e   # Playwright 24 passed
+cd frontend && npm run typecheck && npm run lint && npm run build        # CI에서도 실행
+cd frontend && npm run e2e                                               # Playwright 24개, Chrome 채널과 .venv가 있는 로컬에서만
 ```
 
 실행 중 모델 상태는 `GET /api/v1/system/model-status`와 기획자 대시보드의 "수요 모델" 카드에서 확인합니다.
@@ -124,7 +144,8 @@ cd frontend && npm run typecheck && npm run lint && npm run build && npm run e2e
 - 방문자 이력이 약 1년 반이라 명절 이동·기상이변을 충분히 학습하지 못했습니다. 성능은 후향 홀드아웃과 4일 전향 평가 기준입니다.
 - 예측은 오늘부터 30일 이내에 시작하거나 진행 중인 행사의 남은 날짜(최대 30일)를 대상으로 하며, 2026년 7월 행정구역 개편으로
   새로 생긴 인천 영종구·제물포구 등은 1년 이력이 쌓일 때까지 예측하지 않습니다.
-- 로그인은 체험용 모의 로그인이고 기획 초안은 브라우저에 저장됩니다. 실제 Google 연결·웹 서비스 운영 배포는 이번 범위 밖입니다.
+- 운영(heungmap.vercel.app)은 Google 로그인, 로컬 실행 기본값은 체험용 모의 로그인(`HEUNGMAP_AUTH_MODE=mock`)입니다. 기획 초안은 브라우저에만 저장되고 기기 간 동기화는 없습니다.
+- 방문자 자료 공표가 늦어지거나 재학습이 멈추면 예측 가능 구간이 줄어듭니다. 남은 일수는 `GET /api/v1/system/model-status`의 `days_until_stale`로 확인합니다.
 
 ## 문서
 
@@ -135,8 +156,12 @@ cd frontend && npm run typecheck && npm run lint && npm run build && npm run e2e
 | 서비스 범위·공통 계약 | [SERVICE_SPEC.md](docs/SERVICE_SPEC.md), [SHARED_SPEC.md](docs/SHARED_SPEC.md), [contracts/openapi.yaml](contracts/openapi.yaml) |
 | 데이터·API·게이트 | [DATA_AND_APIS.md](docs/DATA_AND_APIS.md), [OPENAPI_CATALOG.md](docs/OPENAPI_CATALOG.md), [DATA_GATE_REPORT.md](docs/DATA_GATE_REPORT.md), [data/README.md](data/README.md) |
 | 기획자·방문객 흐름 | [PLANNER_WORKFLOW.md](docs/PLANNER_WORKFLOW.md), [VISITOR_WORKFLOW.md](docs/VISITOR_WORKFLOW.md), [SERVICE_INTEGRATION.md](docs/SERVICE_INTEGRATION.md) |
-| 재학습 운영 | [ORACLE_MODEL_REFRESH.md](docs/ORACLE_MODEL_REFRESH.md) |
+| 배포·재학습 운영 | [DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md), [ORACLE_MODEL_REFRESH.md](docs/ORACLE_MODEL_REFRESH.md) |
 | 심사기준 대응 | [EVALUATION_CRITERIA.md](docs/EVALUATION_CRITERIA.md) |
 | 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D38) |
 | UI 브랜드·반응형·접근성 기준 | [UI_DESIGN_GUIDE.md](docs/UI_DESIGN_GUIDE.md) |
-| 개발 시작 안내 | [00_START_HERE.md](docs/00_START_HERE.md) |
+| 기술 스택·폴더 구조 | [TECH_STACK.md](docs/TECH_STACK.md) |
+
+## 라이선스
+
+코드는 [MIT](LICENSE)입니다. 한국관광공사 TourAPI·데이터랩, 문화체육관광부, Kakao 자료는 각 제공처의 이용약관을 따르며 저장소에 포함하지 않습니다.

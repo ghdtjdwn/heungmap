@@ -71,9 +71,9 @@ ssh <서버> 'crontab -l | grep heungmap'
 
 ## 실제 설치 상태 (2026-09-18)
 
-- 서버: 오라클 `ssumcp`(Ubuntu 22.04.5 ARM64). 관리 접속은 Tailscale `ubuntu@100.97.34.28`
-  (서버 안내서: `~/pal_server/docs/server-handbook.md`). 같은 VM에서 다른 서비스가 돌므로 폴더 하나·`nice`·새벽 실행을 지킵니다.
-- 설치: `scripts/oracle/push.sh ubuntu@100.97.34.28`. 폴더 `~/heungmap-model` 597MB, 서버에 없던 `libgomp`는 폴더 안에 둠.
+- 서버: 오라클 Always Free VM(Ubuntu 22.04.5 ARM64). 공인 IP가 없어 Tailscale로만 접속합니다(아래 `<서버>`).
+  같은 VM에서 다른 서비스가 돌므로 폴더 하나·`nice`·새벽 실행을 지킵니다.
+- 설치: `scripts/oracle/push.sh <서버>`. 폴더 `~/heungmap-model` 597MB, 서버에 없던 `libgomp`는 폴더 안에 둠.
 - cron: `30 19 * * *`(서버 시계 UTC → 한국 04:30). cron과 같은 최소 환경에서 1회 실행: 종료 코드 0, 5초, 메모리 220MB,
   새 자료 없음(공표 지연)으로 재학습 없음, 모델 v6 ready·만료까지 30일.
 - 재학습 경로 확인: 임시 폴더로 전체 재학습 38초, 최대 메모리 747MB, 채택(시험 WAPE 3.939%, v6와 동일). 모델 파일 해시는

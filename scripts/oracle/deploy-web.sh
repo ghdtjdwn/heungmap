@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # 맥에서 실행: 흥할지도 백엔드(FastAPI)를 오라클 서버 폴더 하나(기본 ~/heungmap-web)에 배포한다.
 # 사용: scripts/oracle/deploy-web.sh <ssh 대상> <프론트 공개 주소>
-#   예: scripts/oracle/deploy-web.sh ubuntu@100.97.34.28 https://heungmap.vercel.app
+#   예: scripts/oracle/deploy-web.sh ubuntu@1.2.3.4 https://heungmap.vercel.app
 # 여러 번 실행해도 안전하다(코드·설정은 갱신, 서버가 쌓은 계정 DB는 덮어쓰지 않음).
 #
 # 재학습 폴더(~/heungmap-model)와의 관계:

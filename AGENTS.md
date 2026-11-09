@@ -1,23 +1,26 @@
 # HeungMap project guidance
 
+HeungMap (흥할지도) predicts regional visitor demand (visitor-days per sigungu, p10·p50·p90) for the
+dates of a festival and serves the same prediction to planners and visitors. 2026 Tourism Data Contest
+award winner (designated task 9). Live: https://heungmap.vercel.app (Next.js on Vercel, FastAPI on a
+self-hosted server behind Tailscale Funnel).
+
 ## Read first
 
-Read `docs/00_START_HERE.md`, then `README.md`, `docs/SERVICE_SPEC.md`, `docs/TEAM_WORKFLOW.md`, `docs/SHARED_SPEC.md`, the applicable `docs/PLANNER_WORKFLOW.md` or `docs/VISITOR_WORKFLOW.md`, `docs/DELIVERY_MILESTONES.md`, `docs/DATA_AND_APIS.md`, `docs/MODEL_PLAN.md`, `docs/EVALUATION_CRITERIA.md`, `docs/DECISION_LOG.md`, `docs/OPENAPI_CATALOG.md`, `docs/TECH_STACK.md`, and `docs/DEPLOYMENT.md`. Treat these repository documents as the persistent source of truth.
+`README.md`, `docs/MODEL_CARD.md`, `docs/DEPLOY_RUNBOOK.md`, `contracts/openapi.yaml`, `docs/DECISION_LOG.md`.
 
-## Product and delivery invariants
+## Invariants
 
-- HeungMap is a two-person beginner project for the 2026 Tourism Data Contest designated task 9.
-- Korea Tourism Organization OpenAPI usage is mandatory and must remain visible in the product and submission evidence.
-- Prove the data gate before broad implementation: call `searchFestival2`, collect matching regional visitor data, and determine whether a defensible label can be joined.
-- Complete the runnable baseline product before starting the learned model, SHAP explanation, or LLM report.
-- Do not present regional visitors, modeled concentration, or relative indices as actual festival attendance.
-- Keep API keys, `.env`, raw or processed datasets, model artifacts, virtual environments, caches, and build output out of Git.
-- Preserve a reproducible path from source API response to derived features, prediction, and user-facing explanation.
-- Treat `docs/MODEL_PLAN.md` as a candidate registry: validate availability, leakage, quality, and value before adding a feature to training.
-- Treat `docs/PLANNER_WORKFLOW.md` as a candidate registry: keep the planner MVP small while preserving the model-before-LLM evidence flow.
-- Treat `docs/VISITOR_WORKFLOW.md` as the visitor-owner handoff: investigate the public EVENT-US flow only after role assignment and separate observed behavior from implementation inference.
-- Treat `contracts/openapi.yaml` as the approved shared HTTP contract. Do not introduce planner- or visitor-specific duplicates of common event, prediction, provenance, filter, or error types.
-- Use the selected Next.js·FastAPI split unless a new recorded decision replaces it; keep external API keys and model execution behind the backend boundary.
-- Record material product, data, and architecture decisions in `docs/DECISION_LOG.md`.
-- Split the two-person team by planner and visitor user journeys as defined in `docs/TEAM_WORKFLOW.md`; keep shared data and prediction contracts jointly reviewed.
-- Prefer small, tutorial-sized changes that can be run and verified by both team members on macOS and Windows.
+- Korea Tourism Organization TourAPI usage must stay visible in the product and the docs.
+- Never present regional visitors or modeled ranges as actual festival attendance.
+- Keep API keys, `.env`, raw/processed data, model artifacts, virtual environments and build output out of Git.
+- `contracts/openapi.yaml` is the single HTTP contract; `backend/tests/test_openapi_contract.py` checks it.
+- Record material product, data and architecture decisions in `docs/DECISION_LOG.md`.
+- Public docs carry no personal names, server addresses or account identifiers; use placeholders such as `<서버>`.
+
+## Verify
+
+```bash
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
+cd frontend && npm run typecheck && npm run lint && npm run build
+```
