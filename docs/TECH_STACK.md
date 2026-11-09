@@ -17,7 +17,7 @@ application 스택을 확정합니다. 학습 model과 LLM은 데이터·품질 
 | 설명 생성 | 공급자 중립 내부 계약 + Ollama `qwen3.5:9b` 기본 adapter | 로컬 structured output, timeout·idempotency·검증·fallback 제공; OpenAI는 선택 adapter |
 | 공통 계약 | OpenAPI 3.1.0·JSON Schema 2020-12 | Python·TypeScript 사이 단일 API schema |
 | 초기 저장 | SQLite + 계정별 localStorage | 계정·세션·분석·공개 행사는 서버, 기획 초안은 브라우저 |
-| 운영 | Vercel(frontend) + 오라클 VM의 systemd FastAPI, Tailscale Funnel | frontend rewrites가 `/api/v1/*`를 백엔드로 프록시해 같은 origin 유지 |
+| 운영 | Vercel(frontend, GitHub `main` 연동) + 단일 ARM64 VM의 Docker Compose(FastAPI `api` + 하루 1회 `refresh` 작업), 앞단 Caddy(Let's Encrypt) | frontend rewrites가 `/api/v1/*`를 백엔드로 프록시해 같은 origin 유지 |
 | 협업 | GitHub | branch와 pull request 기반 검토 |
 
 ### Next.js를 선택한 이유

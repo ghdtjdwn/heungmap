@@ -212,20 +212,22 @@ fallback_used
 - 성능, marker 밀집과 이미지 최적화
 - 접근성·다국어·관광 코스 확장 후보
 
-## 첫 작업 체크리스트
+## 첫 작업 체크리스트 (2026-09 작업 계획 기록, 종료)
 
-- [x] 사용자 서비스 담당자 확정 — @jisung1017
-- [ ] EVENT-US 조사 날짜·범위와 결과 기록 위치 확정
-- [ ] 공개 캘린더·지도·상세 page flow 조사
-- [ ] 확인한 사실과 구현 추론 분리
-- [ ] 핵심 persona와 대표 탐색 scenario 작성
-- [ ] MVP 화면·filter와 추후 항목 구분
-- [ ] desktop·mobile wireflow 작성
-- [ ] 공통 `Event`·`SearchFilter`·`Prediction` contract 검토
-- [ ] mock 행사 목록으로 캘린더·지도·상세 흐름 연결
-- [ ] 필수 UI 상태 구현·확인
-- [ ] 실제 TourAPI와 Kakao Map 연결
-- [ ] 상대 담당자와 같은 행사·prediction 결과 통합 확인
+2026-09 계획 단계의 목록입니다. 실제 구현 범위는 아래 "완료 조건"과 [SERVICE_INTEGRATION.md](SERVICE_INTEGRATION.md)가 기준이고, 체크 상태는 갱신하지 않습니다.
+
+- 사용자 서비스 담당자 확정 — @jisung1017
+- EVENT-US 조사 날짜·범위와 결과 기록 위치 확정
+- 공개 캘린더·지도·상세 page flow 조사
+- 확인한 사실과 구현 추론 분리
+- 핵심 persona와 대표 탐색 scenario 작성
+- MVP 화면·filter와 추후 항목 구분
+- desktop·mobile wireflow 작성
+- 공통 `Event`·`SearchFilter`·`Prediction` contract 검토
+- mock 행사 목록으로 캘린더·지도·상세 흐름 연결
+- 필수 UI 상태 구현·확인
+- 실제 TourAPI와 Kakao Map 연결
+- 상대 담당자와 같은 행사·prediction 결과 통합 확인
 
 ## 완료 조건
 

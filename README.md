@@ -66,7 +66,7 @@ p10·p50·p90 범위를 예측합니다. 특정 축제의 관람객 수나 현�
 | `detailCommon2`, `detailIntro2` | 방문객 축제 상세(소개·기간·홈페이지) |
 | `searchKeyword2` | 기획자 장소 후보 검색 |
 | `locationBasedList2` | 행사장·축제 주변 관광정보(관광지·문화시설·숙박·음식점 등). 주차장·숙박 보강은 Kakao Local |
-| 지역별 방문자수(한국관광공사 데이터랩) | 예측 모델 학습·예측 입력(원본 47만 행, 264개 시군구) |
+| 지역별 방문자수(한국관광공사 데이터랩) | 예측 모델 학습·예측 입력(원본 464,092행, 264개 시군구) |
 
 모든 결과에 출처·조회 시각을 붙여 화면의 "근거·출처"에서 추적할 수 있습니다. 보조 자료로 문화체육관광부 연도별 지역축제
 정보(전년 방문객 실제값), Kakao Local·지도(주소·주차·숙박 보강)를 씁니다.
@@ -82,7 +82,7 @@ flowchart LR
     F --> P[기획자: 분석·흥행 진단·보고서·What-if·공개]
     F --> V[방문객: 목록·지도·달력·상세]
     F --> L[Claude: 기획 보고서<br/>수치 변경 금지·검증 후 사용]
-    O[오라클 서버 cron] -->|매일 새 자료 수집·재학습| M
+    O[서버 systemd 타이머<br/>매일 04:30 재학습 작업] -->|새 자료 수집·재학습·채택 판단| M
 ```
 
 - Web: Next.js App Router·TypeScript, 흥할지도 브랜드 로고·색상 토큰과 360px까지 반응형([UI 가이드](docs/UI_DESIGN_GUIDE.md))
@@ -90,8 +90,9 @@ flowchart LR
 - 모델: pandas·LightGBM, 채택 artifact는 checksum·채택 조건을 검증한 뒤에만 불러옵니다.
 - LLM: Claude(개발 `claude-sonnet-5`, 발표 `claude-fable-5-1`). 입력에 없는 숫자·근거·고정 제약 위반을 서버가 검사하고,
   통과하지 못하면 규칙 보고서로 전환합니다.
-- 운영: 프론트는 Vercel, 백엔드는 자체 서버(오라클 VM)의 systemd FastAPI이며 Tailscale Funnel로 공개 HTTPS를 받습니다([배포 기록](docs/DEPLOY_RUNBOOK.md)).
-  방문자 자료가 약 30일 늦게 공개되므로 같은 서버가 매일 새 자료를 받아 재학습합니다([오라클 재학습](docs/ORACLE_MODEL_REFRESH.md)).
+- 운영: 프론트는 Vercel(GitHub `main` 연동 자동 배포), 백엔드는 자체 ARM64 VM 한 대에서 Docker Compose로 실행하고 앞단 Caddy가 HTTPS(Let's Encrypt)를
+  종료합니다([배포 구조](docs/DEPLOY_RUNBOOK.md)). 방문자 자료가 약 30일 늦게 공개되므로 같은 서버의 systemd 타이머가 매일 04:30 KST에 새 자료를 받아
+  재학습 작업을 실행하고, 채택 조건을 통과한 후보만 새 모델로 씁니다([재학습 운영](docs/ORACLE_MODEL_REFRESH.md)).
 
 ## 실행
 
@@ -123,8 +124,7 @@ cd frontend && npm install && npm run dev      # http://localhost:3000 → 모�
 ```
 
 기획자 화면의 **대형 축제 예시·소규모 행사 예시**는 날짜가 오늘 기준으로 계산돼 언제 열어도 실제 모델 예측이 나옵니다.
-모델 자료 파일(`data/processed/daily-forecast-production-v*`)은 Git에 없으므로 [재현 절차](docs/MODEL_EVALUATION.md)로
-만들거나 `scripts/oracle/pull.sh <서버>`로 가져옵니다.
+모델 자료 파일(`data/processed/daily-forecast-production-v*`)은 Git에 없으므로 [재현 절차](docs/MODEL_EVALUATION.md)로 만듭니다.
 
 ## 검증
 

@@ -399,7 +399,7 @@ AI 모델은 두 화면이 공유하므로 한 사람만 이해하는 별도 작
 - [x] 규칙 score 구현
 - [x] 실제 514건으로 LightGBM 비교 — 시간 분할에서 baseline보다 나빠 제품 연결 보류
 - [x] 시간·group 분할과 MAE·Median AE·RMSE 결과 기록
-- [ ] 기획자·사용자 화면이 같은 prediction 계약을 사용하는지 확인 — 공통 계약 자료 준비, 공동 검토 대기
+- 기획자·사용자 화면이 같은 prediction 계약을 사용하는지 확인 — 2026-09 계획 항목(이후 공통 `Prediction` 계약으로 구현, [SERVICE_INTEGRATION.md](SERVICE_INTEGRATION.md))
 
 ## 미결 사항
 

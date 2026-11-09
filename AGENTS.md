@@ -2,8 +2,8 @@
 
 HeungMap (흥할지도) predicts regional visitor demand (visitor-days per sigungu, p10·p50·p90) for the
 dates of a festival and serves the same prediction to planners and visitors. 2026 Tourism Data Contest
-award winner (designated task 9). Live: https://heungmap.vercel.app (Next.js on Vercel, FastAPI on a
-self-hosted server behind Tailscale Funnel).
+award winner (designated task 9). Live: https://heungmap.vercel.app (Next.js on Vercel, FastAPI in Docker
+Compose on a self-hosted ARM64 VM behind a Caddy reverse proxy; a systemd timer retrains the model daily).
 
 ## Read first
 

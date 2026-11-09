@@ -112,5 +112,4 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_demand_model.py
 - [x] 지역 방문자와 특정 축제 관람객 표현 분리
 - [x] 모델 채택 기준과 실패 결과 기록
 - [x] 공통 `Event`, `Prediction`, `SourceRef`, `Problem` 재사용
-- [ ] label 이름·단위·UI 문구 두 팀원 승인 — **공동 검토 대기**
-- [ ] 기획자·방문객 화면의 동일 prediction 계약 확인 — **공동 검토 대기**
+- label 이름·단위·UI 문구, 기획자·방문객 화면의 동일 prediction 계약 — 2026-09 공동 검토 항목(이후 D25·D33과 [SERVICE_INTEGRATION.md](SERVICE_INTEGRATION.md)로 구현·종료)

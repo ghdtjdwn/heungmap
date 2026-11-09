@@ -38,14 +38,12 @@ cd frontend && npm run dev
 
 ## 재학습 절차 (2026-09-18 고정)
 
-**자동화(D34·D37)**: 매일 06:30 자동 실행을 등록합니다. 새 자료가 충분할 때만 재학습합니다.
+**자동화(D34·D37, 2026-10-15부터 Docker Compose + systemd 타이머)**: 운영 서버가 매일 04:30 KST에 `backend/scripts/scheduled_refresh.py`를
+실행합니다. 새 자료가 충분할 때만 재학습하고, 구조·기록 읽는 법은 [ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)에 있습니다.
 
 ```bash
-scripts/install-model-refresh.sh              # 이 컴퓨터(macOS launchd·리눅스 cron)에 등록, --uninstall로 해제
-scripts/oracle/push.sh <ssh 대상>             # 오라클 서버의 폴더 하나(~/heungmap-model)에 설치·등록
+PYTHONPATH=backend .venv/bin/python backend/scripts/scheduled_refresh.py              # 같은 절차를 로컬에서 한 번(--no-collect로 수집 생략)
 ```
-
-오라클 서버 사용법·확인·삭제는 [ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)를 봅니다.
 
 - 판단: 모델 기준일보다 7일 이상 새 자료 또는 노후까지 21일 이하(새 자료 1일 이상) → 현재 모델 전향 평가 → 재학습.
 - 기록: `data/processed/model-refresh-log.jsonl`. 종료 코드 0 정상, 2 재학습했지만 미채택, 4 노후 14일 이내·노후·모델 없음, 1 오류.
