@@ -49,7 +49,7 @@
 
 ## Windows 재현 체크리스트
 
-Windows에서는 아직 실제 실행하지 않았습니다. PowerShell에서 다음 순서로 재현하고 결과를 공동 확인합니다.
+Windows에서 재현할 때는 PowerShell에서 다음 순서로 실행합니다(`scripts/start-local.ps1`·`stop-local.ps1`도 같은 환경을 가정합니다).
 
 ```powershell
 py -m venv .venv

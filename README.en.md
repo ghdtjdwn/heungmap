@@ -52,7 +52,7 @@ passes all five pre-registered adoption criteria (see Limits for the provisional
 - API: FastAPI, Pydantic, single OpenAPI 3.1 contract in `contracts/openapi.yaml`
 - Model: pandas, LightGBM; adopted artifacts are checksum-verified before loading
 - LLM: Claude (or the local Ollama default in `.env.example`) writes the planner report; the server rejects numbers or claims not present in the input and falls back to a rule-based report
-- Operations: FastAPI runs as a systemd service on a self-hosted Oracle VM behind Tailscale Funnel and retrains daily as new visitor data is published ([runbook, ko](docs/DEPLOY_RUNBOOK.md))
+- Operations: the frontend deploys from GitHub `main` on Vercel; the FastAPI backend runs in Docker Compose on a single self-hosted ARM64 VM behind a Caddy reverse proxy (Let's Encrypt). A systemd timer on the same VM runs the retraining job daily at 04:30 KST and only adopts candidates that pass the adoption criteria ([runbook, ko](docs/DEPLOY_RUNBOOK.md), [retraining, ko](docs/ORACLE_MODEL_REFRESH.md))
 
 ## Run locally
 
