@@ -70,6 +70,8 @@ scripts/oracle/deploy-web.sh <서버> https://heungmap.vercel.app
 
 ### 4. 프론트 배포 (Vercel) — 완료
 
+2026-09-20에는 아래처럼 CLI로 올렸습니다. **2026-11-09부터는 GitHub 연동 자동 배포**로 바뀌었습니다(이 절 끝 참고).
+
 ```bash
 cd frontend
 vercel link --yes --project heungmap --scope <Vercel 팀>
@@ -82,6 +84,12 @@ vercel --prod --yes
 - 리포 루트 `.env`가 없는 Vercel 환경에서 빌드됩니다. `next.config.ts`가 `KAKAO_JAVASCRIPT_KEY`를
   환경변수에서 먼저 읽고 없을 때만 `../.env`를 보기 때문입니다.
 - 백엔드 주소(`HEUNGMAP_BACKEND_URL`)를 넣기 전에는 `/api/v1/*`가 404였습니다. 아래가 마지막 단계입니다.
+
+**현재(2026-11-09 이후) 배포 방식**: Vercel 프로젝트가 GitHub `ghdtjdwn/heungmap`의 `main`에 연결돼 있어
+PR이 `main`에 머지되면 자동으로 production 배포됩니다(`vercel git connect`로 연결, Root Directory `frontend`).
+프리뷰(비-production) 빌드는 Ignored Build Step으로 건너뛰므로 PR마다 빌드가 돌지 않습니다.
+`frontend/`에서 `vercel --prod`를 치던 수동 방식은 Root Directory 설정과 맞지 않아 더 쓰지 않고, 다시 올려야 하면
+Vercel 대시보드의 Redeploy를 씁니다. 환경변수(`KAKAO_JAVASCRIPT_KEY`, `HEUNGMAP_BACKEND_URL`)는 그대로 Production에 둡니다.
 
 ### 5. 배포된 백엔드 실사용 흐름 검증 — 15/15 통과
 
