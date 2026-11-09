@@ -171,6 +171,6 @@ function ModelStatusCard() {
     <strong>{status.status === "stale" ? "갱신 필요" : `~${shortDate(status.last_predictable_target_date)}`}{status.status !== "stale" && <small>예측</small>}</strong>
     <p>{status.status === "stale"
       ? "자료가 오래돼 예측을 제공하지 않습니다. 잠시 뒤 다시 확인해 주세요."
-      : `시군구 방문자-일 · 관람객 수 아님 · ${status.days_until_stale}일 뒤 갱신${soon ? " (곧 만료)" : ""} · 전국 ${status.regions ?? "-"}개 시군구`}</p>
+      : `시군구 방문자-일 · 관람객 수 아님 · ${status.days_until_stale}일 뒤 갱신${soon ? " (곧 만료)" : ""} · 전국 ${status.regions ?? "-"}개 시군구${status.adoption_mode === "provisional" ? " · 임시 채택 모델" : ""}`}</p>
   </article>;
 }

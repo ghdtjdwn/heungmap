@@ -62,6 +62,7 @@ def test_daily_artifact_corruption_and_unsupported_event_fail_closed(artifact):
 def test_model_status_reports_ready_stale_and_unavailable_without_paths(artifact, tmp_path, monkeypatch):
     ready = daily_service.model_status(NOW)
     assert ready["status"] == "ready" and ready["adopted"] and ready["regions"] == 1
+    assert ready["adoption_mode"] == "full" and ready["failed_checks"] == []
     assert ready["last_predictable_target_date"] == date(2026, 10, 14) and ready["days_until_stale"] == 29
     stale = daily_service.model_status(datetime(2026, 11, 1, tzinfo=ZoneInfo("Asia/Seoul")))
     assert stale["status"] == "stale" and stale["days_until_stale"] < 0
@@ -177,3 +178,68 @@ def test_ended_far_future_and_unpredictable_windows_are_unavailable(artifact):
     assert predict_range(date(2026, 9, 1), date(2026, 9, 14)).message == "이미 끝난 행사는 예측하지 않습니다."
     assert predict_range(date(2026, 10, 16), date(2026, 10, 18)).reason_code == "insufficient_data"
     assert predict_range(date(2026, 10, 20), date(2026, 10, 21)).message == "행사 시작 30일 전부터 예측을 제공합니다."
+
+
+PARTIAL_CHECKS = {"beats_seasonal_growth_wape": True, "beats_seasonal_growth_rmsle": False, "median_ape_below_10pct": True,
+                  "within_20pct_at_least_75pct": True, "interval_80_coverage_at_least_75pct": False}
+
+
+def rejected_artifact(tmp_path, monkeypatch, checks):
+    """채택 조건 일부가 실패해 미채택으로 저장된 artifact(재학습 작업이 만드는 모양과 같다)."""
+    import json
+
+    dates = pd.date_range("2025-01-01", "2026-08-15")
+    daily = pd.DataFrame({"date": dates, "region_code": "11110", "region_name": "합성 시군구",
+                          "visitor_count": 100_000 + dates.dayofweek * 2_000.0, "retrieved_at": "2026-09-01T00:00:00+00:00"})
+    frame, _ = build_daily_forecast_dataset(daily)
+    parameters = CANDIDATES[0]
+    models = tuple(_fit(frame, parameters, alpha) for alpha in (0.1, None, 0.9))
+    report = {"generated_at": "2026-09-02T00:00:00+00:00", "model_version": "synthetic-daily", "model_adopted": False,
+              "adoption_mode": "rejected", "adoption_checks": checks,
+              "rejection_reasons": [name for name, passed in checks.items() if not passed],
+              "selected_candidate": {"parameters": parameters}, "calibration_log_error_quantiles": [-0.1, 0.1], "limitations": []}
+    output = tmp_path / "rejected-artifact"
+    save_daily_run(output, report, models, frame.tail(2), frame, daily, {}, [])
+    assert json.loads((output / "manifest.json").read_text())["failed_checks"] == report["rejection_reasons"]
+    monkeypatch.setenv("HEUNGMAP_DAILY_MODEL_DIR", str(output))
+    daily_service._load.cache_clear()
+    return output
+
+
+def test_provisional_adoption_marks_artifact_and_model_status_reports_failed_checks(tmp_path, monkeypatch):
+    from app.demand.daily_training import mark_provisional_adoption
+
+    output = rejected_artifact(tmp_path, monkeypatch, PARTIAL_CHECKS)
+    assert daily_service.model_status(NOW)["status"] == "unavailable"
+    marked = mark_provisional_adoption(output)
+    daily_service._load.cache_clear()
+    status = daily_service.model_status(NOW)
+    assert marked["adoption_mode"] == "provisional" and status["status"] == "ready" and status["adopted"]
+    assert status["adoption_mode"] == "provisional"
+    assert status["failed_checks"] == ["beats_seasonal_growth_rmsle", "interval_80_coverage_at_least_75pct"]
+    assert predict().status == "available"
+    daily_service._load.cache_clear()
+
+
+def test_provisional_adoption_refuses_primary_failures_and_tampered_artifacts(tmp_path, monkeypatch):
+    import json
+
+    from app.demand.daily_training import mark_provisional_adoption
+    from app.demand.forecasting import file_digest
+
+    output = rejected_artifact(tmp_path, monkeypatch, {**PARTIAL_CHECKS, "median_ape_below_10pct": False})
+    with pytest.raises(ValueError):
+        mark_provisional_adoption(output)
+    assert daily_service.model_status(NOW)["status"] == "unavailable"
+    # 파일을 직접 고쳐 1차 조건 실패를 임시 채택으로 꾸며도 서비스는 거부한다.
+    manifest = json.loads((output / "manifest.json").read_text())
+    report = json.loads((output / "evaluation.json").read_text())
+    report.update(model_adopted=True, adoption_mode="provisional")
+    (output / "evaluation.json").write_text(json.dumps(report), encoding="utf-8")
+    manifest.update(model_adopted=True, adoption_mode="provisional")
+    manifest["files"]["evaluation.json"] = file_digest(output / "evaluation.json")
+    (output / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    daily_service._load.cache_clear()
+    forged = daily_service.model_status(NOW)
+    assert forged["status"] == "unavailable" and "1차" in forged["reason"]
+    daily_service._load.cache_clear()

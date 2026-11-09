@@ -522,6 +522,8 @@ paths:
       description: |
         시연·운영 전에 모델이 예측을 낼 수 있는지 확인한다. 파일 경로·비밀값은 반환하지 않는다.
         stale은 자료 기준일이 60일을 넘어 모든 예측이 unavailable이 되는 상태다.
+        adoption_mode가 provisional이면 기존 모델이 노후(임박)해 1차 조건만 통과한 후보를 임시로 쓰는 중이며,
+        failed_checks에 통과하지 못한 보조 조건이 적힌다.
       responses:
         "200":
           description: 모델 상태. 모델을 불러오지 못해도 200과 unavailable을 반환한다.
@@ -1002,6 +1004,15 @@ components:
         created_at:
           type: string
           format: date-time
+        adoption_mode:
+          type: string
+          enum: [full, provisional]
+          description: full은 채택 조건 5개를 모두 통과한 모델. provisional은 기존 모델 노후(임박) 때 1차 조건(기준선 대비 WAPE, 중앙 절대비율오차 10% 미만, ±20% 이내 75% 이상)만 통과한 후보를 임시 채택한 상태
+        failed_checks:
+          type: array
+          items:
+            type: string
+          description: 임시 채택 모델이 통과하지 못한 보조 조건 이름(beats_seasonal_growth_rmsle, interval_80_coverage_at_least_75pct). full이면 빈 배열
         last_predictable_target_date:
           type: string
           format: date

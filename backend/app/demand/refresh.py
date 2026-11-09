@@ -8,13 +8,36 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from app.demand import daily_service
-from app.demand.daily_training import next_production_directory, train_daily_model
+from app.demand.daily_training import mark_provisional_adoption, next_production_directory, train_daily_model
+from app.demand.forecasting import provisional_adoption_failures
 from app.demand.training_inputs import default_visitor_paths, latest_raw_date
 
 
 MIN_NEW_DAYS = 7          # 모델 자료 기준일보다 7일 이상 새 자료가 쌓이면 재학습한다.
 STALE_MARGIN_DAYS = 21    # 노후까지 21일 이하로 남으면 새 자료가 하루라도 있으면 재학습한다.
 WARN_DAYS = 14            # 재학습 후에도 노후까지 14일 이하면 경고 종료 코드를 낸다.
+PROVISIONAL_MARGIN_DAYS = 14  # 현재 모델이 노후까지 14일 이하(또는 이미 노후·없음)이고 후보가 1차 조건만 통과하면 임시 채택한다.
+
+
+def provisional_margin_days() -> int:
+    """임시 채택 기준 일수. 환경변수 HEUNGMAP_PROVISIONAL_ADOPTION_DAYS로 바꾼다(기본 14)."""
+    value = os.environ.get("HEUNGMAP_PROVISIONAL_ADOPTION_DAYS", "").strip()
+    return int(value) if value else PROVISIONAL_MARGIN_DAYS
+
+
+def apply_adoption_policy(training: dict, output_dir: Path, before: dict) -> dict:
+    """5개 조건을 모두 통과하면 정식 채택(full). 아니면 현재 모델이 노후(임박)이고 후보가 1차 조건(WAPE·중앙 절대비율오차·±20%)을
+    모두 통과했을 때만 임시 채택(provisional)한다. 1차 조건이 하나라도 실패하면 어떤 경우에도 채택하지 않는다(rejected)."""
+    if training["model_adopted"]:
+        return {**training, "adoption_mode": "full"}
+    margin = provisional_margin_days()
+    remaining = before.get("days_until_stale")
+    stale_soon = before.get("status") != "ready" or (remaining is not None and remaining <= margin)
+    decision = {**training, "adoption_mode": "rejected", "provisional_margin_days": margin, "current_model_stale_soon": stale_soon}
+    failed = provisional_adoption_failures(training.get("checks") or {})
+    if stale_soon and failed:
+        decision.update(mark_provisional_adoption(output_dir))
+    return decision
 
 
 def collect_new_visitors(raw_dir: Path, today: date) -> dict:
@@ -72,16 +95,17 @@ def run_scheduled_refresh(*, raw_dir: Path, output_root: Path, today: date, coll
         if before["status"] in {"ready", "stale"} and data_end:
             result["forward_evaluation"] = _forward_evaluate(daily_service._directory(), data_end, today)
         output_dir = next_production_directory(output_root)
-        result["training"] = train_daily_model(default_visitor_paths(raw_dir), output_dir)
+        training = train_daily_model(default_visitor_paths(raw_dir), output_dir)
+        result["training"] = apply_adoption_policy(training, output_dir, before)
         result["action"] = "retrained"
     after = daily_service.model_status()
     result["after"] = {key: after.get(key) for key in ("status", "model_version", "data_end", "days_until_stale",
-                                                       "last_predictable_target_date")}
+                                                       "last_predictable_target_date", "adoption_mode")}
     return result
 
 
 def exit_code(result: dict) -> int:
-    """0 정상, 2 재학습했지만 미채택, 4 곧 노후(14일 이하)·노후·모델 없음."""
+    """0 정상(정식·임시 채택 모두), 2 재학습했지만 미채택, 4 곧 노후(14일 이하)·노후·모델 없음."""
     after = result["after"]
     if after["status"] != "ready" or (after.get("days_until_stale") or 0) <= WARN_DAYS:
         return 4

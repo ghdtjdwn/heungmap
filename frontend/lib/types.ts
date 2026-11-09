@@ -492,6 +492,8 @@ export type ModelStatus = {
   model_version?: string;
   data_end?: string;
   created_at?: string;
+  adoption_mode?: "full" | "provisional";
+  failed_checks?: string[];
   last_predictable_target_date?: string;
   days_until_stale?: number;
   regions?: number;

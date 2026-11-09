@@ -70,7 +70,7 @@ def _load(directory: str, state: tuple):
     import lightgbm as lgb
     import numpy as np
     import pandas as pd
-    from app.demand.forecasting import FEATURES
+    from app.demand.forecasting import FEATURES, provisional_adoption_failures
 
     root = Path(directory)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
@@ -85,8 +85,18 @@ def _load(directory: str, state: tuple):
     report = json.loads((root / "evaluation.json").read_text(encoding="utf-8"))
     if manifest.get("model_adopted") is not True or report.get("model_adopted") is not True:
         raise ValueError("채택되지 않은 일별 모델입니다.")
-    if not report.get("adoption_checks") or not all(report["adoption_checks"].values()):
-        raise ValueError("일별 모델의 채택 검증이 불완전합니다.")
+    checks = report.get("adoption_checks") or {}
+    mode = manifest.get("adoption_mode", "full")
+    if mode != report.get("adoption_mode", "full"):
+        raise ValueError("일별 모델의 채택 방식이 manifest와 평가 보고서에서 다릅니다.")
+    if mode == "full":
+        if not checks or not all(checks.values()):
+            raise ValueError("일별 모델의 채택 검증이 불완전합니다.")
+    elif mode == "provisional":  # 노후 직전 임시 채택: 1차 조건은 반드시 통과, 보조 조건 실패만 허용
+        if provisional_adoption_failures(checks) is None:
+            raise ValueError("임시 채택 모델이 1차 채택 조건을 통과하지 못했습니다.")
+    else:
+        raise ValueError("지원하지 않는 채택 방식입니다.")
     if manifest.get("model_version") != report.get("model_version"):
         raise ValueError("일별 모델 버전이 일치하지 않습니다.")
     created = datetime.fromisoformat(manifest["created_at"])
@@ -132,6 +142,7 @@ def model_status(now: datetime | None = None) -> dict:
     return {
         "status": "ready" if remaining >= 0 and created <= now else "stale", "adopted": True, "checked_at": now,
         "model_version": manifest["model_version"], "data_end": data_end, "created_at": created,
+        "adoption_mode": manifest.get("adoption_mode", "full"), "failed_checks": list(manifest.get("failed_checks") or []),
         "last_predictable_target_date": data_end + timedelta(days=STALE_AFTER_DAYS), "days_until_stale": remaining,
         "regions": len(prediction_regions(now)),  # 지금 선택·예측할 수 있는 시군구 수
     }

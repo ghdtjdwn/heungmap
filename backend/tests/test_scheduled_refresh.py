@@ -5,9 +5,19 @@ import pytest
 from app.demand import refresh
 
 
-def run(monkeypatch, tmp_path, *, latest, before, adopted=True):
-    calls = {"train": 0, "forward": 0}
-    statuses = iter([before, {**before, "status": "ready", "days_until_stale": 50, "data_end": latest} if adopted else before])
+PARTIAL = {"beats_seasonal_growth_wape": True, "beats_seasonal_growth_rmsle": False, "median_ape_below_10pct": True,
+           "within_20pct_at_least_75pct": True, "interval_80_coverage_at_least_75pct": False}
+ALL_PASS = dict.fromkeys(PARTIAL, True)
+PRIMARY_FAIL = {**PARTIAL, "beats_seasonal_growth_wape": False}
+
+
+def run(monkeypatch, tmp_path, *, latest, before, adopted=True, checks=None, provisional=False):
+    """재학습 전후 상태와 학습 결과를 대역으로 두고 run_scheduled_refresh만 실행한다. 임시 채택 파일 수정도 대역이다."""
+    calls = {"train": 0, "forward": 0, "mark": []}
+    served = adopted or provisional
+    after = {**before, "status": "ready", "days_until_stale": 50, "data_end": latest,
+             "adoption_mode": "provisional" if provisional and not adopted else "full"} if served else before
+    statuses = iter([before, after])
     monkeypatch.setattr(refresh.daily_service, "model_status", lambda: next(statuses))
     monkeypatch.setattr(refresh.daily_service, "_directory", lambda: tmp_path)
     monkeypatch.setattr(refresh, "latest_raw_date", lambda _paths: latest)
@@ -16,9 +26,16 @@ def run(monkeypatch, tmp_path, *, latest, before, adopted=True):
 
     def train(_paths, output_dir):
         calls["train"] += 1
-        return {"model_adopted": adopted, "output": str(output_dir)}
+        checks_used = checks if checks is not None else (ALL_PASS if adopted else PARTIAL)
+        return {"model_adopted": adopted, "output": str(output_dir), "checks": checks_used,
+                "failed_checks": [name for name, passed in checks_used.items() if not passed]}
+
+    def mark(output_dir):
+        calls["mark"].append(output_dir)
+        return {"model_adopted": True, "adoption_mode": "provisional", "failed_checks": ["beats_seasonal_growth_rmsle", "interval_80_coverage_at_least_75pct"]}
 
     monkeypatch.setattr(refresh, "train_daily_model", train)
+    monkeypatch.setattr(refresh, "mark_provisional_adoption", mark)
     result = refresh.run_scheduled_refresh(raw_dir=tmp_path, output_root=tmp_path, today=date(2026, 9, 25), collect=False)
     return result, calls
 
@@ -29,12 +46,13 @@ def ready(data_end, days):
 
 def test_few_new_days_and_fresh_model_do_nothing(monkeypatch, tmp_path):
     result, calls = run(monkeypatch, tmp_path, latest=date(2026, 8, 22), before=ready(date(2026, 8, 19), 40))
-    assert result["action"] == "none" and calls == {"train": 0, "forward": 0} and result["new_days"] == 3
+    assert result["action"] == "none" and calls == {"train": 0, "forward": 0, "mark": []} and result["new_days"] == 3
 
 
 def test_a_week_of_new_data_evaluates_then_retrains(monkeypatch, tmp_path):
     result, calls = run(monkeypatch, tmp_path, latest=date(2026, 8, 26), before=ready(date(2026, 8, 19), 40))
-    assert result["action"] == "retrained" and calls == {"train": 1, "forward": 1} and refresh.exit_code(result) == 0
+    assert result["action"] == "retrained" and calls["train"] == 1 and calls["forward"] == 1 and refresh.exit_code(result) == 0
+    assert result["training"]["adoption_mode"] == "full" and result["after"]["adoption_mode"] == "full"
 
 
 def test_close_to_stale_retrains_with_any_new_day(monkeypatch, tmp_path):
@@ -47,6 +65,42 @@ def test_no_new_data_near_stale_warns_and_rejected_model_is_reported(monkeypatch
     assert result["action"] == "none" and refresh.exit_code(result) == 4
     rejected, _ = run(monkeypatch, tmp_path, latest=date(2026, 8, 30), before=ready(date(2026, 8, 19), 40), adopted=False)
     assert refresh.exit_code({**rejected, "after": {"status": "ready", "days_until_stale": 40}}) == 2
+
+
+def test_near_stale_candidate_failing_only_secondary_checks_is_adopted_provisionally(monkeypatch, tmp_path):
+    result, calls = run(monkeypatch, tmp_path, latest=date(2026, 9, 11), before=ready(date(2026, 8, 19), 6),
+                        adopted=False, checks=PARTIAL, provisional=True)
+    training = result["training"]
+    assert calls["mark"] == [tmp_path / "daily-forecast-production-v1"]
+    assert training["model_adopted"] is True and training["adoption_mode"] == "provisional"
+    assert training["failed_checks"] == ["beats_seasonal_growth_rmsle", "interval_80_coverage_at_least_75pct"]
+    assert training["current_model_stale_soon"] is True and training["provisional_margin_days"] == 14
+    assert result["after"]["adoption_mode"] == "provisional" and refresh.exit_code(result) == 0
+
+
+def test_fresh_model_keeps_serving_when_candidate_fails_secondary_checks(monkeypatch, tmp_path):
+    result, calls = run(monkeypatch, tmp_path, latest=date(2026, 8, 30), before=ready(date(2026, 8, 19), 40),
+                        adopted=False, checks=PARTIAL)
+    assert calls["mark"] == [] and result["training"]["model_adopted"] is False
+    assert result["training"]["adoption_mode"] == "rejected" and result["training"]["current_model_stale_soon"] is False
+    assert result["after"]["model_version"] == "m" and refresh.exit_code({**result, "after": {"status": "ready", "days_until_stale": 40}}) == 2
+
+
+def test_stale_model_is_kept_when_candidate_fails_a_primary_check(monkeypatch, tmp_path):
+    before = {"status": "stale", "model_version": "m", "data_end": date(2026, 7, 1), "days_until_stale": -3}
+    result, calls = run(monkeypatch, tmp_path, latest=date(2026, 9, 20), before=before, adopted=False, checks=PRIMARY_FAIL)
+    assert calls["mark"] == [] and result["training"]["adoption_mode"] == "rejected"
+    assert result["training"]["current_model_stale_soon"] is True and result["after"]["status"] == "stale"
+    assert refresh.exit_code(result) == 4
+
+
+def test_provisional_margin_is_configurable_by_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("HEUNGMAP_PROVISIONAL_ADOPTION_DAYS", "3")
+    assert refresh.provisional_margin_days() == 3
+    result, calls = run(monkeypatch, tmp_path, latest=date(2026, 9, 11), before=ready(date(2026, 8, 19), 6), adopted=False, checks=PARTIAL)
+    assert calls["mark"] == [] and result["training"]["adoption_mode"] == "rejected" and result["training"]["provisional_margin_days"] == 3
+    monkeypatch.delenv("HEUNGMAP_PROVISIONAL_ADOPTION_DAYS")
+    assert refresh.provisional_margin_days() == 14
 
 
 def test_lock_blocks_overlapping_runs_and_log_appends(tmp_path):

@@ -60,6 +60,9 @@
   분할일은 `default_split_dates(data_end)`로 코드에 고정했습니다.
 - 채택 조건 5개(모두 통과해야 서비스): 기준선보다 WAPE 낮음, RMSLE 낮음, 중앙 절대비율오차 10% 미만,
   ±20% 이내 75% 이상, 80% 구간 실제 포함률 75% 이상.
+- 예외(D39): 현재 모델이 노후까지 14일 이하이거나 이미 노후면 1차 조건 3개(WAPE·중앙 절대비율오차·±20%)만 통과한 후보를
+  임시 채택합니다. 이때 `model-status`의 `adoption_mode`가 `provisional`, `failed_checks`에 실패한 보조 조건이 적힙니다
+  ([MODEL_EVALUATION.md](MODEL_EVALUATION.md) 임시 채택 규칙).
 
 ## 8. 성능
 
@@ -110,7 +113,8 @@ PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py      #
 PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_frozen_daily_model.py --model-dir <이전 폴더>  # 전향 평가
 ```
 
-재학습은 `scripts/model-refresh.sh`를 cron으로 매일 실행해 자동화합니다(D34). 새 폴더가 5개 조건을 통과해야 서비스가 자동으로 바꿔 씁니다. 실행 중 상태는
+재학습은 운영 서버의 하루 1회 타이머가 실행합니다(D34·D39, [ORACLE_MODEL_REFRESH.md](ORACLE_MODEL_REFRESH.md)). 새 폴더가 5개 조건을
+통과하면 서비스가 자동으로 바꿔 쓰고, 기존 모델이 노후 직전이면 1차 조건만 통과한 후보를 임시 채택합니다. 실행 중 상태는
 `GET /api/v1/system/model-status`로 확인합니다.
 
 ## 12. 발표 표현 지침
