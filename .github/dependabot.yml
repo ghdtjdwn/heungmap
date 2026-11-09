@@ -10,6 +10,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # typescript-eslint(eslint-config-next 경유)가 TypeScript 7을 아직 지원하지 않는다 (#85)
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
     groups:
       # @types/react-dom은 같은 minor의 @types/react를 peer로 요구하므로 react 계열은 한 PR로 묶는다
       react:
