@@ -55,7 +55,7 @@ p10·p50·p90 범위를 예측합니다. 특정 축제의 관람객 수나 현�
 
 - 학습에 쓰지 않은 새 날짜(08-16~19)로 동결 모델을 채점한 **전향 평가**에서도 WAPE 4.43%(기준선 4.98%)였습니다.
 - 작은 관광 군 지역은 오차가 커서 **신뢰도를 시군구별로** 표시합니다(홀드아웃 WAPE 5%/10% 기준).
-- 사전에 정한 5개 채택 조건을 모두 통과한 모델만 서비스에 연결되고, 기여 요인은 LightGBM TreeSHAP으로 보여 줍니다.
+- 사전에 정한 5개 채택 조건을 모두 통과한 모델을 서비스에 연결하고(노후 직전의 임시 채택은 아래 한계 참고), 기여 요인은 LightGBM TreeSHAP으로 보여 줍니다.
 - 시도한 뒤 기준 미달로 **채택하지 않은 것**도 기록했습니다: 축제별 관람객 모델(문체부 자료), TourAPI 축제 일정 입력(D30·D31).
 
 ## 한국관광공사 OpenAPI 활용
@@ -129,7 +129,7 @@ cd frontend && npm install && npm run dev      # http://localhost:3000 → 모�
 ## 검증
 
 ```bash
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q          # 172 passed (외부 API 호출 없이 격리, CI에서도 실행)
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q          # 178 passed (외부 API 호출 없이 격리, CI에서도 실행)
 PYTHONPATH=backend .venv/bin/python backend/scripts/verify_daily_model.py  # 모델 상태·checksum·재계산·온라인 예측
 PYTHONPATH=backend .venv/bin/python backend/scripts/evaluate_llm.py --output data/processed/llm-eval.json
 cd frontend && npm run typecheck && npm run lint && npm run build        # CI에서도 실행
@@ -146,6 +146,9 @@ cd frontend && npm run e2e                                               # Playw
   새로 생긴 인천 영종구·제물포구 등은 1년 이력이 쌓일 때까지 예측하지 않습니다.
 - 운영(heungmap.vercel.app)은 Google 로그인, 로컬 실행 기본값은 체험용 모의 로그인(`HEUNGMAP_AUTH_MODE=mock`)입니다. 기획 초안은 브라우저에만 저장되고 기기 간 동기화는 없습니다.
 - 방문자 자료 공표가 늦어지거나 재학습이 멈추면 예측 가능 구간이 줄어듭니다. 남은 일수는 `GET /api/v1/system/model-status`의 `days_until_stale`로 확인합니다.
+- 매일 재학습한 후보가 5개 채택 조건을 모두 통과하지 못하는 날이 이어지면 기존 모델을 유지하되, 예측 가능 마지막 날까지 14일 이하로 남으면
+  1차 조건(기준선 대비 WAPE·중앙 절대비율오차·±20% 이내)만 통과한 후보를 **임시 채택**합니다. 이때 `model-status`가 `adoption_mode: provisional`과
+  실패한 보조 조건 `failed_checks`를 함께 보여 주고, 5개를 모두 통과한 후보가 나오면 정식 채택으로 돌아갑니다([규칙](docs/MODEL_EVALUATION.md)).
 
 ## 문서
 
@@ -158,7 +161,7 @@ cd frontend && npm run e2e                                               # Playw
 | 기획자·방문객 흐름 | [PLANNER_WORKFLOW.md](docs/PLANNER_WORKFLOW.md), [VISITOR_WORKFLOW.md](docs/VISITOR_WORKFLOW.md), [SERVICE_INTEGRATION.md](docs/SERVICE_INTEGRATION.md) |
 | 배포·재학습 운영 | [DEPLOY_RUNBOOK.md](docs/DEPLOY_RUNBOOK.md), [ORACLE_MODEL_REFRESH.md](docs/ORACLE_MODEL_REFRESH.md) |
 | 심사기준 대응 | [EVALUATION_CRITERIA.md](docs/EVALUATION_CRITERIA.md) |
-| 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D38) |
+| 모든 결정의 이유 | [DECISION_LOG.md](docs/DECISION_LOG.md) (D1~D39) |
 | UI 브랜드·반응형·접근성 기준 | [UI_DESIGN_GUIDE.md](docs/UI_DESIGN_GUIDE.md) |
 | 기술 스택·폴더 구조 | [TECH_STACK.md](docs/TECH_STACK.md) |
 

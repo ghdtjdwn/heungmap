@@ -594,6 +594,8 @@ class ModelStatusResponse(ContractModel):
     model_version: str | None = None
     data_end: date | None = None
     created_at: datetime | None = None
+    adoption_mode: Literal["full", "provisional"] | None = None
+    failed_checks: list[str] | None = None
     last_predictable_target_date: date | None = None
     days_until_stale: int | None = None
     regions: int | None = Field(default=None, ge=0)

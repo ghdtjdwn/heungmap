@@ -43,8 +43,8 @@ per-district reliability grade into a "success diagnosis".
 | Seasonal + growth baseline | 4.256% | 3.514% | 97.24% |
 | **Adopted model** (baseline + LightGBM residual correction) | **3.939%** | **3.344%** | 97.20% |
 
-A frozen-model forward evaluation on unseen dates (08-16~19) gave WAPE 4.43% (baseline 4.98%). Only a model that
-passes all five pre-registered adoption criteria is served; factor contributions come from LightGBM TreeSHAP.
+A frozen-model forward evaluation on unseen dates (08-16~19) gave WAPE 4.43% (baseline 4.98%). A model is served when it
+passes all five pre-registered adoption criteria (see Limits for the provisional exception); factor contributions come from LightGBM TreeSHAP.
 
 ## Stack
 
@@ -73,7 +73,7 @@ cd frontend && npm install && npm run dev      # http://localhost:3000, mock log
 Model artifacts are not in Git; rebuild them with the [reproduction steps (ko)](docs/MODEL_EVALUATION.md).
 
 ```bash
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q   # 172 passed, isolated from external APIs
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q   # 178 passed, isolated from external APIs
 cd frontend && npm run typecheck && npm run lint && npm run build
 ```
 
@@ -84,6 +84,10 @@ cd frontend && npm run typecheck && npm run lint && npm run build
 - Only events starting within 30 days (or in progress) are predicted, for up to 30 remaining days. Districts created by the
   July 2026 administrative reorganization are skipped until a year of history exists.
 - If visitor data publication or retraining stalls, the predictable window shrinks; check `days_until_stale` at `GET /api/v1/system/model-status`.
+- When daily retraining keeps producing candidates that fail some of the five adoption criteria, the current model stays in service. Once it is
+  within 14 days of its last predictable date, a candidate that passes the three primary criteria (beats the baseline on WAPE, median absolute
+  ratio error below 10%, at least 75% within ±20%) is **adopted provisionally**; `model-status` then reports `adoption_mode: provisional` with the
+  failed secondary criteria in `failed_checks`, and the next candidate that passes all five returns the service to a full adoption ([rule, ko](docs/MODEL_EVALUATION.md)).
 
 ## License
 

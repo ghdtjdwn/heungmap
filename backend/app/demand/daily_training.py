@@ -1,6 +1,7 @@
 """일별 모델 학습·평가·저장을 한 번에 실행하는 공용 절차. 학습 script와 재학습 script가 함께 쓴다."""
 from __future__ import annotations
 
+import json
 import re
 from datetime import timedelta
 from pathlib import Path
@@ -8,7 +9,10 @@ from pathlib import Path
 import pandas as pd
 
 from app.demand.data import load_daily_visitors
-from app.demand.forecasting import FEATURES, build_daily_forecast_dataset, default_split_dates, evaluate_daily_forecast, save_daily_run
+from app.demand.forecasting import (
+    FEATURES, build_daily_forecast_dataset, default_split_dates, evaluate_daily_forecast, file_digest,
+    provisional_adoption_failures, save_daily_run,
+)
 
 
 PRODUCTION_PATTERN = re.compile(r"^daily-forecast-production-v(\d+)$")
@@ -35,8 +39,31 @@ def add_festival_ablation(report: dict, baseline_report: dict) -> dict:
     }
     report["adoption_checks"]["beats_no_festival_validation_wape"] = with_festival < without
     report["model_adopted"] = all(report["adoption_checks"].values())
+    report["adoption_mode"] = "full" if report["model_adopted"] else "rejected"
     report["rejection_reasons"] = [name for name, passed in report["adoption_checks"].items() if not passed]
     return report
+
+
+def mark_provisional_adoption(output_dir: Path) -> dict:
+    """미채택 artifact를 임시 채택으로 바꾼다. 1차 조건을 모두 통과하고 보조 조건만 실패한 모델에만 허용한다.
+
+    manifest.json·evaluation.json 두 파일의 model_adopted를 true, adoption_mode를 provisional로 쓰고 실패 조건 목록을 남긴다.
+    evaluation.json이 바뀌므로 manifest의 checksum도 다시 계산한다. 어떤 조건을 통과했는지(adoption_checks)는 고치지 않는다.
+    """
+    manifest_path, report_path = output_dir / "manifest.json", output_dir / "evaluation.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    failed = provisional_adoption_failures(report.get("adoption_checks") or {})
+    if failed is None:
+        raise ValueError("1차 채택 조건을 통과하지 못한 모델은 임시 채택할 수 없습니다.")
+    if manifest.get("model_version") != report.get("model_version"):
+        raise ValueError("일별 모델 버전이 일치하지 않습니다.")
+    report.update(model_adopted=True, adoption_mode="provisional")
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    manifest.update(model_adopted=True, adoption_mode="provisional", failed_checks=failed)
+    manifest["files"]["evaluation.json"] = file_digest(report_path)
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    return {"model_adopted": True, "adoption_mode": "provisional", "failed_checks": failed}
 
 
 def train_daily_model(visitor_paths: list[Path], output_dir: Path, *, validation_start: str | None = None,
@@ -70,6 +97,7 @@ def train_daily_model(visitor_paths: list[Path], output_dir: Path, *, validation
                    {"source": source_audit, "features": feature_audit}, [*visitor_paths, *(festival_paths or [])])
     return {
         "output": str(output_dir), "model_version": report["model_version"], "model_adopted": report["model_adopted"],
+        "adoption_mode": report["adoption_mode"], "failed_checks": report["rejection_reasons"],
         "split": report["split"], "holdout": report["time_holdout"], "interval_80_coverage": report["interval_80_coverage"],
         "checks": report["adoption_checks"], "ablation": report.get("ablation"),
         "festival_calendar": feature_audit.get("festival_calendar"), "data_end": data_end.date().isoformat(),

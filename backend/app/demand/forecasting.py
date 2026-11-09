@@ -26,6 +26,20 @@ CANDIDATES = (
     {"num_leaves": 11, "min_child_samples": 120, "n_estimators": 180, "learning_rate": 0.025, "model_weight": 0.4},
     {"num_leaves": 15, "min_child_samples": 120, "n_estimators": 200, "learning_rate": 0.025, "model_weight": 0.4},
 )
+# 채택 조건 5개 중 p50(점 예측) 정확도를 재는 1차 조건. 서비스가 보여 주는 숫자와 후보 선택 기준(WAPE)이 여기에 걸린다.
+PRIMARY_ADOPTION_CHECKS = ("beats_seasonal_growth_wape", "median_ape_below_10pct", "within_20pct_at_least_75pct")
+# 보조 조건: 기준선 대비 로그오차 순위(RMSLE)와 80% 구간 보정. 기존 모델이 노후(임박)일 때만 이 둘의 실패를 임시로 허용한다.
+SECONDARY_ADOPTION_CHECKS = ("beats_seasonal_growth_rmsle", "interval_80_coverage_at_least_75pct")
+
+
+def provisional_adoption_failures(checks: dict) -> list[str] | None:
+    """임시 채택이 가능하면 실패한 보조 조건 목록(모두 통과면 빈 목록), 1차 조건이 없거나 실패했거나 알 수 없는 조건이 실패했으면 None."""
+    if not checks or any(checks.get(name) is not True for name in PRIMARY_ADOPTION_CHECKS):
+        return None
+    failed = [name for name, passed in checks.items() if passed is not True]
+    if any(name not in SECONDARY_ADOPTION_CHECKS for name in failed):
+        return None
+    return failed
 
 
 def default_split_dates(data_end) -> tuple[str, str]:
@@ -271,6 +285,8 @@ def evaluate_daily_forecast(frame: pd.DataFrame, *, validation_start="2026-06-01
                          "wape_improvement": 1 - model_metrics["wape"] / baseline_metrics["wape"]},
         "interval_80_coverage": float(np.mean((actual >= predictions[0]) & (actual <= predictions[2]))),
         "adoption_checks": checks, "model_adopted": all(checks.values()),
+        # full: 5개 조건 모두 통과. rejected: 서비스 미사용. provisional: 재학습 작업이 노후 직전에 1차 조건만으로 임시 채택(daily_training.mark_provisional_adoption).
+        "adoption_mode": "full" if all(checks.values()) else "rejected",
         "rejection_reasons": [name for name, passed in checks.items() if not passed],
         "limitations": [
             "지역 전체 방문자-일 수요이며 특정 축제 관람객 수나 실제 현장 혼잡도가 아닙니다.",
@@ -310,6 +326,8 @@ def save_daily_run(output_dir: Path, report, models, predictions, frame, daily, 
     manifest = {
         "schema_version": "1.0", "model_version": report["model_version"], "created_at": report["generated_at"],
         "model_adopted": report["model_adopted"], "features": report.get("features", FEATURES),
+        "adoption_mode": report.get("adoption_mode", "full" if report["model_adopted"] else "rejected"),
+        "failed_checks": list(report.get("rejection_reasons", [])),
         "parameters": report["selected_candidate"]["parameters"],
         "calibration_log_error_quantiles": report["calibration_log_error_quantiles"],
         "data_end": pd.to_datetime(daily.date).max().date().isoformat(),
