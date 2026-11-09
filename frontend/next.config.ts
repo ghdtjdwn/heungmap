@@ -26,15 +26,29 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: projectRoot,
   },
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
-    // 목적지는 빌드 시점에 확정된다. 환경변수가 비면 호스트가 사라져 Vercel이 DNS_HOSTNAME_EMPTY를 낸다.
-    // 그래서 빈 문자열까지 걸러 내고(|| 사용), 배포 환경에서는 환경변수가 없어도 동작하도록 기본값을 둔다.
-    // 로컬 개발에서는 그대로 127.0.0.1 백엔드를 본다.
+    // 목적지는 빌드 시점에 확정된다. 환경변수가 빈 문자열이면 호스트가 사라져 Vercel이 DNS_HOSTNAME_EMPTY를 내므로
+    // ||로 빈 값까지 걸러 낸다. 배포 환경(VERCEL)에서는 HEUNGMAP_BACKEND_URL을 프로젝트 환경변수로 반드시 넣고,
+    // 없으면 잘못된 주소로 배포되기 전에 빌드를 멈춘다. 로컬 개발에서는 127.0.0.1 백엔드를 본다.
     // lib/backend.ts 와 같은 규칙. next.config는 번들 밖에서 실행돼 import를 피한다.
-    const backend = (
-      process.env.HEUNGMAP_BACKEND_URL ||
-      (process.env.VERCEL ? "https://ssumcp.tail5e04bc.ts.net" : "http://127.0.0.1:8000")
-    ).replace(/\/+$/, "");
+    const configured = process.env.HEUNGMAP_BACKEND_URL || "";
+    if (!configured && process.env.VERCEL) {
+      throw new Error("HEUNGMAP_BACKEND_URL이 비어 있습니다. Vercel 프로젝트 환경변수에 백엔드 공개 주소를 넣어 주세요.");
+    }
+    const backend = (configured || "http://127.0.0.1:8000").replace(/\/+$/, "");
     return [
       {
         source: "/api/v1/:path*",
