@@ -10,6 +10,14 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # @types/react-dom은 같은 minor의 @types/react를 peer로 요구하므로 react 계열은 한 PR로 묶는다
+      react:
+        patterns:
+          - react
+          - react-dom
+          - "@types/react"
+          - "@types/react-dom"
   - package-ecosystem: github-actions
     directory: /
     schedule:
