@@ -19,6 +19,16 @@ Excellence Award winner in the web/app track (designated task 9, festival succes
 - Live: [heungmap.vercel.app](https://heungmap.vercel.app) — the visitor pages open without login; planner analysis needs Google sign-in.
 - Model at a glance: [model card (ko)](docs/MODEL_CARD.md)
 
+## The problem
+
+Festival planning still leans heavily on past experience and intuition, while visitors have to look up schedules, crowding,
+parking and lodging across separate services. HeungMap connects **one prediction engine** to both groups.
+
+| User | What they do | What they get |
+| --- | --- | --- |
+| Planners (local governments, agencies, independent organizers) | Enter the event name, dates (or candidates), district, scale, budget and constraints step by step | Predicted regional demand range for the event period, success diagnosis, priority fixes, a Claude-written planning report, what-if comparison, event publishing |
+| Visitors | Browse TourAPI festivals as a list, map or calendar | Success diagnosis (demand vs. usual, previous edition's size, overlapping festivals), predicted range, nearby attractions, parking and lodging |
+
 ## Screens
 
 | Planner: predicted demand range | Planner: success diagnosis |
@@ -45,6 +55,19 @@ per-district reliability grade into a "success diagnosis".
 
 A frozen-model forward evaluation on unseen dates (08-16~19) gave WAPE 4.43% (baseline 4.98%). A model is served when it
 passes all five pre-registered adoption criteria (see Limits for the provisional exception); factor contributions come from LightGBM TreeSHAP.
+
+## How it uses Korea Tourism Organization OpenAPI
+
+| TourAPI (KorService2) | Used for |
+| --- | --- |
+| `searchFestival2` | Visitor festival list, map and calendar; number of competing festivals in the same period and district (success diagnosis); data gate and model experiments |
+| `detailCommon2`, `detailIntro2` | Visitor festival details (description, dates, homepage) |
+| `searchKeyword2` | Venue candidate search for planners |
+| `locationBasedList2` | Tourism information around the venue or festival (attractions, cultural facilities, lodging, restaurants). Parking and lodging are supplemented with Kakao Local |
+| Regional visitor counts (Korea Tourism Data Lab) | Model training and prediction input (464,092 source rows, 264 districts) |
+
+Every result carries its source and retrieval time, traceable from the "evidence and sources" view. Supporting data: MCST yearly regional
+festival records (previous-year attendance as actual values) and Kakao Local/Maps (address, parking and lodging enrichment).
 
 ## Stack
 
