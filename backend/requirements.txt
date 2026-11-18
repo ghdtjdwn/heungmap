@@ -3,5 +3,5 @@ httpx==0.28.1
 pydantic==2.14.3
 python-dotenv==1.2.4
 uvicorn==0.54.0
-Authlib==1.9.5
+Authlib==1.9.6
 anthropic==2.6.0
